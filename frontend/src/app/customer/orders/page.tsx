@@ -43,16 +43,27 @@ export default function CustomerOrdersPage() {
         return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">Delivered</Badge>;
       case 'OUT_FOR_DELIVERY':
         return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">Out For Delivery</Badge>;
+      case 'IN_TRANSIT':
       case 'SHIPPED':
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">Shipped</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">In Transit</Badge>;
+      case 'PICKED_UP_BY_COURIER':
+        return <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">Picked Up by Courier</Badge>;
+      case 'READY_FOR_PICKUP':
+        return <Badge className="bg-amber-50 text-amber-800 border-amber-300 text-xs">Ready for Pickup</Badge>;
       case 'PACKED':
         return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">Packed</Badge>;
+      case 'PICKING':
       case 'PROCESSING':
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">Processing</Badge>;
+        return <Badge className="bg-orange-50 text-orange-700 border-orange-200 text-xs">Warehouse Picking</Badge>;
       case 'ACCEPTED':
         return <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">Confirmed</Badge>;
+      case 'PAYMENT_RECEIVED':
       case 'PENDING_CONFIRMATION':
-        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Pending</Badge>;
+        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Payment Verified</Badge>;
+      case 'RETURNED':
+        return <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-xs">Returned</Badge>;
+      case 'REFUNDED':
+        return <Badge className="bg-pink-50 text-pink-700 border-pink-200 text-xs">Refunded</Badge>;
       case 'REJECTED':
       case 'CANCELLED':
         return <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs">Cancelled</Badge>;

@@ -7,14 +7,22 @@ export interface OrderItem {
 }
 
 export type OrderStageStatus = 
+  | 'PAYMENT_RECEIVED'
   | 'PENDING_CONFIRMATION'
   | 'ACCEPTED'
+  | 'PICKING'
   | 'PROCESSING'
   | 'PACKED'
+  | 'READY_FOR_PICKUP'
+  | 'PICKED_UP_BY_COURIER'
+  | 'IN_TRANSIT'
   | 'SHIPPED'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
-  | 'REJECTED';
+  | 'RETURNED'
+  | 'REFUNDED'
+  | 'REJECTED'
+  | 'CANCELLED';
 
 export interface TimelineCheckpoint {
   status: string;
@@ -32,6 +40,7 @@ export interface DeliveryPartner {
   rating: number;
   status: string;
   tracking_base_url: string;
+  active_shipments?: number;
 }
 
 export interface MerchantOrder {
@@ -52,7 +61,9 @@ export interface MerchantOrder {
   order_status: OrderStageStatus;
   status?: string; // backwards compatibility
   delivery_partner?: string | null;
+  awb_number?: string | null;
   tracking_id?: string | null;
+  current_location?: string | null;
   estimated_delivery?: string | null;
   timeline?: TimelineCheckpoint[];
   payment_id?: string;
@@ -90,6 +101,7 @@ export interface MerchantDashboardMetrics {
   total_orders: number;
   paid_orders: number;
   pending_orders?: number;
+  ready_for_pickup?: number;
   active_shipments?: number;
   total_products: number;
   total_customers?: number;
@@ -98,14 +110,4 @@ export interface MerchantDashboardMetrics {
   average_order_value: number;
   recent_orders: MerchantOrder[];
   revenue_trend: Array<{ date: string; revenue: number; orders: number }>;
-}
-
-export interface InventoryStats {
-  total_products: number;
-  total_inventory_units: number;
-  total_valuation_inr: number;
-  low_stock_count: number;
-  out_of_stock_count: number;
-  in_stock_rate_pct: number;
-  categories_count: number;
 }

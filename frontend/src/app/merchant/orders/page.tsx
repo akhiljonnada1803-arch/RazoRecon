@@ -18,36 +18,33 @@ import {
   MapPin, 
   Phone,
   Send,
-  Sliders,
   Check,
   X,
   RefreshCw,
   AlertCircle,
   ExternalLink,
-  Layers
+  Layers,
+  ArrowUpRight,
+  Boxes,
+  ClipboardList
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import Link from 'next/link';
 
 const STAGES_LIST = [
   'ALL',
-  'PENDING_CONFIRMATION',
+  'PAYMENT_RECEIVED',
   'ACCEPTED',
-  'PROCESSING',
+  'PICKING',
   'PACKED',
-  'COURIER_ASSIGNED',
-  'SHIPPED',
+  'READY_FOR_PICKUP',
+  'PICKED_UP_BY_COURIER',
+  'IN_TRANSIT',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
-  'REJECTED'
-];
-
-const COURIER_PARTNERS = [
-  { name: 'Delhivery Express', prefix: 'DLV', sla: '1-2 Days' },
-  { name: 'Blue Dart Air', prefix: 'BLU', sla: 'Next Day' },
-  { name: 'Shiprocket Omnichannel', prefix: 'SRK', sla: '2-3 Days' },
-  { name: 'Ekart Logistics', prefix: 'EKT', sla: '1-2 Days' }
+  'RETURNED'
 ];
 
 export default function MerchantOrdersPage() {
@@ -56,11 +53,6 @@ export default function MerchantOrdersPage() {
   const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // Courier Assignment Modal
-  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
-  const [courierOrderId, setCourierOrderId] = useState<string>('');
-  const [selectedCourier, setSelectedCourier] = useState('Delhivery Express');
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setToastMessage({ type, text });
@@ -80,61 +72,61 @@ export default function MerchantOrdersPage() {
 
   const orders: any[] = Array.isArray(ordersData) ? ordersData : [];
 
-  // Mutations
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string; status: string }) => {
-      return apiClient.put(`/merchant/orders/${orderId}/status?status=${status}`);
-    },
-    onMutate: async ({ orderId, status }) => {
-      await queryClient.cancelQueries({ queryKey: ['merchant', 'orders'] });
-      const previousData = queryClient.getQueryData(['merchant', 'orders', statusFilter]);
-
-      queryClient.setQueryData(['merchant', 'orders', statusFilter], (old: any) => {
-        if (!old) return old;
-        const updateList = (items: any[]) =>
-          items.map(o =>
-            (o.id === orderId || o.order_id === orderId || o.order_number === orderId)
-              ? { ...o, order_status: status, status: status }
-              : o
-          );
-
-        if (Array.isArray(old)) return updateList(old);
-        if (old.orders) return { ...old, orders: updateList(old.orders) };
-        return old;
-      });
-
-      return { previousData };
-    },
-    onSuccess: (_, variables) => {
-      showToast('success', `Order ${variables.orderId} updated to ${variables.status.replace(/_/g, ' ')}`);
+  // Merchant Action Mutations
+  const acceptMutation = useMutation({
+    mutationFn: (orderId: string) => apiClient.post(`/merchant/orders/${orderId}/accept`),
+    onSuccess: (_, orderId) => {
+      showToast('success', `Order ${orderId} accepted successfully`);
       queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
     },
-    onError: (err: any, variables, context: any) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(['merchant', 'orders', statusFilter], context.previousData);
-      }
-      showToast('error', `Failed to update status for ${variables.orderId}: ${err?.message || 'Server error'}`);
+    onError: (err: any, orderId) => {
+      showToast('error', `Failed to accept order ${orderId}: ${err?.message || 'Server error'}`);
     }
   });
 
-  const assignCourierMutation = useMutation({
-    mutationFn: ({ orderId, courier }: { orderId: string; courier: string }) => {
-      return apiClient.put(`/merchant/orders/${orderId}/courier?courier_name=${encodeURIComponent(courier)}`);
-    },
-    onSuccess: (_, variables) => {
-      setIsCourierModalOpen(false);
-      showToast('success', `Assigned ${variables.courier} and generated live AWB for order ${variables.orderId}`);
+  const pickingMutation = useMutation({
+    mutationFn: (orderId: string) => apiClient.post(`/merchant/orders/${orderId}/start-picking`),
+    onSuccess: (_, orderId) => {
+      showToast('success', `Warehouse picking initiated for ${orderId}`);
       queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
     },
-    onError: (err: any, variables) => {
-      showToast('error', `Failed to assign courier for ${variables.orderId}: ${err?.message || 'Server error'}`);
+    onError: (err: any, orderId) => {
+      showToast('error', `Failed to start picking for ${orderId}: ${err?.message || 'Server error'}`);
     }
   });
 
-  const handleOpenCourierModal = (orderId: string) => {
-    setCourierOrderId(orderId);
-    setIsCourierModalOpen(true);
-  };
+  const packMutation = useMutation({
+    mutationFn: (orderId: string) => apiClient.post(`/merchant/orders/${orderId}/pack`),
+    onSuccess: (_, orderId) => {
+      showToast('success', `Order ${orderId} packed and barcoded`);
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
+    },
+    onError: (err: any, orderId) => {
+      showToast('error', `Failed to pack order ${orderId}: ${err?.message || 'Server error'}`);
+    }
+  });
+
+  const readyForPickupMutation = useMutation({
+    mutationFn: (orderId: string) => apiClient.post(`/merchant/orders/${orderId}/ready-for-pickup`),
+    onSuccess: (_, orderId) => {
+      showToast('success', `Order ${orderId} staged in dispatch bay for courier pickup`);
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
+    },
+    onError: (err: any, orderId) => {
+      showToast('error', `Failed to mark ready for pickup ${orderId}: ${err?.message || 'Server error'}`);
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (orderId: string) => apiClient.post(`/merchant/orders/${orderId}/reject`, { reason: 'Out of Stock / Merchant Rejection' }),
+    onSuccess: (_, orderId) => {
+      showToast('success', `Order ${orderId} rejected and refund initiated`);
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
+    },
+    onError: (err: any, orderId) => {
+      showToast('error', `Failed to reject order ${orderId}: ${err?.message || 'Server error'}`);
+    }
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -142,19 +134,29 @@ export default function MerchantOrdersPage() {
         return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">Delivered</Badge>;
       case 'OUT_FOR_DELIVERY':
         return <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-xs">Out For Delivery</Badge>;
+      case 'IN_TRANSIT':
       case 'SHIPPED':
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">Shipped</Badge>;
-      case 'COURIER_ASSIGNED':
-        return <Badge className="bg-blue-50 text-[#0B72E7] border-blue-200 text-xs">Courier Assigned</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs">In Transit</Badge>;
+      case 'PICKED_UP_BY_COURIER':
+        return <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200 text-xs">Picked Up by Courier</Badge>;
+      case 'READY_FOR_PICKUP':
+        return <Badge className="bg-amber-50 text-amber-800 border-amber-300 text-xs font-semibold">Ready for Pickup</Badge>;
       case 'PACKED':
         return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">Packed</Badge>;
+      case 'PICKING':
       case 'PROCESSING':
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">Processing</Badge>;
+        return <Badge className="bg-orange-50 text-orange-700 border-orange-200 text-xs">Picking</Badge>;
       case 'ACCEPTED':
         return <Badge className="bg-teal-50 text-teal-700 border-teal-200 text-xs">Accepted</Badge>;
+      case 'PAYMENT_RECEIVED':
       case 'PENDING_CONFIRMATION':
-        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Pending</Badge>;
+        return <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">Payment Received</Badge>;
+      case 'RETURNED':
+        return <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-xs">Returned</Badge>;
+      case 'REFUNDED':
+        return <Badge className="bg-pink-50 text-pink-700 border-pink-200 text-xs">Refunded</Badge>;
       case 'REJECTED':
+      case 'CANCELLED':
         return <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs">Rejected</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">{status}</Badge>;
@@ -167,13 +169,15 @@ export default function MerchantOrdersPage() {
     const email = o.customer_email || '';
     const courier = o.delivery_partner || '';
     const tracking = o.tracking_id || '';
+    const awb = o.awb_number || '';
     const term = search.toLowerCase();
 
     return id.toLowerCase().includes(term) ||
            cust.toLowerCase().includes(term) ||
            email.toLowerCase().includes(term) ||
            courier.toLowerCase().includes(term) ||
-           tracking.toLowerCase().includes(term);
+           tracking.toLowerCase().includes(term) ||
+           awb.toLowerCase().includes(term);
   });
 
   return (
@@ -208,17 +212,29 @@ export default function MerchantOrdersPage() {
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
             <span>Merchant Operations</span>
             <span>•</span>
-            <span className="text-[#0B72E7] font-bold">Supply Chain & Fulfillment</span>
+            <span className="text-[#0B72E7] font-bold">Orders & Warehouse Fulfillment</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[#072654]">
-            Orders & 7-Stage Fulfillment Pipeline
+            Orders & Fulfillment Center
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Execute deterministic order status progressions from merchant acceptance, warehouse picking, packing, courier assignment, dispatch to final delivery.
+            Manage warehouse operations: Accept orders, pick inventory, pack tamper-proof boxes, and stage for courier pickup.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <Link href="/merchant/shipping">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 px-3.5 rounded-xl border-slate-200 text-xs font-semibold gap-1.5 text-[#072654] hover:bg-slate-50"
+            >
+              <Truck className="h-3.5 w-3.5 text-[#0B72E7]" />
+              <span>Logistics & Fleet Hub</span>
+              <ArrowUpRight className="h-3 w-3 text-slate-400" />
+            </Button>
+          </Link>
+
           <Button
             onClick={() => refetch()}
             variant="outline"
@@ -226,7 +242,7 @@ export default function MerchantOrdersPage() {
             className="h-10 px-3 rounded-xl border-slate-200 text-xs font-semibold gap-1.5"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${isFetching ? 'animate-spin text-[#0B72E7]' : ''}`} />
-            <span>Sync Orders</span>
+            <span>Sync</span>
           </Button>
         </div>
       </div>
@@ -238,14 +254,14 @@ export default function MerchantOrdersPage() {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               type="text"
-              placeholder="Search by Order ID, customer, email, or AWB tracking..."
+              placeholder="Search by Order ID, customer, AWB or tracking..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 text-xs rounded-xl border-slate-200"
             />
           </div>
 
-          {/* 7-Stage Horizontal Pipeline Filter Tabs */}
+          {/* Realistic E-Commerce Lifecycle Filter Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 custom-scrollbar">
             {STAGES_LIST.map((stage) => (
               <button
@@ -283,21 +299,22 @@ export default function MerchantOrdersPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-400 uppercase font-mono text-[10px]">
                 <tr>
-                  <th className="py-3.5 px-6 font-semibold">Order ID</th>
+                  <th className="py-3.5 px-6 font-semibold">Order ID & Date</th>
                   <th className="py-3.5 px-6 font-semibold">Customer</th>
                   <th className="py-3.5 px-6 font-semibold">Amount</th>
-                  <th className="py-3.5 px-6 font-semibold">Current Stage</th>
-                  <th className="py-3.5 px-6 font-semibold">Carrier / AWB</th>
-                  <th className="py-3.5 px-6 font-semibold text-right">Stage Actions</th>
+                  <th className="py-3.5 px-6 font-semibold">Fulfillment Stage</th>
+                  <th className="py-3.5 px-6 font-semibold">Courier / AWB Status</th>
+                  <th className="py-3.5 px-6 font-semibold text-right">Merchant Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredOrders.map((order) => {
                   const orderId = order.id || order.order_id || order.order_number || 'ORD_000';
-                  const currentStatus = order.order_status || order.status || 'PENDING_CONFIRMATION';
+                  const currentStatus = order.order_status || order.status || 'PAYMENT_RECEIVED';
                   const amount = order.total_amount || order.total || order.amount || 0;
-                  const courier = order.delivery_partner || 'Unassigned';
-                  const tracking = order.tracking_id || '-';
+                  const courier = order.delivery_partner;
+                  const awb = order.awb_number;
+                  const tracking = order.tracking_id;
 
                   return (
                     <tr key={orderId} className="hover:bg-slate-50/80 transition-colors">
@@ -309,8 +326,8 @@ export default function MerchantOrdersPage() {
                       </td>
 
                       <td className="py-4 px-6">
-                        <span className="font-semibold text-slate-800 block text-xs">{order.customer_name || 'Acme Retailer'}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{order.customer_email || 'buyer@acme.com'}</span>
+                        <span className="font-semibold text-slate-800 block text-xs">{order.customer_name || 'Customer'}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{order.customer_email || 'buyer@example.com'}</span>
                       </td>
 
                       <td className="py-4 px-6 font-mono font-bold text-slate-900">
@@ -322,27 +339,41 @@ export default function MerchantOrdersPage() {
                       </td>
 
                       <td className="py-4 px-6">
-                        <div className="space-y-0.5">
-                          <span className="font-semibold text-slate-700 block text-xs">{courier}</span>
-                          {tracking && tracking !== '-' ? (
-                            <span className="font-mono text-[10px] text-[#0B72E7] font-bold flex items-center gap-1">
-                              {tracking}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-[10px] text-slate-400">Awaiting Dispatch</span>
-                          )}
-                        </div>
+                        {awb ? (
+                          <div className="space-y-0.5">
+                            <span className="font-semibold text-slate-800 block text-xs">{courier}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-[10px] text-[#0B72E7] font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                {awb}
+                              </span>
+                              {tracking && (
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  ({tracking})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : currentStatus === 'READY_FOR_PICKUP' ? (
+                          <span className="font-mono text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-amber-600" />
+                            Awaiting Carrier Pickup
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono italic">
+                            Pre-Pickup (No AWB)
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* 7-Stage Interactive Action Buttons */}
-                          {currentStatus === 'PENDING_CONFIRMATION' && (
+                          {/* Merchant Actions strictly according to e-commerce fulfillment */}
+                          {(currentStatus === 'PAYMENT_RECEIVED' || currentStatus === 'PENDING_CONFIRMATION') && (
                             <>
                               <Button
                                 size="sm"
-                                onClick={() => updateStatusMutation.mutate({ orderId, status: 'ACCEPTED' })}
-                                disabled={updateStatusMutation.isPending}
+                                onClick={() => acceptMutation.mutate(orderId)}
+                                disabled={acceptMutation.isPending}
                                 className="h-7 px-2.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
                               >
                                 <Check className="h-3 w-3" />
@@ -351,8 +382,8 @@ export default function MerchantOrdersPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => updateStatusMutation.mutate({ orderId, status: 'REJECTED' })}
-                                disabled={updateStatusMutation.isPending}
+                                onClick={() => rejectMutation.mutate(orderId)}
+                                disabled={rejectMutation.isPending}
                                 className="h-7 px-2.5 rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50 text-[11px] font-semibold"
                               >
                                 Reject
@@ -363,63 +394,75 @@ export default function MerchantOrdersPage() {
                           {currentStatus === 'ACCEPTED' && (
                             <Button
                               size="sm"
-                              onClick={() => updateStatusMutation.mutate({ orderId, status: 'PROCESSING' })}
-                              disabled={updateStatusMutation.isPending}
-                              className="h-7 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
+                              onClick={() => pickingMutation.mutate(orderId)}
+                              disabled={pickingMutation.isPending}
+                              className="h-7 px-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
                             >
+                              <ClipboardList className="h-3 w-3" />
                               Start Picking
                             </Button>
                           )}
 
-                          {currentStatus === 'PROCESSING' && (
+                          {currentStatus === 'PICKING' && (
                             <Button
                               size="sm"
-                              onClick={() => updateStatusMutation.mutate({ orderId, status: 'PACKED' })}
-                              disabled={updateStatusMutation.isPending}
+                              onClick={() => packMutation.mutate(orderId)}
+                              disabled={packMutation.isPending}
                               className="h-7 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
                             >
+                              <Boxes className="h-3 w-3" />
                               Mark Packed
                             </Button>
                           )}
 
-                          {(currentStatus === 'PACKED' || currentStatus === 'COURIER_ASSIGNED') && (
+                          {currentStatus === 'PACKED' && (
                             <Button
                               size="sm"
-                              onClick={() => handleOpenCourierModal(orderId)}
-                              disabled={assignCourierMutation.isPending}
-                              className="h-7 px-2.5 rounded-lg bg-[#0B72E7] hover:bg-[#095ec2] text-white text-[11px] font-semibold gap-1 shadow-2xs"
+                              onClick={() => readyForPickupMutation.mutate(orderId)}
+                              disabled={readyForPickupMutation.isPending}
+                              className="h-7 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
                             >
-                              <Truck className="h-3 w-3" />
-                              Assign Courier
+                              <Package className="h-3 w-3" />
+                              Mark Ready For Pickup
                             </Button>
                           )}
 
-                          {currentStatus === 'SHIPPED' && (
-                            <Button
-                              size="sm"
-                              onClick={() => updateStatusMutation.mutate({ orderId, status: 'OUT_FOR_DELIVERY' })}
-                              disabled={updateStatusMutation.isPending}
-                              className="h-7 px-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
-                            >
-                              Out for Delivery
-                            </Button>
+                          {currentStatus === 'READY_FOR_PICKUP' && (
+                            <Link href={`/merchant/shipping?orderId=${orderId}`}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 rounded-lg border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 text-[11px] font-semibold gap-1"
+                              >
+                                <Truck className="h-3 w-3 text-amber-700" />
+                                <span>Courier Dispatch</span>
+                                <ArrowUpRight className="h-2.5 w-2.5" />
+                              </Button>
+                            </Link>
                           )}
 
-                          {currentStatus === 'OUT_FOR_DELIVERY' && (
-                            <Button
-                              size="sm"
-                              onClick={() => updateStatusMutation.mutate({ orderId, status: 'DELIVERED' })}
-                              disabled={updateStatusMutation.isPending}
-                              className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold gap-1 shadow-2xs"
-                            >
-                              <CheckCircle2 className="h-3 w-3" />
-                              Mark Delivered
-                            </Button>
+                          {['PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(currentStatus) && (
+                            <Link href={`/customer/track?orderId=${orderId}`} target="_blank">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-semibold gap-1"
+                              >
+                                <span>Track Live</span>
+                                <ExternalLink className="h-2.5 w-2.5 text-slate-400" />
+                              </Button>
+                            </Link>
                           )}
 
-                          {currentStatus === 'DELIVERED' && (
-                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-mono">
-                              Completed ✓
+                          {currentStatus === 'RETURNED' && (
+                            <Badge className="bg-slate-100 text-slate-700 border-slate-300 text-[10px] font-mono">
+                              Returned
+                            </Badge>
+                          )}
+
+                          {currentStatus === 'REFUNDED' && (
+                            <Badge className="bg-pink-50 text-pink-700 border-pink-200 text-[10px] font-mono">
+                              Refunded ✓
                             </Badge>
                           )}
 
@@ -438,76 +481,6 @@ export default function MerchantOrdersPage() {
           </div>
         )}
       </div>
-
-      {/* Courier Assignment Modal */}
-      {isCourierModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0B72E7] flex items-center justify-center font-bold">
-                  <Truck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base">Assign Delivery Partner</h3>
-                  <span className="text-xs text-slate-400 font-mono">Order: {courierOrderId}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCourierModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600">
-              Select an integrated logistics partner to generate an automated Air Waybill (AWB) tracking number and dispatch this shipment:
-            </p>
-
-            <div className="space-y-2">
-              {COURIER_PARTNERS.map((cp) => (
-                <button
-                  key={cp.name}
-                  onClick={() => setSelectedCourier(cp.name)}
-                  className={`w-full p-3 rounded-2xl border text-left text-xs transition-all flex items-center justify-between ${
-                    selectedCourier === cp.name
-                      ? 'bg-blue-50 border-[#0B72E7] text-[#072654]'
-                      : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/80 text-slate-800'
-                  }`}
-                >
-                  <div>
-                    <span className="font-bold block">{cp.name}</span>
-                    <span className="text-[10px] text-slate-500">Committed SLA: {cp.sla}</span>
-                  </div>
-                  {selectedCourier === cp.name && (
-                    <Check className="w-4 h-4 text-[#0B72E7]" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsCourierModalOpen(false)}
-                className="rounded-xl text-xs font-semibold"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => assignCourierMutation.mutate({ orderId: courierOrderId, courier: selectedCourier })}
-                disabled={assignCourierMutation.isPending}
-                className="bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl text-xs font-bold px-4"
-              >
-                {assignCourierMutation.isPending ? 'Generating AWB...' : 'Confirm Dispatch & AWB'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
