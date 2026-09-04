@@ -25,40 +25,46 @@ import {
 
 const DEMO_ROLES = [
   {
-    name: 'Finance Controller',
-    email: 'controller@acme.com',
-    badge: 'Recon & Month-End Close',
-    icon: '📊',
+    name: 'Platform Admin',
+    email: 'admin@razorcommerce.ai',
+    badge: 'Superuser Full Access (All 6 Modules)',
+    icon: '👑',
   },
   {
-    name: 'Chief Financial Officer',
-    email: 'cfo@acme.com',
-    badge: 'Dashboard, Copilot & Forecast',
-    icon: '💼',
-  },
-  {
-    name: 'Revenue Growth Manager',
-    email: 'growth@razorcommerce.ai',
-    badge: 'Catalog, Orders, Upsell & Campaigns',
-    icon: '📈',
+    name: 'Merchant Owner',
+    email: 'owner@acme.com',
+    badge: 'Revenue, Orders, Products & AI Insights',
+    icon: '🏬',
   },
   {
     name: 'Operations Manager',
-    email: 'ops@razorcommerce.ai',
-    badge: 'Catalog Inventory & Fulfillment',
+    email: 'ops@acme.com',
+    badge: 'Inventory, Fulfillment & Product Catalog',
     icon: '📦',
+  },
+  {
+    name: 'Revenue Manager',
+    email: 'growth@acme.com',
+    badge: 'Campaigns, Segments & Upsell Engine',
+    icon: '📈',
+  },
+  {
+    name: 'Finance Controller',
+    email: 'controller@acme.com',
+    badge: 'Reconciliation, Exceptions & Period Close',
+    icon: '📊',
+  },
+  {
+    name: 'Chief Financial Officer (CFO)',
+    email: 'cfo@acme.com',
+    badge: 'Executive Runway, Risk Intel & Copilot',
+    icon: '💼',
   },
   {
     name: 'Auditor',
     email: 'auditor@acme.com',
-    badge: 'Audit Logs & Compliance',
+    badge: 'Audit Logs, Timeline & Compliance SLA',
     icon: '🔍',
-  },
-  {
-    name: 'Platform Admin',
-    email: 'admin@razorrecon.ai',
-    badge: 'Superuser Full Access',
-    icon: '👑',
   },
 ];
 
@@ -68,7 +74,7 @@ export function Header() {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
 
-  const canCloseBooks = hasPermission('month_close:view') || hasPermission('month_close:execute');
+  const canCloseBooks = hasPermission('CLOSE_BOOKS') || hasPermission('MANAGE_SYSTEM');
 
   const { data: dashData } = useQuery<{ has_data?: boolean; kpis?: { open_exceptions: number }; cash_trend?: any[] }>({
     queryKey: ['dashboard', 'executive'],
@@ -155,18 +161,18 @@ export function Header() {
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-50/80 border border-purple-200 text-purple-800 text-xs font-semibold hover:bg-purple-100/80 transition-colors shadow-2xs"
           >
             <Sparkles className="h-3.5 w-3.5 text-purple-600" />
-            <span>Role: {user?.role || 'Controller'}</span>
-            <ChevronDown className="h-3 w-3 text-purple-500" />
+            <span className="max-w-[160px] truncate">Role: {user?.role || 'Merchant Owner'}</span>
+            <ChevronDown className="h-3 w-3 text-purple-500 shrink-0" />
           </button>
 
           {/* Quick Role Switcher Dropdown */}
           {isRoleSwitcherOpen && (
             <div className="absolute left-0 mt-2 w-80 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-3 py-2 border-b border-slate-100 text-[10px] font-bold font-mono uppercase tracking-wider text-purple-700">
-                QUICK-SWITCH DEMO PERSONAS
+                QUICK-SWITCH 7 DEMO PERSONAS
               </div>
 
-              <div className="space-y-1 mt-1">
+              <div className="space-y-1 mt-1 max-h-[360px] overflow-y-auto custom-scrollbar">
                 {DEMO_ROLES.map((r) => {
                   const isCurrent = user?.email === r.email;
                   return (
@@ -202,8 +208,8 @@ export function Header() {
 
       {/* Right: Operational Actions & User Profile Dropdown */}
       <div className="flex items-center gap-3">
-        {hasData && openExceptions > 0 && (
-          <Link href="/review" className="hidden sm:inline-block">
+        {hasData && openExceptions > 0 && hasPermission('VIEW_EXCEPTIONS') && (
+          <Link href="/finance/exceptions" className="hidden sm:inline-block">
             <Button
               variant="outline"
               size="sm"
@@ -239,10 +245,10 @@ export function Header() {
           >
             <div className="text-right hidden md:block">
               <span className="text-xs font-bold text-[#072654] block leading-tight">
-                {user?.name || user?.user_name || 'Finance Controller'}
+                {user?.name || user?.user_name || 'Rajesh Sharma'}
               </span>
               <span className="text-[10px] text-slate-400 block leading-tight font-medium">
-                {user?.role || 'Controller'}
+                {user?.role || 'Merchant Owner'}
               </span>
             </div>
 
@@ -257,32 +263,34 @@ export function Header() {
             <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="px-3 py-2 border-b border-slate-100">
                 <span className="text-xs font-bold text-[#072654] block">
-                  {user?.name || user?.user_name || 'Finance Controller'}
+                  {user?.name || user?.user_name || 'Rajesh Sharma'}
                 </span>
                 <span className="text-[11px] text-slate-400 font-mono block truncate">
-                  {user?.email || 'controller@acme.com'}
+                  {user?.email || 'owner@acme.com'}
                 </span>
                 <span className="inline-block mt-1 text-[10px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                  Role: {user?.role || 'Controller'}
+                  Role: {user?.role || 'Merchant Owner'}
                 </span>
               </div>
 
               <div className="space-y-0.5 mt-1 text-xs text-slate-700 font-medium">
-                <button
+                <Link
+                  href="/admin/users"
                   onClick={() => setIsUserDropdownOpen(false)}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 flex items-center gap-2"
                 >
                   <User className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Profile & Permissions</span>
-                </button>
+                  <span>User Directory</span>
+                </Link>
 
-                <button
+                <Link
+                  href="/admin/roles"
                   onClick={() => setIsUserDropdownOpen(false)}
                   className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 flex items-center gap-2"
                 >
                   <Settings className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Security & RBAC Matrix</span>
-                </button>
+                  <span>RBAC Permissions Matrix</span>
+                </Link>
 
                 <div className="border-t border-slate-100 my-1" />
 

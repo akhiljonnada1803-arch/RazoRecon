@@ -20,65 +20,74 @@ interface AuthContextType {
 }
 
 const DEFAULT_USER: UserDTO = {
-  id: 'usr_controller_01',
-  name: 'Finance Controller',
-  user_name: 'Finance Controller',
-  email: 'controller@acme.com',
+  id: 'usr_merchant_owner',
+  name: 'Rajesh Sharma (Merchant Owner)',
+  user_name: 'Rajesh Sharma',
+  email: 'owner@acme.com',
   company: 'Acme Direct Corp',
-  role: 'Finance Controller',
-  role_id: 'role_controller',
+  role: 'Merchant Owner',
+  role_id: 'role_merchant_owner',
   merchant_id: 'rzp_live_acme_8842',
   permissions: [
     'VIEW_DASHBOARD',
-    'RUN_RECONCILIATION',
-    'VIEW_EXCEPTIONS',
-    'RESOLVE_EXCEPTIONS',
-    'VIEW_VENDOR_INTELLIGENCE',
-    'VIEW_CASH_FORECAST',
-    'CLOSE_BOOKS'
+    'MANAGE_CATALOG',
+    'MANAGE_INVENTORY',
+    'MANAGE_ORDERS',
+    'VIEW_CUSTOMERS',
+    'MANAGE_GROWTH',
+    'VIEW_AUDIT_LOGS',
   ],
 };
 
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
+  // Flagship Hero Demo & Agent Commerce
+  '/hero-demo': ['VIEW_DASHBOARD'],
+  '/agent-commerce': ['VIEW_DASHBOARD', 'MANAGE_GROWTH', 'MANAGE_CATALOG'],
+  
+  // Merchant Hub
   '/dashboard': ['VIEW_DASHBOARD'],
   '/merchant/dashboard': ['VIEW_DASHBOARD'],
-  '/merchant/catalog': ['VIEW_DASHBOARD'],
-  '/merchant/orders': ['VIEW_DASHBOARD'],
-  '/merchant/customers': ['VIEW_DASHBOARD'],
-  '/shop': ['VIEW_DASHBOARD'],
-  '/shop/cart': ['VIEW_DASHBOARD'],
-  '/shop/checkout': ['VIEW_DASHBOARD'],
-  '/commerce-agent': ['VIEW_DASHBOARD'],
-  '/catalog': ['VIEW_DASHBOARD'],
-  '/growth': ['VIEW_DASHBOARD'],
-  '/growth/upsell': ['VIEW_DASHBOARD'],
-  '/growth/campaigns': ['VIEW_DASHBOARD'],
-  '/growth/segments': ['VIEW_DASHBOARD'],
-  '/growth-agent': ['VIEW_DASHBOARD'],
-  '/campaigns': ['VIEW_DASHBOARD'],
-  '/agent-commerce': ['VIEW_DASHBOARD'],
-  '/hero-demo': ['VIEW_DASHBOARD'],
-  '/finance/reconciliation': ['RUN_RECONCILIATION', 'VIEW_DASHBOARD'],
-  '/finance/exceptions': ['VIEW_EXCEPTIONS', 'VIEW_DASHBOARD'],
-  '/finance/vendors': ['VIEW_VENDOR_INTELLIGENCE', 'VIEW_DASHBOARD'],
-  '/finance/copilot': ['VIEW_CFO_COPILOT', 'VIEW_DASHBOARD'],
+  '/merchant/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY', 'MANAGE_GROWTH'],
+  '/merchant/orders': ['MANAGE_ORDERS', 'RUN_RECONCILIATION', 'VIEW_AUDIT_LOGS'],
+  '/merchant/customers': ['VIEW_CUSTOMERS', 'MANAGE_GROWTH', 'MANAGE_ORDERS'],
+  
+  // AI Commerce Storefront
+  '/shop': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
+  '/shop/cart': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
+  '/shop/checkout': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
+  '/commerce-agent': ['VIEW_DASHBOARD', 'MANAGE_CATALOG', 'MANAGE_GROWTH'],
+  '/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY'],
+
+  // Revenue Growth Engine
+  '/growth': ['MANAGE_GROWTH', 'VIEW_DASHBOARD'],
+  '/growth/upsell': ['MANAGE_GROWTH'],
+  '/growth/campaigns': ['MANAGE_GROWTH'],
+  '/growth/segments': ['MANAGE_GROWTH', 'VIEW_CUSTOMERS'],
+  '/growth-agent': ['MANAGE_GROWTH'],
+  '/campaigns': ['MANAGE_GROWTH'],
+
+  // Finance Intelligence Layer
+  '/finance/reconciliation': ['RUN_RECONCILIATION', 'CLOSE_BOOKS'],
+  '/finance/exceptions': ['VIEW_EXCEPTIONS', 'RESOLVE_EXCEPTIONS'],
+  '/finance/vendors': ['VIEW_VENDOR_INTELLIGENCE'],
+  '/finance/copilot': ['VIEW_CFO_COPILOT'],
   '/reconciliation': ['RUN_RECONCILIATION'],
   '/review': ['VIEW_EXCEPTIONS'],
   '/month-close': ['CLOSE_BOOKS'],
   '/vendor-intelligence': ['VIEW_VENDOR_INTELLIGENCE'],
   '/copilot': ['VIEW_CFO_COPILOT'],
   '/forecast': ['VIEW_CASH_FORECAST'],
-  '/categorization': ['VIEW_AUDIT_LOGS'],
-  '/income-statement': ['VIEW_DASHBOARD'],
-  '/fraud': ['VIEW_AUDIT_LOGS', 'VIEW_VENDOR_INTELLIGENCE'],
-  '/demo': ['RUN_RECONCILIATION', 'VIEW_DASHBOARD'],
-  '/audit/logs': ['VIEW_AUDIT_LOGS', 'VIEW_DASHBOARD'],
-  '/audit/timeline': ['VIEW_AUDIT_LOGS', 'VIEW_DASHBOARD'],
-  '/audit/compliance': ['VIEW_AUDIT_LOGS', 'VIEW_DASHBOARD'],
-  '/admin/users': ['MANAGE_USERS', 'MANAGE_SYSTEM', 'VIEW_DASHBOARD'],
-  '/admin/roles': ['MANAGE_ROLES', 'MANAGE_SYSTEM', 'VIEW_DASHBOARD'],
-  '/admin/integrations': ['MANAGE_SYSTEM', 'VIEW_DASHBOARD'],
-  '/admin/merchants': ['MANAGE_SYSTEM', 'VIEW_DASHBOARD'],
+
+  // Audit & Compliance
+  '/audit/logs': ['VIEW_AUDIT_LOGS'],
+  '/audit/timeline': ['VIEW_AUDIT_LOGS', 'VIEW_COMPLIANCE'],
+  '/audit/compliance': ['VIEW_COMPLIANCE', 'VIEW_AUDIT_LOGS'],
+
+  // Administration
+  '/admin/users': ['MANAGE_USERS', 'MANAGE_SYSTEM'],
+  '/admin/roles': ['MANAGE_ROLES', 'MANAGE_SYSTEM'],
+  '/admin/integrations': ['MANAGE_SYSTEM'],
+  '/admin/merchants': ['MANAGE_SYSTEM'],
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,8 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      const savedToken = localStorage.getItem('razorrecon_token');
-      const savedUser = localStorage.getItem('razorrecon_user');
+      const savedToken = localStorage.getItem('razorcommerce_token') || localStorage.getItem('razorrecon_token');
+      const savedUser = localStorage.getItem('razorcommerce_user') || localStorage.getItem('razorrecon_user');
 
       if (savedToken && savedUser) {
         setToken(savedToken);
@@ -125,8 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setToken('demo_jwt_session_token');
         setUser(DEFAULT_USER);
-        localStorage.setItem('razorrecon_token', 'demo_jwt_session_token');
-        localStorage.setItem('razorrecon_user', JSON.stringify(DEFAULT_USER));
+        localStorage.setItem('razorcommerce_token', 'demo_jwt_session_token');
+        localStorage.setItem('razorcommerce_user', JSON.stringify(DEFAULT_USER));
       }
     } catch (e) {
       console.error('Failed to load session:', e);
@@ -142,13 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resp && resp.access_token) {
         setToken(resp.access_token);
         setUser(resp.user);
-        localStorage.setItem('razorrecon_token', resp.access_token);
-        localStorage.setItem('razorrecon_user', JSON.stringify(resp.user));
-        router.push('/dashboard');
+        localStorage.setItem('razorcommerce_token', resp.access_token);
+        localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
+        router.push('/merchant/dashboard');
         return true;
       }
     } catch (err) {
-      console.warn('Backend login fallback to demo auth:', err);
+      console.warn('Backend login fallback to quickswitch auth:', err);
     }
     return false;
   };
@@ -159,8 +168,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resp && resp.user) {
         setToken(resp.access_token);
         setUser(resp.user);
-        localStorage.setItem('razorrecon_token', resp.access_token);
-        localStorage.setItem('razorrecon_user', JSON.stringify(resp.user));
+        localStorage.setItem('razorcommerce_token', resp.access_token);
+        localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
         return;
       }
     } catch (e) {
@@ -171,6 +180,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setToken(null);
     setUser(null);
+    localStorage.removeItem('razorcommerce_token');
+    localStorage.removeItem('razorcommerce_user');
     localStorage.removeItem('razorrecon_token');
     localStorage.removeItem('razorrecon_user');
     router.push('/login');
@@ -180,12 +191,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updatedUser = await apiClient.post<UserDTO>('/auth/switch-org', { organization_name: orgName });
       setUser(updatedUser);
-      localStorage.setItem('razorrecon_user', JSON.stringify(updatedUser));
+      localStorage.setItem('razorcommerce_user', JSON.stringify(updatedUser));
     } catch (err) {
       if (user) {
         const updated: UserDTO = { ...user, company: orgName };
         setUser(updated);
-        localStorage.setItem('razorrecon_user', JSON.stringify(updated));
+        localStorage.setItem('razorcommerce_user', JSON.stringify(updated));
       }
     }
 
@@ -199,17 +210,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasPermission = (permissionName: string): boolean => {
     if (!user) return false;
-    if (user.role === 'Platform Admin' || user.permissions?.includes('MANAGE_SYSTEM')) return true;
+    if (
+      user.role === 'Platform Admin' || 
+      user.role_id === 'role_platform_admin' || 
+      user.role_id === 'role_admin' || 
+      user.permissions?.includes('MANAGE_SYSTEM')
+    ) {
+      return true;
+    }
     return !!user.permissions?.includes(permissionName);
   };
 
   const canAccessRoute = (routePath: string): boolean => {
     if (!user) return false;
-    if (user.role === 'Platform Admin' || user.permissions?.includes('MANAGE_SYSTEM')) return true;
+    
+    // Platform Admin has complete access to every route
+    if (
+      user.role === 'Platform Admin' || 
+      user.role_id === 'role_platform_admin' || 
+      user.role_id === 'role_admin' || 
+      user.permissions?.includes('MANAGE_SYSTEM')
+    ) {
+      return true;
+    }
 
     // Direct route matching
     const required = ROUTE_PERMISSIONS[routePath];
-    if (!required) return true; // Default allow if not explicitly gated
+    if (!required) {
+      // Check prefix matching for nested paths e.g. /shop/product/123
+      const matchingPrefix = Object.keys(ROUTE_PERMISSIONS).find(
+        (prefix) => routePath.startsWith(prefix) && prefix !== '/'
+      );
+      if (matchingPrefix) {
+        return ROUTE_PERMISSIONS[matchingPrefix].some((req) => user.permissions?.includes(req));
+      }
+      return true; // Default allow if not explicitly gated
+    }
 
     return required.some((req) => user.permissions?.includes(req));
   };

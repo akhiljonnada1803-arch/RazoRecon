@@ -20,12 +20,13 @@ from app.schemas.auth import (
 )
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "auth.db")
-SECRET_KEY = "razorrecon-ai-fintech-jwt-secret-key-2026"
+SECRET_KEY = "razorcommerce-ai-fintech-jwt-secret-key-2026"
 
 PERMISSIONS_DEFINITIONS: List[Dict[str, str]] = [
     {"id": "perm_view_dashboard", "name": "VIEW_DASHBOARD", "description": "Access executive operations dashboard and core KPIs"},
     {"id": "perm_manage_catalog", "name": "MANAGE_CATALOG", "description": "Manage products, categories, stock, and pricing"},
-    {"id": "perm_manage_orders", "name": "MANAGE_ORDERS", "description": "View and manage merchant orders and fulfillment"},
+    {"id": "perm_manage_inventory", "name": "MANAGE_INVENTORY", "description": "Manage SKU inventory levels, warehouse stock, and replenishments"},
+    {"id": "perm_manage_orders", "name": "MANAGE_ORDERS", "description": "View and manage merchant orders, fulfillment, and refunds"},
     {"id": "perm_view_customers", "name": "VIEW_CUSTOMERS", "description": "Access customer profiles, LTV, and AI purchase patterns"},
     {"id": "perm_manage_growth", "name": "MANAGE_GROWTH", "description": "Configure upsell engine, campaigns, and customer segments"},
     {"id": "perm_run_recon", "name": "RUN_RECONCILIATION", "description": "Execute deterministic multi-channel reconciliation ingestion"},
@@ -35,6 +36,7 @@ PERMISSIONS_DEFINITIONS: List[Dict[str, str]] = [
     {"id": "perm_view_cfo_copilot", "name": "VIEW_CFO_COPILOT", "description": "Execute executive AI copilot strategic queries and financial briefings"},
     {"id": "perm_view_cash_forecast", "name": "VIEW_CASH_FORECAST", "description": "Access predictive liquidity projections and simulation engines"},
     {"id": "perm_view_audit_logs", "name": "VIEW_AUDIT_LOGS", "description": "Inspect chronological forensic compliance logs and operator trail"},
+    {"id": "perm_view_compliance", "name": "VIEW_COMPLIANCE", "description": "Inspect regulatory compliance, GST filings, and SOC2 SLA metrics"},
     {"id": "perm_close_books", "name": "CLOSE_BOOKS", "description": "Execute autonomous month-end financial close and ledger period locks"},
     {"id": "perm_manage_users", "name": "MANAGE_USERS", "description": "Create, modify, and assign enterprise operator accounts"},
     {"id": "perm_manage_roles", "name": "MANAGE_ROLES", "description": "Configure RBAC permission policies and access matrix"},
@@ -42,8 +44,93 @@ PERMISSIONS_DEFINITIONS: List[Dict[str, str]] = [
 ]
 
 ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
+    "role_platform_admin": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_INVENTORY",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
+        "RUN_RECONCILIATION",
+        "VIEW_EXCEPTIONS",
+        "RESOLVE_EXCEPTIONS",
+        "VIEW_VENDOR_INTELLIGENCE",
+        "VIEW_CFO_COPILOT",
+        "VIEW_CASH_FORECAST",
+        "VIEW_AUDIT_LOGS",
+        "VIEW_COMPLIANCE",
+        "CLOSE_BOOKS",
+        "MANAGE_USERS",
+        "MANAGE_ROLES",
+        "MANAGE_SYSTEM",
+    ],
+    "role_admin": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_INVENTORY",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
+        "RUN_RECONCILIATION",
+        "VIEW_EXCEPTIONS",
+        "RESOLVE_EXCEPTIONS",
+        "VIEW_VENDOR_INTELLIGENCE",
+        "VIEW_CFO_COPILOT",
+        "VIEW_CASH_FORECAST",
+        "VIEW_AUDIT_LOGS",
+        "VIEW_COMPLIANCE",
+        "CLOSE_BOOKS",
+        "MANAGE_USERS",
+        "MANAGE_ROLES",
+        "MANAGE_SYSTEM",
+    ],
+    "role_merchant_owner": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_INVENTORY",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
+        "VIEW_AUDIT_LOGS",
+    ],
+    "role_operations_manager": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_INVENTORY",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "VIEW_AUDIT_LOGS",
+    ],
+    "role_ops_manager": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_INVENTORY",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "VIEW_AUDIT_LOGS",
+    ],
+    "role_revenue_manager": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
+        "VIEW_AUDIT_LOGS",
+    ],
+    "role_finance_controller": [
+        "VIEW_DASHBOARD",
+        "MANAGE_ORDERS",
+        "RUN_RECONCILIATION",
+        "VIEW_EXCEPTIONS",
+        "RESOLVE_EXCEPTIONS",
+        "VIEW_VENDOR_INTELLIGENCE",
+        "VIEW_CASH_FORECAST",
+        "CLOSE_BOOKS",
+        "VIEW_AUDIT_LOGS",
+    ],
     "role_controller": [
         "VIEW_DASHBOARD",
+        "MANAGE_ORDERS",
         "RUN_RECONCILIATION",
         "VIEW_EXCEPTIONS",
         "RESOLVE_EXCEPTIONS",
@@ -57,47 +144,16 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "VIEW_VENDOR_INTELLIGENCE",
         "VIEW_CFO_COPILOT",
         "VIEW_CASH_FORECAST",
-        "VIEW_AUDIT_LOGS",
         "MANAGE_GROWTH",
+        "VIEW_AUDIT_LOGS",
+        "VIEW_COMPLIANCE",
     ],
     "role_auditor": [
         "VIEW_DASHBOARD",
+        "VIEW_AUDIT_LOGS",
+        "VIEW_COMPLIANCE",
         "VIEW_EXCEPTIONS",
         "VIEW_VENDOR_INTELLIGENCE",
-        "VIEW_AUDIT_LOGS",
-    ],
-    "role_revenue_manager": [
-        "VIEW_DASHBOARD",
-        "MANAGE_CATALOG",
-        "MANAGE_ORDERS",
-        "VIEW_CUSTOMERS",
-        "MANAGE_GROWTH",
-        "VIEW_AUDIT_LOGS",
-    ],
-    "role_ops_manager": [
-        "VIEW_DASHBOARD",
-        "MANAGE_CATALOG",
-        "MANAGE_ORDERS",
-        "VIEW_CUSTOMERS",
-        "VIEW_AUDIT_LOGS",
-    ],
-    "role_admin": [
-        "VIEW_DASHBOARD",
-        "MANAGE_CATALOG",
-        "MANAGE_ORDERS",
-        "VIEW_CUSTOMERS",
-        "MANAGE_GROWTH",
-        "RUN_RECONCILIATION",
-        "VIEW_EXCEPTIONS",
-        "RESOLVE_EXCEPTIONS",
-        "VIEW_VENDOR_INTELLIGENCE",
-        "VIEW_CFO_COPILOT",
-        "VIEW_CASH_FORECAST",
-        "VIEW_AUDIT_LOGS",
-        "CLOSE_BOOKS",
-        "MANAGE_USERS",
-        "MANAGE_ROLES",
-        "MANAGE_SYSTEM",
     ],
 }
 
@@ -135,13 +191,6 @@ class AuthService:
                     description TEXT NOT NULL
                 )
             """)
-            # Check permissions table schema
-            cursor.execute("PRAGMA table_info(permissions)")
-            perm_cols = [row[1] for row in cursor.fetchall()]
-            if perm_cols and "description" not in perm_cols:
-                cursor.execute("DROP TABLE IF EXISTS role_permissions")
-                cursor.execute("DROP TABLE IF EXISTS permissions")
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS permissions (
                     id TEXT PRIMARY KEY,
@@ -158,13 +207,6 @@ class AuthService:
                     FOREIGN KEY(permission_id) REFERENCES permissions(id)
                 )
             """)
-            
-            # Check users table schema
-            cursor.execute("PRAGMA table_info(users)")
-            columns = [row[1] for row in cursor.fetchall()]
-            if columns and "role_id" not in columns:
-                cursor.execute("DROP TABLE IF EXISTS users")
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY,
@@ -179,7 +221,6 @@ class AuthService:
                     FOREIGN KEY(organization_id) REFERENCES organizations(id)
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS audit_logs (
                     id TEXT PRIMARY KEY,
@@ -205,37 +246,42 @@ class AuthService:
                     VALUES (?, ?, ?)
                 """, (p["id"], p["name"], p["description"]))
 
-            # 2. Seed Roles
+            # 2. Seed 7 Enterprise Roles
             roles_data = [
                 {
-                    "id": "role_controller",
-                    "name": "Finance Controller",
-                    "description": "Responsible for reconciliation, exception handling, and month-end close."
+                    "id": "role_platform_admin",
+                    "name": "Platform Admin",
+                    "description": "Full enterprise administrator with unrestricted security policy, system configuration, and data access."
                 },
                 {
-                    "id": "role_cfo",
-                    "name": "Chief Financial Officer (CFO)",
-                    "description": "Executive user focused on financial health, risk, and strategic insights."
+                    "id": "role_merchant_owner",
+                    "name": "Merchant Owner",
+                    "description": "Business owner managing catalog, live orders, customer lifetime value, and autonomous AI revenue growth."
                 },
                 {
-                    "id": "role_auditor",
-                    "name": "Auditor",
-                    "description": "Read-only user responsible for compliance, audit trails, and investigations."
+                    "id": "role_operations_manager",
+                    "name": "Operations Manager",
+                    "description": "Manages catalog inventory levels, order fulfillment, stock replenishment, and product logistics."
                 },
                 {
                     "id": "role_revenue_manager",
                     "name": "Revenue Manager",
-                    "description": "Oversees commerce catalog, orders, upsell engine, campaigns, and customer segmentation."
+                    "description": "Oversees upsell/cross-sell recommendation engine, AI promotional campaigns, and customer RFM segmentation."
                 },
                 {
-                    "id": "role_ops_manager",
-                    "name": "Operations Manager",
-                    "description": "Manages catalog inventory, order fulfillment, refund operations, and integrations."
+                    "id": "role_finance_controller",
+                    "name": "Finance Controller",
+                    "description": "Responsible for 3-way multi-channel reconciliation, exception queues, settlements, and accounting close."
                 },
                 {
-                    "id": "role_admin",
-                    "name": "Platform Admin",
-                    "description": "Full system administrator with unrestricted security policy access."
+                    "id": "role_cfo",
+                    "name": "Chief Financial Officer (CFO)",
+                    "description": "Executive overseeing corporate liquidity, 30-day runway simulations, counterparty risk, and strategic AI Copilot."
+                },
+                {
+                    "id": "role_auditor",
+                    "name": "Auditor",
+                    "description": "Independent compliance reviewer inspecting forensic audit trails, GST filings, and regulatory SOC2 SLA metrics."
                 },
             ]
             for r in roles_data:
@@ -266,56 +312,64 @@ class AuthService:
                     VALUES (?, ?, ?, ?, ?)
                 """, (o["id"], o["name"], o["industry"], o["merchant_id"], now_str))
 
-            # 5. Seed Users
+            # 5. Seed 7 Demo Users
             seed_users = [
                 {
-                    "id": "usr_controller_01",
-                    "name": "Finance Controller",
-                    "email": "controller@acme.com",
+                    "id": "usr_platform_admin",
+                    "name": "Platform Administrator",
+                    "email": "admin@razorcommerce.ai",
                     "password": "demo123",
-                    "role_id": "role_controller",
+                    "role_id": "role_platform_admin",
                     "org_id": "org_acme_corp"
                 },
                 {
-                    "id": "usr_cfo_02",
-                    "name": "Chief Financial Officer",
+                    "id": "usr_merchant_owner",
+                    "name": "Rajesh Sharma (Merchant Owner)",
+                    "email": "owner@acme.com",
+                    "password": "demo123",
+                    "role_id": "role_merchant_owner",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_ops_manager",
+                    "name": "Pooja Verma (Operations Manager)",
+                    "email": "ops@acme.com",
+                    "password": "demo123",
+                    "role_id": "role_operations_manager",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_revenue_manager",
+                    "name": "Vikram Malhotra (Revenue Manager)",
+                    "email": "growth@acme.com",
+                    "password": "demo123",
+                    "role_id": "role_revenue_manager",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_finance_controller",
+                    "name": "Anita Desai (Finance Controller)",
+                    "email": "controller@acme.com",
+                    "password": "demo123",
+                    "role_id": "role_finance_controller",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_cfo",
+                    "name": "Siddharth Rao (Chief Financial Officer)",
                     "email": "cfo@acme.com",
                     "password": "demo123",
                     "role_id": "role_cfo",
                     "org_id": "org_acme_corp"
                 },
                 {
-                    "id": "usr_auditor_03",
-                    "name": "Senior Auditor",
+                    "id": "usr_auditor",
+                    "name": "Meera Nambiar (Senior Auditor)",
                     "email": "auditor@acme.com",
                     "password": "demo123",
                     "role_id": "role_auditor",
                     "org_id": "org_acme_corp"
                 },
-                {
-                    "id": "usr_rev_mgr_05",
-                    "name": "Revenue Growth Manager",
-                    "email": "growth@razorcommerce.ai",
-                    "password": "demo123",
-                    "role_id": "role_revenue_manager",
-                    "org_id": "org_acme_corp"
-                },
-                {
-                    "id": "usr_ops_mgr_06",
-                    "name": "Operations Manager",
-                    "email": "ops@razorcommerce.ai",
-                    "password": "demo123",
-                    "role_id": "role_ops_manager",
-                    "org_id": "org_acme_corp"
-                },
-                {
-                    "id": "usr_admin_04",
-                    "name": "Platform Admin",
-                    "email": "admin@razorrecon.ai",
-                    "password": "demo123",
-                    "role_id": "role_admin",
-                    "org_id": "org_acme_corp"
-                }
             ]
 
             for u in seed_users:
@@ -326,16 +380,17 @@ class AuthService:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (u["id"], u["name"], u["email"], pwd_hash, salt, u["role_id"], u["org_id"], now_str))
 
-            # 6. Seed Audit Logs demonstrating both human actors and the non-human AI Finance Agent
+            # 6. Seed Audit Logs
             cursor.execute("SELECT COUNT(*) as cnt FROM audit_logs")
             if cursor.fetchone()["cnt"] == 0:
                 audit_seeds = [
-                    ("log_01", "Autonomous AI Finance Agent", "AI System Actor", "Reconciled 500 Razorpay batch transactions (94.0% match rate)", "Reconciliation Engine", "SUCCESS", "2026-09-03 22:45:10 UTC"),
-                    ("log_02", "Finance Controller", "Finance Controller", "Closed books for March 2026 accounting period", "Month-End Close Agent", "SUCCESS", "2026-09-03 22:50:32 UTC"),
-                    ("log_03", "Autonomous AI Finance Agent", "AI System Actor", "Updated Vendor Memory profile for ABC Logistics (+4 risk pts)", "Memory Engine", "SUCCESS", "2026-09-03 23:01:14 UTC"),
-                    ("log_04", "Chief Financial Officer", "Chief Financial Officer (CFO)", "Queried CFO Copilot for 30-day runway sensitivity forecast", "CFO AI Copilot", "SUCCESS", "2026-09-03 23:15:20 UTC"),
-                    ("log_05", "Senior Auditor", "Auditor", "Inspected ABC Logistics forensic exception dossier & GST classification", "Vendor Intelligence", "SUCCESS", "2026-09-03 23:28:45 UTC"),
-                    ("log_06", "Platform Admin", "Platform Admin", "Verified multi-tenant RBAC policies across Acme Direct Corp", "RBAC Policy Engine", "SUCCESS", "2026-09-03 23:40:02 UTC"),
+                    ("log_01", "Autonomous AI Commerce Agent", "AI Agent", "Autonomously generated upsell cart & initiated Razorpay checkout (₹42,500)", "Commerce Checkout Engine", "SUCCESS", "2026-09-04 18:30:10 UTC"),
+                    ("log_02", "Rajesh Sharma (Merchant Owner)", "Merchant Owner", "Published 50 AI-readable catalog SKUs with active dynamic discount tags", "Catalog Management", "SUCCESS", "2026-09-04 18:45:22 UTC"),
+                    ("log_03", "Vikram Malhotra (Revenue Manager)", "Revenue Manager", "Activated 'Festive Hardware Bundle' AI Campaign (Projected Uplift: +28.9%)", "Campaign Orchestrator", "SUCCESS", "2026-09-04 19:00:15 UTC"),
+                    ("log_04", "Anita Desai (Finance Controller)", "Finance Controller", "Executed 3-way reconciliation match across Razorpay, Bank Feeds, and ERP", "Reconciliation Engine", "SUCCESS", "2026-09-04 19:15:30 UTC"),
+                    ("log_05", "Siddharth Rao (Chief Financial Officer)", "Chief Financial Officer (CFO)", "Queried CFO Copilot for 30-day liquidity and working capital runway simulation", "CFO AI Copilot", "SUCCESS", "2026-09-04 19:30:45 UTC"),
+                    ("log_06", "Meera Nambiar (Senior Auditor)", "Auditor", "Inspected immutable forensic transaction timeline and SOC2 compliance SLA", "Audit & Compliance", "SUCCESS", "2026-09-04 19:45:00 UTC"),
+                    ("log_07", "Platform Administrator", "Platform Admin", "Configured multi-tenant RBAC policies across Acme Direct Corp", "RBAC Policy Engine", "SUCCESS", "2026-09-04 20:00:00 UTC"),
                 ]
                 for l in audit_seeds:
                     cursor.execute("""
@@ -446,7 +501,7 @@ class AuthService:
     def get_current_user_profile(self, email: Optional[str] = None) -> UserDTO:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            target_email = email.strip().lower() if email else "controller@acme.com"
+            target_email = email.strip().lower() if email else "owner@acme.com"
             cursor.execute("""
                 SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
                 FROM users u
@@ -459,13 +514,13 @@ class AuthService:
             if row:
                 return self.get_user_dto(row)
 
-            # Fallback
+            # Fallback to first user
             cursor.execute("""
                 SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
-                WHERE u.id = 'usr_controller_01'
+                LIMIT 1
             """)
             fallback = cursor.fetchone()
             return self.get_user_dto(fallback)
@@ -550,13 +605,13 @@ class AuthService:
 
     def get_ai_agent_status(self) -> AIAgentTelemetryDTO:
         return AIAgentTelemetryDTO(
-            agent_name="Autonomous AI Finance Agent",
+            agent_name="Autonomous AI Commerce & Finance Agent",
             status="ACTIVE",
-            transactions_processed=500,
-            match_rate=94.0,
-            exceptions_escalated=30,
+            transactions_processed=620,
+            match_rate=98.4,
+            exceptions_escalated=12,
             memory_engine_status="ACTIVE & SYNCED",
-            risk_engine_status="ACTIVE (22 PROFILES SCORED)",
+            risk_engine_status="ACTIVE (50 PROFILES SCORED)",
             last_reconciliation=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         )
 
