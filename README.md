@@ -59,7 +59,14 @@
 ### 6. 🔒 Autonomous Month-End Close (`/month-close`)
 * 7-phase automated financial close checklist with period locking and forensic audit trail generation.
 
-### 7. 🛒 Conversational Commerce Agent (`/commerce-agent`)
+### 7. 📦 Product Catalog Management (`/catalog`)
+* **Full Product CRUD**: Create, read, update, and delete SKUs with category, brand, HSN/SAC code, and margin analytics.
+* **50 Sample Products Seed**: Preloaded with 50 enterprise items (Smart POS, 4G Soundboxes, FinOps software licenses, curved 5K monitors, mechanical keyboards, biometric security keys, and NAS servers).
+* **Multi-Attribute Search & Category Filtering**: Instant search across name, SKU, features, and 7 distinct product categories.
+* **Real-time Stock & Inventory Tracking**: Tracks stock quantities, reorder thresholds, low stock alerts, and in-stock rates with quick inline stock adjustments.
+* **AI-Readable Schema API (`/api/v1/catalog/ai-context` & `/api/catalog`)**: Token-optimized, embeddings-ready JSON schema for LLMs, autonomous agents, and RAG retrieval.
+
+### 8. 🛒 Conversational Commerce Agent (`/commerce-agent`)
 * **ChatGPT-style Conversational Shopping**: Natural language search across enterprise hardware, developer peripherals, and FinOps software licenses priced in ₹ INR.
 * **Interactive Product Recommendation Cards**: Highlights key technical specifications, star ratings, and instant cart actions.
 * **Side-by-Side Product Comparison Matrix**: Multi-attribute comparison table with AI advisor recommendations.
@@ -80,8 +87,8 @@
 |                               FASTAPI BACKEND                                 |
 |  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
 +-------------------------------------------------------------------------------+
-|  Reconciliation  |  Vendor Memory Engine  |  CFO Copilot  |  Commerce Agent   |
-+------------------+------------------------+---------------+-------------------+
+|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Catalog CRUD |
++-----------------+---------------+-------------+----------------+--------------+
                                         |
 +---------------------------------------v---------------------------------------+
 |                        STORAGE & DATA PERSISTENCE                             |
@@ -160,6 +167,10 @@ npm run dev -- -p 3001
 | `/api/v1/commerce/products` | `GET` | Commerce | List & search catalog products |
 | `/api/v1/commerce/chat` | `POST` | Commerce | Natural language shopping agent |
 | `/api/v1/commerce/checkout` | `POST` | Commerce | Generate 1-click Razorpay payment link |
+| `/api/v1/catalog` | `GET` | Catalog | List, search & filter 50 catalog products |
+| `/api/v1/catalog` | `POST` | Catalog | Create new product SKU with specs & stock |
+| `/api/v1/catalog/{id}/stock` | `PATCH` | Catalog | Quick inventory stock level adjustment |
+| `/api/v1/catalog/ai-context` | `GET` | Catalog | AI-readable JSON schema for LLMs & RAG |
 | `/api/v1/demo/connect-razorpay` | `POST` | Demo | 1-click full dataset demo generator |
 | `/api/v1/demo/reset` | `POST` | Demo | Reset platform to clean zero-data state |
 

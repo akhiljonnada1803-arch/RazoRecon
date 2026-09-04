@@ -45,6 +45,11 @@ async def direct_forecast_redirect():
     service = ForecastService()
     return await service.generate_forecast()
 
+@app.get("/api/catalog")
+async def direct_catalog_alias():
+    from app.services.catalog_service import catalog_service
+    return catalog_service.get_all_products(limit=50)
+
 @app.post("/api/reconciliation/run-razorpay")
 async def direct_run_razorpay_alias():
     from app.services.reconciliation_service import reconciliation_service

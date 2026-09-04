@@ -41,6 +41,7 @@ const DEFAULT_USER: UserDTO = {
 
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/dashboard': ['VIEW_DASHBOARD'],
+  '/catalog': ['VIEW_DASHBOARD'],
   '/commerce-agent': ['VIEW_DASHBOARD'],
   '/reconciliation': ['RUN_RECONCILIATION'],
   '/review': ['VIEW_EXCEPTIONS'],

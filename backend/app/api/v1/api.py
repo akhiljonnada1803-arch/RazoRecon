@@ -17,9 +17,11 @@ from app.api.v1.endpoints import (
     vendor_risk,
     auth,
     commerce,
+    catalog,
 )
 
 api_router = APIRouter()
+api_router.include_router(catalog.router, prefix="/catalog", tags=["Product Catalog Management"])
 api_router.include_router(commerce.router, prefix="/commerce", tags=["Conversational Commerce Agent"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & Multi-Tenant Orgs"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Executive Dashboard"])
