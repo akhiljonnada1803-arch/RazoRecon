@@ -85,8 +85,7 @@ const MERCHANT_SECTIONS: NavSection[] = [
     title: 'STORE MANAGEMENT',
     items: [
       { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard },
-      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
-      { href: '/merchant/inventory', label: 'Inventory Control', icon: Layers, badge: 'Stock' },
+      { href: '/merchant/catalog', label: 'Catalog & Inventory', icon: Package, badge: '50 SKUs' },
       { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
       { href: '/reconciliation', label: 'Transaction Engine', icon: Zap, badge: 'Multi-Rail' },
       { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incident' },
