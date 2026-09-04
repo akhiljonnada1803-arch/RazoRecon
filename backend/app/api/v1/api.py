@@ -32,7 +32,9 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Razorpay W
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["Campaign Orchestrator"])
 api_router.include_router(growth.router, prefix="/growth", tags=["Revenue Growth Agent"])
 api_router.include_router(catalog.router, prefix="/catalog", tags=["Product Catalog Management"])
+api_router.include_router(catalog.router, prefix="/products", tags=["Product Catalog Management"])
 api_router.include_router(commerce.router, prefix="/commerce", tags=["Conversational Commerce Agent"])
+
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & Multi-Tenant Orgs"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Executive Dashboard"])
 api_router.include_router(demo.router, prefix="/demo", tags=["Demo Mode Generator"])

@@ -10,17 +10,16 @@ import {
   ProductListResponse 
 } from '@/types/catalog';
 import { CatalogHeader } from '@/components/catalog/CatalogHeader';
+import { CatalogSummarySections } from '@/components/catalog/CatalogSummarySections';
 import { CatalogFilterBar } from '@/components/catalog/CatalogFilterBar';
 import { CatalogTable } from '@/components/catalog/CatalogTable';
 import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { ProductFormModal } from '@/components/catalog/ProductFormModal';
 import { StockAdjustmentModal } from '@/components/catalog/StockAdjustmentModal';
 import { AICatalogViewModal } from '@/components/catalog/AICatalogViewModal';
-import { ZeroDataEmptyState } from '@/components/common/ZeroDataEmptyState';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Layers, 
   AlertCircle 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -161,7 +160,7 @@ export default function CatalogManagementPage() {
         </div>
       )}
 
-      {/* 1. Header with Live Metrics */}
+      {/* Header Banner */}
       <section>
         <CatalogHeader
           stats={stats}
@@ -170,7 +169,18 @@ export default function CatalogManagementPage() {
         />
       </section>
 
-      {/* 2. Search & Category Filters Bar */}
+      {/* 4 Distinct Requested Sections: Total Products, Categories, Inventory Status, AI Readable Catalog */}
+      <section>
+        <CatalogSummarySections
+          stats={stats}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={(cat) => { setSelectedCategory(cat); setPage(1); }}
+          onOpenAISchema={() => setIsAISchemaOpen(true)}
+        />
+      </section>
+
+      {/* Search & Stock Filter Bar */}
       <section>
         <CatalogFilterBar
           categories={categories}
@@ -188,13 +198,13 @@ export default function CatalogManagementPage() {
         />
       </section>
 
-      {/* 3. Products List View (Table or Grid) */}
+      {/* Products Table with Columns: Product, Price, Stock, Category, Offer */}
       <section>
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[400px] text-slate-500 text-sm">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 border-3 border-[#0B72E7] border-t-transparent rounded-full animate-spin" />
-              <span className="font-medium text-slate-600">Loading catalog inventory & stock rates...</span>
+              <span className="font-medium text-slate-600">Loading catalog inventory & offer engines...</span>
             </div>
           </div>
         ) : error ? (
@@ -221,7 +231,7 @@ export default function CatalogManagementPage() {
         )}
       </section>
 
-      {/* 4. Pagination Footer */}
+      {/* Pagination Footer */}
       {totalCount > limit && (
         <div className="flex items-center justify-between bg-white px-6 py-4 rounded-2xl border border-slate-200 shadow-xs">
           <span className="text-xs text-slate-500">

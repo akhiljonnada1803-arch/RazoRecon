@@ -5,6 +5,17 @@ class ProductSpecDTO(BaseModel):
     key: str
     value: str
 
+class OfferDTO(BaseModel):
+    id: str
+    code: str
+    title: str
+    discount_type: str # "percentage" | "flat_inr"
+    discount_value: float
+    min_order_value: float = 0.0
+    badge_label: str
+    category_restriction: Optional[str] = None
+    active: bool = True
+
 class ProductDetailDTO(BaseModel):
     id: str
     sku: str
@@ -29,6 +40,10 @@ class ProductDetailDTO(BaseModel):
     delivery_time: str = "2-3 business days"
     gst_rate_pct: float = 18.0
     hsn_sac_code: str = "8470"
+    offer_id: Optional[str] = None
+    offer_text: Optional[str] = None
+    offer_discount_pct: Optional[float] = None
+    offer_badge: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -50,6 +65,10 @@ class ProductCreateDTO(BaseModel):
     delivery_time: Optional[str] = "2-3 business days"
     gst_rate_pct: float = 18.0
     hsn_sac_code: Optional[str] = "8470"
+    offer_id: Optional[str] = None
+    offer_text: Optional[str] = None
+    offer_discount_pct: Optional[float] = None
+    offer_badge: Optional[str] = None
 
 class ProductUpdateDTO(BaseModel):
     sku: Optional[str] = None
@@ -69,6 +88,10 @@ class ProductUpdateDTO(BaseModel):
     delivery_time: Optional[str] = None
     gst_rate_pct: Optional[float] = None
     hsn_sac_code: Optional[str] = None
+    offer_id: Optional[str] = None
+    offer_text: Optional[str] = None
+    offer_discount_pct: Optional[float] = None
+    offer_badge: Optional[str] = None
 
 class StockAdjustmentDTO(BaseModel):
     adjustment_type: str = "set" # "set" | "increment" | "decrement"
@@ -109,6 +132,7 @@ class AICatalogProductItemDTO(BaseModel):
     key_features: List[str]
     specs_summary: Dict[str, str]
     gst_input_credit_pct: float
+    active_offer: Optional[str] = None
 
 class AICatalogContextDTO(BaseModel):
     schema_version: str = "2026.1"

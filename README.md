@@ -59,12 +59,24 @@
 ### 6. 🔒 Autonomous Month-End Close (`/month-close`)
 * 7-phase automated financial close checklist with period locking and forensic audit trail generation.
 
-### 7. 📦 Product Catalog Management (`/catalog`)
-* **Full Product CRUD**: Create, read, update, and delete SKUs with category, brand, HSN/SAC code, and margin analytics.
-* **50 Sample Products Seed**: Preloaded with 50 enterprise items (Smart POS, 4G Soundboxes, FinOps software licenses, curved 5K monitors, mechanical keyboards, biometric security keys, and NAS servers).
-* **Multi-Attribute Search & Category Filtering**: Instant search across name, SKU, features, and 7 distinct product categories.
-* **Real-time Stock & Inventory Tracking**: Tracks stock quantities, reorder thresholds, low stock alerts, and in-stock rates with quick inline stock adjustments.
-* **AI-Readable Schema API (`/api/v1/catalog/ai-context` & `/api/catalog`)**: Token-optimized, embeddings-ready JSON schema for LLMs, autonomous agents, and RAG retrieval.
+### 7. 📦 AI Commerce Catalog Module (`/catalog`)
+* **SQLite Persistent Storage**: Stored in `backend/data/catalog.db` with relational schemas for `products`, `offers`, and `categories`.
+* **4 Dedicated UI Sections**:
+  1. **Total Products**: Live count of active SKUs, total catalog valuation in ₹ Lakhs, and portfolio health.
+  2. **Categories**: Taxonomies across 7 categories (*Payment Terminals, Soundboxes, FinOps Software, Workstations, Security, Storage, Retail Peripherals*) with dynamic filter chips.
+  3. **Inventory Status**: Real-time stock breakdown (*In Stock, Low Stock, Out of Stock, Total Units*) and visual inventory distribution progress bar.
+  4. **AI Readable Catalog**: Interactive inspector and 1-click JSON/Markdown copier providing token-optimized schema context for LLMs & autonomous commerce agents.
+* **5-Column Enterprise Table**: **Product** (with thumbnail, SKU, tagline), **Price** (₹ INR, margin %, MRP), **Stock** (Units & status badge), **Category**, and **Offer** (promotional badge & discount text).
+* **Offer Engine Integration**: Configurable discounts and promotional badges (*BESTSELLER, FESTIVE SALE, ENTERPRISE, PRO WORKSTATION, COMPLIANCE DEAL*) linked to coupon codes (`RAZOR2026`, `FESTIVE15`, `ENTERPRISE5000`, etc.).
+* **Exposed REST APIs**:
+  * `GET /products` (and `/catalog`): Filtered, searched, sorted, and paginated product catalog.
+  * `POST /products`: Add new product SKU with technical specs and promotional offers.
+  * `PUT /products/:id`: Update pricing, stock, metadata, or active offer.
+  * `DELETE /products/:id`: Remove product SKU from the SQLite database.
+  * `GET /products/stats`: Aggregate valuation, total inventory units, in-stock rate, and alert counts.
+  * `GET /products/offers`: Active promotional offers and discount rules.
+  * `GET /products/ai-context`: Token-optimized LLM and agent context.
+
 
 ### 8. 🛒 Conversational Commerce Agent (`/commerce-agent`)
 * **ChatGPT-style Conversational Shopping**: Natural language search across enterprise hardware, developer peripherals, and FinOps software licenses priced in ₹ INR.

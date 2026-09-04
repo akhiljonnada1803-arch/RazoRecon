@@ -39,9 +39,13 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-from app.api.v1.endpoints import payments, webhooks
+from app.api.v1.endpoints import payments, webhooks, catalog
 app.include_router(payments.router, prefix="/api/payments", tags=["Direct Payments API"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Direct Webhooks API"])
+app.include_router(catalog.router, prefix="/products", tags=["Direct Products API"])
+app.include_router(catalog.router, prefix="/api/products", tags=["Direct API Products"])
+app.include_router(catalog.router, prefix="/catalog", tags=["Direct Catalog API"])
+app.include_router(catalog.router, prefix="/api/catalog", tags=["Direct API Catalog"])
 
 @app.get("/api/forecast")
 async def direct_forecast_redirect():
@@ -49,15 +53,11 @@ async def direct_forecast_redirect():
     service = ForecastService()
     return await service.generate_forecast()
 
-@app.get("/api/catalog")
-async def direct_catalog_alias():
-    from app.services.catalog_service import catalog_service
-    return catalog_service.get_all_products(limit=50)
-
 @app.post("/api/reconciliation/run-razorpay")
 async def direct_run_razorpay_alias():
     from app.services.reconciliation_service import reconciliation_service
     return await reconciliation_service.run_razorpay_reconciliation()
+
 
 @app.get("/")
 async def root():

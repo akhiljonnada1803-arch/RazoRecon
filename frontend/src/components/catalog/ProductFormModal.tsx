@@ -10,7 +10,8 @@ import {
   Save, 
   Package, 
   ShieldCheck,
-  Tag
+  Tag,
+  Percent
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,11 +27,20 @@ interface ProductFormModalProps {
 const CATEGORIES_LIST = [
   'Payment Terminals',
   'Payment Audio Alerts',
-  'Enterprise Software',
+  'FinOps Software',
   'Workstations & Peripherals',
-  'Security & Access',
+  'Security & Access Tokens',
   'Storage & Servers',
   'Retail Peripherals',
+];
+
+const PRESET_OFFERS = [
+  { label: 'None', text: '', badge: '', discount: 0 },
+  { label: '10% Off with RAZOR2026', text: '10% Off with RAZOR2026', badge: 'BESTSELLER', discount: 10.0 },
+  { label: '15% Seasonal Discount (FESTIVE15)', text: '15% Seasonal Hardware Discount', badge: 'FESTIVE SALE', discount: 15.0 },
+  { label: 'Flat ₹5,000 Annual Rebate (ENTERPRISE5000)', text: 'Flat ₹5,000 Annual License Rebate', badge: 'ENTERPRISE', discount: 10.0 },
+  { label: '12% Pro Fleet Deal (MODELDOCK12)', text: '12% Workstation Fleet Bundle', badge: 'PRO WORKSTATION', discount: 12.0 },
+  { label: '20% Compliance Deal (COMPLIANCE20)', text: '20% Security & Archive Storage Rebate', badge: 'COMPLIANCE DEAL', discount: 20.0 },
 ];
 
 export function ProductFormModal({
@@ -59,7 +69,10 @@ export function ProductFormModal({
     specs: [{ key: 'Warranty', value: '1 Year Comprehensive' }],
     delivery_time: '2-3 business days',
     gst_rate_pct: 18.0,
-    hsn_sac_code: '84705010'
+    hsn_sac_code: '84705010',
+    offer_text: '10% Off with RAZOR2026',
+    offer_badge: 'BESTSELLER',
+    offer_discount_pct: 10.0
   });
 
   const [newFeature, setNewFeature] = useState('');
@@ -85,7 +98,11 @@ export function ProductFormModal({
         specs: product.specs || [],
         delivery_time: product.delivery_time,
         gst_rate_pct: product.gst_rate_pct,
-        hsn_sac_code: product.hsn_sac_code
+        hsn_sac_code: product.hsn_sac_code,
+        offer_id: product.offer_id,
+        offer_text: product.offer_text || '',
+        offer_badge: product.offer_badge || '',
+        offer_discount_pct: product.offer_discount_pct || 0
       });
     } else {
       setFormData({
@@ -105,7 +122,10 @@ export function ProductFormModal({
         specs: [{ key: 'Warranty', value: '1 Year Comprehensive' }],
         delivery_time: '2-3 business days',
         gst_rate_pct: 18.0,
-        hsn_sac_code: '84705010'
+        hsn_sac_code: '84705010',
+        offer_text: '10% Off with RAZOR2026',
+        offer_badge: 'BESTSELLER',
+        offer_discount_pct: 10.0
       });
     }
   }, [product, isOpen]);
@@ -164,7 +184,7 @@ export function ProductFormModal({
                 {isEditing ? `Edit Product: ${product.name}` : 'Add New Product SKU'}
               </h3>
               <p className="text-xs text-blue-200/80">
-                Configure pricing, stock thresholds, specs, and GST taxonomy
+                Configure pricing, stock thresholds, specs, and Offer Engine discounts
               </p>
             </div>
           </div>
@@ -278,7 +298,74 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* Row 4: Stock Tracking */}
+          {/* Row 4: Offer Engine Integration */}
+          <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                Offer Engine & Promotional Discount
+              </label>
+              <span className="text-[10px] text-indigo-600 font-semibold">Auto-Applied in Commerce</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600">Preset Template</label>
+                <select
+                  onChange={(e) => {
+                    const found = PRESET_OFFERS.find((p) => p.text === e.target.value);
+                    if (found) {
+                      setFormData({
+                        ...formData,
+                        offer_text: found.text,
+                        offer_badge: found.badge,
+                        offer_discount_pct: found.discount
+                      });
+                    }
+                  }}
+                  className="w-full h-9 px-2 text-xs bg-white border border-slate-200 rounded-xl"
+                >
+                  <option value="">Choose preset offer...</option>
+                  {PRESET_OFFERS.map((po, idx) => (
+                    <option key={idx} value={po.text}>{po.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600">Offer Badge</label>
+                <Input
+                  placeholder="e.g. BESTSELLER, FESTIVE SALE"
+                  value={formData.offer_badge || ''}
+                  onChange={(e) => setFormData({ ...formData, offer_badge: e.target.value })}
+                  className="h-9 text-xs bg-white rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-600">Discount %</label>
+                <Input
+                  type="number"
+                  placeholder="10"
+                  value={formData.offer_discount_pct || 0}
+                  onChange={(e) => setFormData({ ...formData, offer_discount_pct: parseFloat(e.target.value) || 0 })}
+                  className="h-9 text-xs bg-white rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-600">Offer Description Text</label>
+              <Input
+                placeholder="e.g. 10% Off with RAZOR2026 promo code"
+                value={formData.offer_text || ''}
+                onChange={(e) => setFormData({ ...formData, offer_text: e.target.value })}
+                className="h-9 text-xs bg-white rounded-xl"
+              />
+            </div>
+          </div>
+
+          {/* Row 5: Stock Tracking */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Initial Stock Units *</label>
@@ -311,7 +398,7 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* Row 5: Tagline & Description */}
+          {/* Row 6: Tagline & Description */}
           <div className="space-y-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Tagline / Short Summary *</label>
@@ -335,7 +422,7 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* Row 6: Image URL */}
+          {/* Row 7: Image URL */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-700">Product Image URL</label>
             <Input

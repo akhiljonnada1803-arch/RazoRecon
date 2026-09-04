@@ -3,6 +3,18 @@ export interface ProductSpec {
   value: string;
 }
 
+export interface OfferItem {
+  id: string;
+  code: string;
+  title: string;
+  discount_type: string;
+  discount_value: number;
+  min_order_value: number;
+  badge_label?: string;
+  category_restriction?: string;
+  active: boolean;
+}
+
 export interface CatalogProduct {
   id: string;
   sku: string;
@@ -27,6 +39,10 @@ export interface CatalogProduct {
   delivery_time: string;
   gst_rate_pct: number;
   hsn_sac_code: string;
+  offer_id?: string;
+  offer_text?: string;
+  offer_discount_pct?: number;
+  offer_badge?: string;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +65,10 @@ export interface ProductFormData {
   delivery_time?: string;
   gst_rate_pct: number;
   hsn_sac_code?: string;
+  offer_id?: string;
+  offer_text?: string;
+  offer_discount_pct?: number;
+  offer_badge?: string;
 }
 
 export interface CatalogStats {
@@ -88,6 +108,7 @@ export interface AICatalogProductItem {
   key_features: string[];
   specs_summary: Record<string, string>;
   gst_input_credit_pct: number;
+  active_offer?: string;
 }
 
 export interface AICatalogContext {

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, Path, Body
 from typing import List, Optional
 from app.schemas.catalog import (
+    OfferDTO,
     ProductDetailDTO,
     ProductCreateDTO,
     ProductUpdateDTO,
@@ -10,6 +11,7 @@ from app.schemas.catalog import (
     ProductListResponseDTO,
     AICatalogContextDTO
 )
+
 from app.services.catalog_service import catalog_service
 
 router = APIRouter()
@@ -42,10 +44,16 @@ def get_catalog_statistics():
     """Retrieve aggregate catalog metrics: total inventory valuation, units, low stock alerts, in-stock rate."""
     return catalog_service.get_catalog_stats()
 
+@router.get("/offers", response_model=List[OfferDTO])
+def get_catalog_offers():
+    """Retrieve all active promotional offers and discounts for products."""
+    return catalog_service.get_offers()
+
 @router.get("/categories", response_model=List[CategoryCountDTO])
 def get_categories_breakdown():
     """Retrieve distinct catalog categories with product counts and available stock quantities."""
     return catalog_service.get_categories_breakdown()
+
 
 @router.get("/ai-context", response_model=AICatalogContextDTO)
 def get_ai_readable_catalog():
