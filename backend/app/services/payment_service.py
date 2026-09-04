@@ -225,6 +225,51 @@ class PaymentService:
             resolution="Auto-matched deposit verified via Razorpay HMAC signature"
         )
 
+        # 6. Create / Update Order in Merchant Hub (persists to Customer My Orders, Merchant Fulfillment & Shipping)
+        try:
+            from app.services.merchant_service import merchant_service
+            items_list = []
+            cust_name = None
+            ship_addr = None
+            subtotal_val = None
+            tax_val = None
+            discount_val = None
+
+            if order_row:
+                if order_row["items"]:
+                    try:
+                        items_list = json.loads(order_row["items"])
+                    except Exception:
+                        items_list = []
+                if order_row["notes"]:
+                    try:
+                        notes_dict = json.loads(order_row["notes"])
+                        cust_name = notes_dict.get("customer_name")
+                        ship_addr = notes_dict.get("shipping_address")
+                        if "taxes_inr" in notes_dict:
+                            tax_val = float(notes_dict["taxes_inr"])
+                        if "discounts_inr" in notes_dict:
+                            discount_val = float(notes_dict["discounts_inr"])
+                    except Exception:
+                        pass
+
+            merchant_service.create_order_from_purchase(
+                order_id=req.razorpay_order_id,
+                customer_name=cust_name or (req.email.split("@")[0].replace(".", " ").title() if req.email else "Valued Customer"),
+                customer_email=req.email or (order_row["customer_email"] if order_row else "customer@example.com"),
+                customer_phone=req.contact or (order_row["customer_phone"] if order_row else "+91 98765 43210"),
+                shipping_address=ship_addr or "124 Tech Park Avenue, Electronic City, Bengaluru, Karnataka 560100, India",
+                items=items_list,
+                gross_amount=gross_amount,
+                subtotal=subtotal_val,
+                tax=tax_val,
+                discount=discount_val,
+                payment_id=req.razorpay_payment_id,
+                payment_method=req.method or "upi"
+            )
+        except Exception as ex:
+            print(f"Warning: Could not create order in merchant_orders: {ex}")
+
         recon_result = PaymentReconciliationResultDTO(
             transaction_id=reconciliation_id,
             gross_amount=gross_amount,

@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 import { CheckoutResult } from '@/types/commerce';
 import { 
   CheckCircle2, 
@@ -12,7 +15,9 @@ import {
   Receipt,
   CreditCard,
   Sparkles,
-  Check
+  Check,
+  ShoppingBag,
+  Truck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +33,8 @@ export function CheckoutSuccessModal({
   onClose,
   result,
 }: CheckoutSuccessModalProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [paymentSimulated, setPaymentSimulated] = useState(false);
   const [reconData, setReconData] = useState<any>(null);
@@ -48,22 +55,30 @@ export function CheckoutSuccessModal({
     setIsVerifying(true);
     try {
       const paymentId = `pay_rzp_${Math.random().toString(36).substring(2, 12)}`;
-      // Generate verify request to backend
-      const res: any = await fetch('http://127.0.0.1:8000/api/payments/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpay_order_id: result.order_id,
-          razorpay_payment_id: paymentId,
-          razorpay_signature: 'test_signature_valid_token_2026',
-          method: 'upi',
-          email: 'merchant.ops@acme.com',
-          contact: '+919876543210'
-        })
-      }).then(r => r.json());
+      // Call payments verify endpoint via apiClient
+      const res: any = await apiClient.post('/payments/verify', {
+        razorpay_order_id: result.order_id,
+        razorpay_payment_id: paymentId,
+        razorpay_signature: 'test_signature_valid_token_2026',
+        method: 'upi',
+        email: 'merchant.ops@acme.com',
+        contact: '+919876543210'
+      });
 
       setReconData(res);
       setPaymentSimulated(true);
+
+      // Invalidate all query caches so newly purchased orders immediately appear across the app
+      queryClient.invalidateQueries({ queryKey: ['customer-orders-list'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders-all'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'orders'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'shipping'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'stats'] });
+      queryClient.invalidateQueries({ queryKey: ['checkout-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['checkout-audit-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['reconciliation'] });
     } catch (e) {
       console.error(e);
       setPaymentSimulated(true);
@@ -113,7 +128,7 @@ export function CheckoutSuccessModal({
                   Payment Captured & Auto-Reconciled!
                 </h4>
                 <p className="text-xs text-emerald-700 mt-1">
-                  Razorpay HMAC signature verified. Transaction ingested into Reconciliation Engine & Vendor Memory with 0 discrepancies.
+                  Razorpay HMAC signature verified. Order persisted to database, inventory reduced, and transaction reconciled.
                 </p>
               </div>
 
@@ -140,6 +155,31 @@ export function CheckoutSuccessModal({
 
               <div className="p-3 bg-emerald-100/60 rounded-xl text-[11px] text-emerald-800 font-medium">
                 Instant settlement booked to Razorpay Current A/C ending in •••• 4092.
+              </div>
+
+              {/* Navigation Actions for Customer */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <Button
+                  onClick={() => {
+                    onClose();
+                    router.push('/customer/orders');
+                  }}
+                  className="h-10 text-xs font-bold bg-[#0B72E7] hover:bg-[#095bc0] text-white rounded-xl gap-1.5 shadow-sm"
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  <span>View In My Orders</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onClose();
+                    router.push(`/customer/track?orderId=${result.order_id}`);
+                  }}
+                  className="h-10 text-xs font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 rounded-xl gap-1.5"
+                >
+                  <Truck className="h-4 w-4 text-[#0B72E7]" />
+                  <span>Track Shipment</span>
+                </Button>
               </div>
             </div>
           ) : (

@@ -143,6 +143,7 @@ async def upload_product_image_form(
         }
 
 @router.get("/{product_id}", response_model=ProductDetailDTO)
+@router.get("/products/{product_id}", response_model=ProductDetailDTO)
 def get_product(product_id: str = Path(..., description="Unique product identifier")):
     """Retrieve full details and specifications for a single product."""
     product = catalog_service.get_product_by_id(product_id)
