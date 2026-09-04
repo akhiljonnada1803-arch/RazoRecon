@@ -39,7 +39,7 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-from app.api.v1.endpoints import payments, webhooks, catalog, checkout
+from app.api.v1.endpoints import payments, webhooks, catalog, checkout, hero_demo
 app.include_router(payments.router, prefix="/payments", tags=["Direct Payments Root API"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Direct Payments API"])
 
@@ -50,6 +50,9 @@ app.include_router(catalog.router, prefix="/catalog", tags=["Direct Catalog API"
 app.include_router(catalog.router, prefix="/api/catalog", tags=["Direct API Catalog"])
 app.include_router(checkout.router, prefix="/checkout", tags=["Direct Checkout API"])
 app.include_router(checkout.router, prefix="/api/checkout", tags=["Direct API Checkout"])
+app.include_router(hero_demo.router, prefix="/hero-demo", tags=["Direct Hero Demo API"])
+app.include_router(hero_demo.router, prefix="/api/hero-demo", tags=["Direct API Hero Demo"])
+
 
 
 @app.get("/api/forecast")

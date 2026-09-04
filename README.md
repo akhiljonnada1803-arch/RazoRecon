@@ -124,8 +124,45 @@
   * Generates Razorpay Order ID (`order_rzp_...`) and instant shareable payment link (`https://rzp.io/l/...`).
   * Dynamic BharatQR / UPI QR code simulation.
   * 1-Click test payment simulation executing HMAC verification and auto-reconciliation.
-* **Live Transaction & Settlement Tracker**: Real-time monitoring of payment lifecycle (*Created → Pending Payment → Captured → Reconciled with 0 Discrepancy*).
-* **Immutable Forensic Audit Logs**: SQLite `checkout_audit_logs` tracking every state transition with Actor (`Agent`, `User`, `System`), Event type, Timestamp, and metadata JSON payload inspector.
+### 14. 🏆 Flagship AI Commerce Hero Demo — Razorpay Track 01 (`/hero-demo`)
+
+An interactive, end-to-end 10-phase demonstration orchestrating the entire lifecycle of an autonomous AI commerce transaction with instant reconciliation:
+
+```
+1. Merchant uploads catalog
+   ↓
+2. AI understands catalog (vector embeddings & semantic indexing)
+   ↓
+3. Customer asks for product (intent parsing & constraint formulation)
+   ↓
+4. Agent recommends products (semantic search & match score %)
+   ↓
+5. Agent creates cart (tax computation & enterprise coupon application)
+   ↓
+6. Agent initiates Razorpay checkout (order generation & payment link creation)
+   ↓
+7. Payment success (HMAC verification & instant double-entry ERP reconciliation)
+   ↓
+8. Upsell recommendations (margin-maximizing complementary add-ons)
+   ↓
+9. Purchase stored in memory (customer behavioral profile & tier updates)
+   ↓
+10. Future recommendations personalized (adaptive RFM quotes)
+```
+
+#### Key Architecture & Forensic Standards for Track 01:
+* **Interactive 10-Step Workflow Stepper**: Real-time progress bar, visual status badges, and direct phase navigation.
+* **4 Procurement Scenarios**:
+  1. *Acme Retail Store Expansion (Mumbai Fleet)*
+  2. *Novus Cloud Multi-Channel FinOps Sync*
+  3. *Fintech Trading Desk Workstation Setup*
+  4. *Statutory Finance Archive & Hardware Security*
+* **Playback Controls**: Auto-play, pause, 1x/2x/4x playback speed, manual forward/backward, and 1-Click Fast Forward.
+* **Mandatory Step-by-Step Forensics**:
+  * **Reasoning Trace**: ReAct framework detailing Goal, Thought, Observation, Action Taken, Decision Rationale, and JSON payloads.
+  * **Audit Trail**: Actor-attributed events (`Merchant`, `AI Embeddings Engine`, `Customer`, `Commerce Agent`, `Razorpay Gateway`, `Reconciliation Engine`).
+  * **Risk Status & SLA**: Real-time fraud detection score (0/100), GST compliance, and zero-discrepancy reconciliation verification.
+  * **Double-Entry General Ledger Voucher**: Live accounting entries posting debits to Operating Bank and Gateway Fees, and credits to Revenue accounts.
 
 
 ---

@@ -46,6 +46,7 @@ const NAVIGATION_SECTIONS: NavSection[] = [
   {
     title: 'CORE OPERATIONS',
     items: [
+      { href: '/hero-demo', label: 'Hero Demo (Track 01)', icon: Sparkles, badge: 'Hero Track 01' },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/catalog', label: 'Product Catalog', icon: Package, badge: '50 SKUs' },
       { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
