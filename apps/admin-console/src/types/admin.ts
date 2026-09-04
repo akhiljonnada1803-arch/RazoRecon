@@ -91,6 +91,9 @@ export interface AdminUser {
   name: string;
   email: string;
   role: string;
+  role_id?: string;
   organization?: string;
   company?: string;
+  created_at?: string;
+  status?: string;
 }
