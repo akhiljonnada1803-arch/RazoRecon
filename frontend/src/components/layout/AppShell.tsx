@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { Header } from '@/components/layout/Header';
+import { CustomerHeader } from '@/components/layout/CustomerHeader';
 import { AccessDenied403 } from '@/components/common/AccessDenied403';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -13,12 +14,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, canAccessRoute } = useAuth();
 
   const isLoginPage = pathname === '/login';
+  const isCustomerStorefront = 
+    pathname === '/' || 
+    pathname.startsWith('/customer') || 
+    pathname.startsWith('/shop');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    // Only redirect to login if attempting to access restricted merchant/admin/system routes while unauthenticated
+    if (!isLoading && !isAuthenticated && !isLoginPage && !isCustomerStorefront) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isLoginPage, isCustomerStorefront, router]);
 
   // 1. Unauthenticated Login Screen: Render ONLY the login screen with ZERO dashboard elements
   if (isLoginPage) {
@@ -41,9 +47,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // 3. Customer Storefront Layout (Amazon / E-Commerce style with CustomerHeader, No Enterprise Sidebar)
+  if (isCustomerStorefront) {
+    return (
+      <div className="min-h-screen w-full bg-[#F8FAFC] flex flex-col antialiased text-foreground">
+        <CustomerHeader />
+        <main className="flex-1 w-full">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   const isAllowed = canAccessRoute(pathname);
 
-  // 3. Authenticated Enterprise Workstation Layout
+  // 4. Authenticated Enterprise Workstation Layout (Merchant Portal & Platform Admin)
   return (
     <div className="flex min-h-screen w-full bg-[#F8FAFC] text-foreground antialiased">
       <AppSidebar />

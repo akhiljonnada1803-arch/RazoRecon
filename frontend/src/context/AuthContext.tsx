@@ -228,9 +228,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return !!user.permissions?.includes(permissionName);
   };
 
+  const PUBLIC_ROUTES = ['/', '/login', '/customer/products', '/customer/assistant', '/shop', '/hero-demo'];
+
   const canAccessRoute = (routePath: string): boolean => {
+    // 1. Unconditionally allow public storefront routes & product details
+    if (PUBLIC_ROUTES.includes(routePath) || routePath.startsWith('/customer/products')) {
+      return true;
+    }
+
+    // 2. If no authenticated user, only public routes allowed
     if (!user) return false;
     
+    // 3. Platform Admin has full access
     if (
       user.role === 'Platform Admin' || 
       user.role_id === 'role_platform_admin' || 
@@ -239,13 +248,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    // Role-specific quick guards
+    // 4. Role-specific access guards
     const isCust = user.role === 'Customer' || user.role_id === 'role_customer';
     if (isCust) {
-      return routePath.startsWith('/customer') || routePath.startsWith('/shop') || routePath === '/hero-demo';
+      return routePath.startsWith('/customer') || routePath.startsWith('/shop') || routePath === '/' || routePath === '/hero-demo';
     } else {
-      // Merchant / Ops cannot see /customer shopping routes in their sidebar
-      if (routePath.startsWith('/customer')) {
+      // Merchant / Ops cannot see customer-only account routes in their sidebar
+      if (routePath === '/customer/profile' || routePath === '/customer/wishlist') {
         return false;
       }
     }
