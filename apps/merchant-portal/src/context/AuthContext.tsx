@@ -122,21 +122,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      const savedToken = localStorage.getItem('razorcommerce_token') || localStorage.getItem('razorrecon_token');
-      const savedUser = localStorage.getItem('razorcommerce_user') || localStorage.getItem('razorrecon_user');
+      const savedToken = localStorage.getItem('razorcommerce_merchant_token') || localStorage.getItem('razorcommerce_token');
+      const savedUser = localStorage.getItem('razorcommerce_merchant_user') || localStorage.getItem('razorcommerce_user');
 
       if (savedToken && savedUser) {
-        setToken(savedToken);
-        setUser(JSON.parse(savedUser));
+        const parsed = JSON.parse(savedUser);
+        if (parsed.role === 'Merchant Owner' || parsed.role === 'Operations Manager' || parsed.role_id === 'role_merchant_owner') {
+          setToken(savedToken);
+          setUser(parsed);
+        } else {
+          setToken(null);
+          setUser(null);
+        }
       } else {
-        setToken('demo_jwt_session_token');
-        setUser(DEFAULT_USER);
-        localStorage.setItem('razorcommerce_token', 'demo_jwt_session_token');
-        localStorage.setItem('razorcommerce_user', JSON.stringify(DEFAULT_USER));
+        setToken(null);
+        setUser(null);
       }
     } catch (e) {
       console.error('Failed to load session:', e);
-      setUser(DEFAULT_USER);
+      setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -148,16 +153,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resp && resp.access_token) {
         setToken(resp.access_token);
         setUser(resp.user);
-        localStorage.setItem('razorcommerce_token', resp.access_token);
-        localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
+        localStorage.setItem('razorcommerce_merchant_token', resp.access_token);
+        localStorage.setItem('razorcommerce_merchant_user', JSON.stringify(resp.user));
         
-        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/');
-        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/merchant/dashboard');
-        }
+        router.push('/');
         return true;
       }
     } catch (err) {
@@ -172,16 +171,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (resp && resp.user) {
         setToken(resp.access_token);
         setUser(resp.user);
-        localStorage.setItem('razorcommerce_token', resp.access_token);
-        localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
+        localStorage.setItem('razorcommerce_merchant_token', resp.access_token);
+        localStorage.setItem('razorcommerce_merchant_user', JSON.stringify(resp.user));
         
-        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/');
-        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/merchant/dashboard');
-        }
+        router.push('/');
         return;
       }
     } catch (e) {
@@ -192,6 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     setToken(null);
     setUser(null);
+    localStorage.removeItem('razorcommerce_merchant_token');
+    localStorage.removeItem('razorcommerce_merchant_user');
     localStorage.removeItem('razorcommerce_token');
     localStorage.removeItem('razorcommerce_user');
     localStorage.removeItem('razorrecon_token');

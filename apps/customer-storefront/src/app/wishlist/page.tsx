@@ -57,7 +57,7 @@ export default function CustomerWishlistPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/customer/assistant">
+          <Link href="/assistant">
             <Button className="h-10 px-4 rounded-xl bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold shadow-xs flex items-center gap-2">
               <Bot className="h-4 w-4" />
               <span>Ask AI to Recommend Bundles</span>
@@ -74,7 +74,7 @@ export default function CustomerWishlistPage() {
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             Browse our catalog and save your favorite devices to keep track of stock and discounts.
           </p>
-          <Link href="/customer/products">
+          <Link href="/products">
             <Button size="sm" className="rounded-xl text-xs font-semibold bg-[#0B72E7] hover:bg-[#095ec2] text-white">
               Explore Products
             </Button>
@@ -118,7 +118,7 @@ export default function CustomerWishlistPage() {
                     </span>
                   </div>
 
-                  <Link href="/customer/assistant">
+                  <Link href="/assistant">
                     <Button size="sm" className="h-8 px-3 rounded-xl bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold gap-1.5 shadow-2xs">
                       <ShoppingBag className="h-3.5 w-3.5" />
                       <span>Buy via AI</span>

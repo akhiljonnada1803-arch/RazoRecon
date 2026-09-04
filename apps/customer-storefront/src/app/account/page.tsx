@@ -22,11 +22,30 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 export default function CustomerProfilePage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   const [saved, setSaved] = useState(false);
   const [maxSpendLimit, setMaxSpendLimit] = useState('50000');
   const [autoApprove, setAutoApprove] = useState(true);
+
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 text-center shadow-sm space-y-4">
+        <div className="w-16 h-16 rounded-full bg-blue-50 text-[#0B72E7] flex items-center justify-center mx-auto">
+          <User className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Sign in to view your account</h3>
+        <p className="text-xs text-slate-500">
+          Manage your saved addresses, corporate procurement preferences, and payment methods.
+        </p>
+        <a href="/login" className="inline-block w-full">
+          <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
+            Sign In to Customer Account
+          </Button>
+        </a>
+      </div>
+    );
+  }
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();

@@ -24,7 +24,7 @@ import { apiClient } from '@/lib/api-client';
 
 export default function StandaloneCheckoutPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'wallet'>('upi');
   const [upiId, setUpiId] = useState('akhil@okaxis');
@@ -45,18 +45,37 @@ export default function StandaloneCheckoutPage() {
       });
       setIsPaid(true);
       setTimeout(() => {
-        router.push('/customer/orders');
+        router.push('/orders');
       }, 1500);
     } catch (e) {
       console.error(e);
       setIsPaid(true);
       setTimeout(() => {
-        router.push('/customer/orders');
+        router.push('/orders');
       }, 1500);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 text-center shadow-sm space-y-4">
+        <div className="w-16 h-16 rounded-full bg-blue-50 text-[#0B72E7] flex items-center justify-center mx-auto">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Sign in to complete checkout</h3>
+        <p className="text-xs text-slate-500">
+          Login is required to link your shipping address, track dispatch status, and process secure Razorpay payment.
+        </p>
+        <Link href="/login" className="inline-block w-full">
+          <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
+            Sign In to Continue Checkout
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

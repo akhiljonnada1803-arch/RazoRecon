@@ -129,14 +129,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
       } else {
-        setToken('demo_jwt_session_token');
-        setUser(DEFAULT_USER);
-        localStorage.setItem('razorcommerce_token', 'demo_jwt_session_token');
-        localStorage.setItem('razorcommerce_user', JSON.stringify(DEFAULT_USER));
+        setToken(null);
+        setUser(null);
       }
     } catch (e) {
       console.error('Failed to load session:', e);
-      setUser(DEFAULT_USER);
+      setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -151,13 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('razorcommerce_token', resp.access_token);
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
         
-        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/');
-        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/merchant/dashboard');
-        }
+        router.push('/');
         return true;
       }
     } catch (err) {
@@ -175,13 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('razorcommerce_token', resp.access_token);
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
         
-        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/');
-        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
-          router.push('/admin/dashboard');
-        } else {
-          router.push('/merchant/dashboard');
-        }
+        router.push('/');
         return;
       }
     } catch (e) {
@@ -196,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('razorcommerce_user');
     localStorage.removeItem('razorrecon_token');
     localStorage.removeItem('razorrecon_user');
-    router.push('/login');
+    router.push('/');
   };
 
   const switchOrganization = async (orgName: string) => {

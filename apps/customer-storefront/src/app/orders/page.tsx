@@ -22,18 +22,40 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CustomerOrdersPage() {
   const router = useRouter();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: ordersData, isLoading } = useQuery({
+  const { data: ordersData, isLoading: isOrdersLoading } = useQuery({
     queryKey: ['customer-orders-list'],
     queryFn: async () => {
       const res = await apiClient.get<any>('/merchant/orders?limit=50');
       return res?.orders || res?.items || res || [];
     },
+    enabled: isAuthenticated,
   });
+
+  if (!isLoading && !isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-3xl border border-slate-200 text-center shadow-sm space-y-4">
+        <div className="w-16 h-16 rounded-full bg-blue-50 text-[#0B72E7] flex items-center justify-center mx-auto">
+          <ShoppingBag className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Sign in to view your orders</h3>
+        <p className="text-xs text-slate-500">
+          Track real-time shipment milestones, download GST tax invoices, and view order history.
+        </p>
+        <Link href="/login" className="inline-block w-full">
+          <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
+            Sign In to Track Orders
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   const orders: any[] = Array.isArray(ordersData) ? ordersData : [];
 

@@ -229,7 +229,7 @@ export default function CustomerProductsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link href="/customer/assistant">
+          <Link href="/assistant">
             <Button className="h-10 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-semibold shadow-xs flex items-center gap-2">
               <Bot className="h-4 w-4" />
               <span>Ask AI Assistant</span>

@@ -130,7 +130,7 @@ export default function CustomerCartPage() {
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             Explore our verified catalog of POS hardware, Soundboxes, and enterprise software.
           </p>
-          <Link href="/customer/products">
+          <Link href="/products">
             <Button className="bg-[#0B72E7] text-white rounded-xl text-xs font-bold px-6">
               Browse Products
             </Button>

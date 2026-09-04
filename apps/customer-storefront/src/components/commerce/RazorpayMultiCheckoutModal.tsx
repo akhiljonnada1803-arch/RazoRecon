@@ -211,7 +211,7 @@ export function RazorpayMultiCheckoutModal({
                 <Button
                   onClick={() => {
                     onClose();
-                    router.push('/customer/orders');
+                    router.push('/orders');
                   }}
                   className="h-11 text-xs font-bold bg-[#0B72E7] hover:bg-[#095bc0] text-white rounded-xl gap-2 shadow-sm cursor-pointer"
                 >
@@ -222,7 +222,7 @@ export function RazorpayMultiCheckoutModal({
                   variant="outline"
                   onClick={() => {
                     onClose();
-                    router.push(`/customer/track?orderId=${result.order_id}`);
+                    router.push('/orders');
                   }}
                   className="h-11 text-xs font-bold text-slate-800 border-slate-200 hover:bg-slate-50 rounded-xl gap-2 cursor-pointer"
                 >

@@ -165,7 +165,7 @@ export default function ProductDetailPage() {
         <Package className="w-12 h-12 text-slate-300 mx-auto" />
         <h2 className="text-xl font-bold text-slate-800">Product SKU Not Found</h2>
         <p className="text-xs text-slate-500">The product you are looking for may have been retired or moved.</p>
-        <Link href="/customer/products">
+        <Link href="/products">
           <Button className="bg-[#0B72E7] text-white rounded-xl text-xs font-bold">
             Back to Catalog
           </Button>
@@ -190,9 +190,9 @@ export default function ProductDetailPage() {
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <Link href="/" className="hover:text-[#0B72E7]">Home</Link>
         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-        <Link href="/customer/products" className="hover:text-[#0B72E7]">Catalog</Link>
+        <Link href="/products" className="hover:text-[#0B72E7]">Catalog</Link>
         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-        <Link href={`/customer/products?category=${encodeURIComponent(product.category)}`} className="hover:text-[#0B72E7]">{product.category}</Link>
+        <Link href={`/products?category=${encodeURIComponent(product.category)}`} className="hover:text-[#0B72E7]">{product.category}</Link>
         <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
         <span className="font-semibold text-slate-800 truncate max-w-xs">{product.name}</span>
       </div>
@@ -422,7 +422,7 @@ export default function ProductDetailPage() {
                   <img src={rel.image_url} alt={rel.name} className="w-full h-full object-contain" />
                 </div>
                 <div>
-                  <Link href={`/customer/products/${rel.id}`} className="font-bold text-xs text-slate-800 line-clamp-1 hover:text-[#0B72E7]">
+                  <Link href={`/products/${rel.id}`} className="font-bold text-xs text-slate-800 line-clamp-1 hover:text-[#0B72E7]">
                     {rel.name}
                   </Link>
                   <span className="text-sm font-extrabold text-[#072654] font-mono block mt-1">

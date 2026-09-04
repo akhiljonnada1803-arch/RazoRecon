@@ -42,10 +42,10 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) {
-      router.push('/customer/products');
+      router.push('/products');
       return;
     }
-    router.push(`/customer/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
   };
 
   const displayName = user?.name ? user.name.split(' ')[0] : 'Guest';
@@ -82,16 +82,16 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
             </Link>
 
             <Link 
-              href="/customer/products" 
+              href="/products" 
               className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
-                pathname === '/customer/products' ? 'text-[#0B72E7] font-bold' : ''
+                pathname === '/products' ? 'text-[#0B72E7] font-bold' : ''
               }`}
             >
               Categories
             </Link>
 
             <Link 
-              href="/customer/products?deals=true" 
+              href="/products?deals=true" 
               className="transition-colors hover:text-amber-600 text-slate-700 flex items-center gap-1 font-bold"
             >
               <Flame className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -99,9 +99,9 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
             </Link>
 
             <Link 
-              href="/customer/assistant" 
+              href="/assistant" 
               className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50/80 text-[#0B72E7] font-bold border border-blue-200/80 shadow-2xs hover:bg-blue-100 ${
-                pathname.startsWith('/customer/assistant') ? 'bg-[#0B72E7] text-white border-transparent' : ''
+                pathname.startsWith('/assistant') ? 'bg-[#0B72E7] text-white border-transparent' : ''
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -121,7 +121,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
           <div className="flex items-center gap-3 shrink-0">
             {/* Cart Button */}
             <button
-              onClick={onOpenCart || (() => router.push('/customer/products'))}
+              onClick={onOpenCart || (() => router.push('/products'))}
               className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs font-bold transition-all relative cursor-pointer border border-slate-200/70 shadow-2xs group"
               title="Shopping Cart"
             >
@@ -191,7 +191,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
 
                     <div className="py-1 font-medium">
                       <Link 
-                        href="/customer/orders"
+                        href="/orders"
                         onClick={() => setIsAccountDropdownOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
                       >
@@ -200,7 +200,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                       </Link>
 
                       <Link 
-                        href="/customer/wishlist"
+                        href="/wishlist"
                         onClick={() => setIsAccountDropdownOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
                       >
@@ -209,7 +209,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                       </Link>
 
                       <Link 
-                        href="/customer/assistant"
+                        href="/assistant"
                         onClick={() => setIsAccountDropdownOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 hover:bg-blue-50 text-[#0B72E7] font-semibold"
                       >
@@ -272,21 +272,21 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               Home
             </Link>
             <Link 
-              href="/customer/products" 
+              href="/products" 
               onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-xl hover:bg-slate-50"
             >
               Categories & Catalog
             </Link>
             <Link 
-              href="/customer/products?deals=true" 
+              href="/products?deals=true" 
               onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-xl hover:bg-amber-50 text-amber-600 font-bold"
             >
               🔥 Deals & Flash Sale
             </Link>
             <Link 
-              href="/customer/assistant" 
+              href="/assistant" 
               onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-xl hover:bg-blue-50 text-[#0B72E7] font-bold"
             >

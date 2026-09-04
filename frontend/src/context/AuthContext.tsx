@@ -129,14 +129,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
       } else {
-        setToken('demo_jwt_session_token');
-        setUser(DEFAULT_USER);
-        localStorage.setItem('razorcommerce_token', 'demo_jwt_session_token');
-        localStorage.setItem('razorcommerce_user', JSON.stringify(DEFAULT_USER));
+        setToken(null);
+        setUser(null);
       }
     } catch (e) {
       console.error('Failed to load session:', e);
-      setUser(DEFAULT_USER);
+      setToken(null);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }

@@ -162,7 +162,7 @@ export function CheckoutSuccessModal({
                 <Button
                   onClick={() => {
                     onClose();
-                    router.push('/customer/orders');
+                    router.push('/orders');
                   }}
                   className="h-10 text-xs font-bold bg-[#0B72E7] hover:bg-[#095bc0] text-white rounded-xl gap-1.5 shadow-sm"
                 >
@@ -173,7 +173,7 @@ export function CheckoutSuccessModal({
                   variant="outline"
                   onClick={() => {
                     onClose();
-                    router.push(`/customer/track?orderId=${result.order_id}`);
+                    router.push('/orders');
                   }}
                   className="h-10 text-xs font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 rounded-xl gap-1.5"
                 >
