@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Path, Body
+from fastapi import APIRouter, HTTPException, Query, Path, Body, Depends
 from typing import List, Optional
 from app.schemas.checkout import (
     CartDTO,
@@ -12,7 +12,9 @@ from app.schemas.checkout import (
     AgentCommandRequestDTO,
     AgentCommandResponseDTO
 )
+from app.schemas.auth import UserDTO
 from app.services.checkout_service import checkout_service
+from app.core.auth_dependency import require_authenticated_customer
 
 router = APIRouter()
 
@@ -78,13 +80,17 @@ def apply_promo_coupon(
         raise HTTPException(status_code=500, detail=f"Failed to apply coupon: {str(e)}")
 
 @router.post("/create-order", response_model=CheckoutOrderResponseDTO)
-def create_checkout_order(payload: CheckoutOrderRequestDTO = Body(...)):
+def create_checkout_order(
+    payload: CheckoutOrderRequestDTO = Body(...),
+    customer: UserDTO = Depends(require_authenticated_customer)
+):
     """
     Convert cart to a Razorpay Test Mode Order.
+    Requires verified authenticated customer identity.
     Computes Subtotal (Order Amount), 18% GST Taxes, Promo Discounts, and Final Amount.
     """
     try:
-        return checkout_service.create_checkout_order(payload, actor="User")
+        return checkout_service.create_checkout_order(payload, actor=customer.name)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:

@@ -1,11 +1,12 @@
-'use client';
-
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Product, CartState, CartItem, CheckoutResult } from '@/types/commerce';
+import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { CheckoutSuccessModal } from '@/components/commerce/CheckoutSuccessModal';
+import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { 
   Search, 
   Filter, 
@@ -38,11 +39,15 @@ const CATEGORIES = [
 ];
 
 export default function CustomerProductsPage() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'stock'>('featured');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [wishlist, setWishlist] = useState<string[]>([]);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
 
   // Cart state
   const [cart, setCart] = useState<CartState>({
@@ -110,6 +115,15 @@ export default function CustomerProductsPage() {
   };
 
   const handleAddToCart = (product: Product) => {
+    if (!isAuthenticated) {
+      setPendingProduct(product);
+      try {
+        localStorage.setItem('razorcommerce_pending_item', JSON.stringify(product));
+      } catch (e) {}
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.items.find(i => i.product_id === product.id);
       let updatedItems: CartItem[];
@@ -456,7 +470,14 @@ export default function CustomerProductsPage() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveFromCart}
         onApplyCoupon={handleApplyCoupon}
-        onCheckout={() => checkoutMutation.mutate()}
+        onCheckout={() => {
+          if (!isAuthenticated) {
+            setIsCartOpen(false);
+            router.push('/login?redirect=/checkout');
+            return;
+          }
+          checkoutMutation.mutate();
+        }}
         isCheckingOut={checkoutMutation.isPending}
       />
 
@@ -465,6 +486,14 @@ export default function CustomerProductsPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
+      />
+
+      {/* Customer Authentication Gating Modal */}
+      <CustomerAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        redirectPath="/cart"
+        pendingItemName={pendingProduct?.name}
       />
     </div>
   );

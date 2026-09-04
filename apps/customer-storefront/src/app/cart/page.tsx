@@ -20,10 +20,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/context/AuthContext';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
 
 export default function CustomerCartPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [coupon, setCoupon] = useState('');
   const [couponApplied, setCouponApplied] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -76,6 +78,11 @@ export default function CustomerCartPage() {
   };
 
   const handleProceedCheckout = async () => {
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
     try {
       const res: any = await apiClient.post('/commerce/checkout', {
         cart: {

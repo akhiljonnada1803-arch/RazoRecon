@@ -6,13 +6,21 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+    const token = isBrowser ? (localStorage.getItem('razorcommerce_token') || localStorage.getItem('razorrecon_token')) : null;
+    const customHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      customHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
       const response = await fetch(primaryUrl, {
         ...options,
         signal: controller.signal,
         headers: {
-          'Content-Type': 'application/json',
-          ...(options?.headers || {}),
+          ...customHeaders,
+          ...(options?.headers as Record<string, string> || {}),
         },
       });
 
@@ -22,7 +30,10 @@ class ApiClient {
         if (isBrowser) {
           const directResp = await fetch(`http://127.0.0.1:8000/api/v1${endpoint}`, {
             ...options,
-            headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+            headers: {
+              ...customHeaders,
+              ...(options?.headers as Record<string, string> || {})
+            },
           }).catch(() => null);
 
           if (directResp && directResp.ok) {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends, Header
 from typing import List, Optional
 from app.schemas.commerce import (
     ProductDTO,
@@ -8,7 +8,9 @@ from app.schemas.commerce import (
     CheckoutResponseDTO,
     ComparisonDataDTO
 )
+from app.schemas.auth import UserDTO
 from app.services.commerce_service import commerce_service
+from app.core.auth_dependency import require_authenticated_customer
 
 router = APIRouter()
 
@@ -53,8 +55,14 @@ def compare_products(product_ids: List[str] = Body(..., embed=True)):
     return commerce_service.compare_products(product_ids)
 
 @router.post("/checkout", response_model=CheckoutResponseDTO)
-def generate_checkout_payment_link(payload: CheckoutRequestDTO):
-    """Generate a dynamic Razorpay payment link and QR code for the active shopping cart."""
+def generate_checkout_payment_link(
+    payload: CheckoutRequestDTO,
+    customer: UserDTO = Depends(require_authenticated_customer)
+):
+    """
+    Generate a dynamic Razorpay payment link and QR code for the active shopping cart.
+    Requires verified authenticated customer identity.
+    """
     return commerce_service.generate_checkout_link(payload.cart)
 
 @router.get("/prompts", response_model=List[str])

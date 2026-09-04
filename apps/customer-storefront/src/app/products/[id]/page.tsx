@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Product, CartItem, CartState } from '@/types/commerce';
+import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
+import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { ProductDetailSkeleton } from '@/components/common/SkeletonLoaders';
 import { 
   Star, 
@@ -35,6 +37,7 @@ import Link from 'next/link';
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const productId = params?.id as string;
 
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
@@ -44,6 +47,9 @@ export default function ProductDetailPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+
   const [cart, setCart] = useState<CartState>({
     items: [],
     subtotal: 0,
@@ -84,6 +90,15 @@ export default function ProductDetailPage() {
   const round2 = (num: number) => Math.round((num + Number.EPSILON) * 100) / 100;
 
   const handleAddToCart = (p: Product, qty: number = 1) => {
+    if (!isAuthenticated) {
+      setPendingProduct(p);
+      try {
+        localStorage.setItem('razorcommerce_pending_item', JSON.stringify(p));
+      } catch (e) {}
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.items.find((i) => i.product_id === p.id);
       let updatedItems: CartItem[];
@@ -121,6 +136,14 @@ export default function ProductDetailPage() {
   };
 
   const handleBuyNow = async (p: Product) => {
+    if (!isAuthenticated) {
+      try {
+        localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify(p));
+      } catch (e) {}
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
     const singleCart: CartState = {
       items: [
         {
@@ -475,6 +498,11 @@ export default function ProductDetailPage() {
           }));
         }}
         onCheckout={async () => {
+          if (!isAuthenticated) {
+            setIsCartOpen(false);
+            router.push('/login?redirect=/checkout');
+            return;
+          }
           try {
             const res: any = await apiClient.post('/commerce/checkout', { cart });
             setCheckoutResult(res);
@@ -492,6 +520,14 @@ export default function ProductDetailPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
+      />
+
+      {/* Customer Authentication Gating Modal */}
+      <CustomerAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        redirectPath="/cart"
+        pendingItemName={pendingProduct?.name}
       />
     </div>
   );

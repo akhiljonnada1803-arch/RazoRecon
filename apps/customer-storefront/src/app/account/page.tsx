@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { 
   User, 
@@ -22,11 +24,18 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 export default function CustomerProfilePage() {
+  const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
 
   const [saved, setSaved] = useState(false);
   const [maxSpendLimit, setMaxSpendLimit] = useState('50000');
   const [autoApprove, setAutoApprove] = useState(true);
+
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login?redirect=/account');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   if (!isLoading && !isAuthenticated) {
     return (
@@ -38,11 +47,11 @@ export default function CustomerProfilePage() {
         <p className="text-xs text-slate-500">
           Manage your saved addresses, corporate procurement preferences, and payment methods.
         </p>
-        <a href="/login" className="inline-block w-full">
+        <Link href="/login?redirect=/account" className="inline-block w-full">
           <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
             Sign In to Customer Account
           </Button>
-        </a>
+        </Link>
       </div>
     );
   }

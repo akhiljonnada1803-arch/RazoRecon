@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { 
   User, 
@@ -18,8 +18,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-export default function CustomerRegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get('redirect') || '/';
   const { login } = useAuth();
 
   const [name, setName] = useState('');
@@ -36,7 +38,7 @@ export default function CustomerRegisterPage() {
 
     const success = await login(email || 'customer@acme.com', password || 'demo123');
     if (success) {
-      router.push('/');
+      router.push(redirectParam);
     } else {
       setErrorMsg('Could not register account. Please try again or use the demo login.');
       setIsSubmitting(false);
@@ -61,6 +63,15 @@ export default function CustomerRegisterPage() {
             Join the AI Commerce marketplace for instant Razorpay checkout, saved orders, and AI personalized recommendations.
           </p>
         </div>
+
+        {redirectParam && redirectParam !== '/' && (
+          <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-800 flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 text-[#0B72E7] shrink-0" />
+            <span>
+              Create an account to complete your action on <strong>{redirectParam}</strong>.
+            </span>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
@@ -130,7 +141,7 @@ export default function CustomerRegisterPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-11 bg-[#0B72E7] hover:bg-blue-600 text-white font-bold rounded-xl text-xs shadow-md mt-2"
+            className="w-full h-11 bg-[#0B72E7] hover:bg-blue-600 text-white font-bold rounded-xl text-xs shadow-md mt-2 cursor-pointer"
           >
             <span>{isSubmitting ? 'Creating Account...' : 'Create Account & Start Shopping'}</span>
             <ArrowRight className="w-4 h-4 ml-2" />
@@ -139,11 +150,22 @@ export default function CustomerRegisterPage() {
 
         <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100">
           Already have an account?{' '}
-          <Link href="/login" className="text-[#0B72E7] font-bold hover:underline">
+          <Link 
+            href={`/login${redirectParam !== '/' ? `?redirect=${encodeURIComponent(redirectParam)}` : ''}`}
+            className="text-[#0B72E7] font-bold hover:underline"
+          >
             Sign In
           </Link>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CustomerRegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-slate-400 text-xs">Loading registration...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

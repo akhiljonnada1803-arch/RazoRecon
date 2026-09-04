@@ -553,6 +553,68 @@ class AuthService:
                 cursor.execute("UPDATE users SET organization_id = ? WHERE LOWER(email) = ?", (org_row["id"], user_email.lower()))
                 conn.commit()
 
-        return self.get_current_user_profile(user_email)
+    def verify_token(self, token_str: str) -> Optional[UserDTO]:
+        """Verify JWT token and retrieve corresponding user."""
+        try:
+            clean_token = token_str.replace("Bearer ", "").strip()
+            parts = clean_token.split(".")
+            if len(parts) != 3:
+                return None
+            header_b64, payload_b64, sig_b64 = parts
+            
+            # Verify HMAC SHA256 signature
+            expected_sig = hmac.new(
+                SECRET_KEY.encode(),
+                f"{header_b64}.{payload_b64}".encode(),
+                hashlib.sha256
+            ).digest()
+            expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).decode().rstrip("=")
+            if not hmac.compare_digest(sig_b64, expected_sig_b64):
+                return None
+
+            # Decode payload
+            rem = len(payload_b64) % 4
+            if rem > 0:
+                payload_b64 += "=" * (4 - rem)
+            payload = json.loads(base64.urlsafe_b64decode(payload_b64.encode()).decode())
+
+            # Check expiration
+            if payload.get("exp", 0) < time.time():
+                return None
+
+            user_id = payload.get("sub")
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                    FROM users u
+                    JOIN roles r ON u.role_id = r.id
+                    JOIN organizations o ON u.organization_id = o.id
+                    WHERE u.id = ?
+                """, (user_id,))
+                row = cursor.fetchone()
+                if row:
+                    return self.get_user_dto(row)
+        except Exception:
+            return None
+        return None
+
+    def get_user_by_id_or_email(self, identifier: str) -> Optional[UserDTO]:
+        """Find user by unique ID or email."""
+        clean_id = identifier.strip().lower()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                JOIN organizations o ON u.organization_id = o.id
+                WHERE LOWER(u.id) = ? OR LOWER(u.email) = ?
+            """, (clean_id, clean_id))
+            row = cursor.fetchone()
+            if row:
+                return self.get_user_dto(row)
+        return None
 
 auth_service = AuthService()
+

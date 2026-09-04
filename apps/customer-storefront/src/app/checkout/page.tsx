@@ -30,8 +30,24 @@ export default function StandaloneCheckoutPage() {
   const [upiId, setUpiId] = useState('akhil@okaxis');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
+  const [stagedProduct, setStagedProduct] = useState<any>(null);
 
-  const amount = 14999;
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login?redirect=/checkout');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  React.useEffect(() => {
+    try {
+      const staged = localStorage.getItem('razorcommerce_staged_buy_now');
+      if (staged) {
+        setStagedProduct(JSON.parse(staged));
+      }
+    } catch (e) {}
+  }, []);
+
+  const amount = stagedProduct?.price || 14999;
   const gst_included = Math.round(amount - amount / 1.18);
 
   const handlePay = async () => {
@@ -44,6 +60,10 @@ export default function StandaloneCheckoutPage() {
         razorpay_signature: 'simulated_hmac_sha256_signature_verified',
       });
       setIsPaid(true);
+      // Clean up staged buy now item
+      try {
+        localStorage.removeItem('razorcommerce_staged_buy_now');
+      } catch (e) {}
       setTimeout(() => {
         router.push('/orders');
       }, 1500);
@@ -68,7 +88,7 @@ export default function StandaloneCheckoutPage() {
         <p className="text-xs text-slate-500">
           Login is required to link your shipping address, track dispatch status, and process secure Razorpay payment.
         </p>
-        <Link href="/login" className="inline-block w-full">
+        <Link href="/login?redirect=/checkout" className="inline-block w-full">
           <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
             Sign In to Continue Checkout
           </Button>

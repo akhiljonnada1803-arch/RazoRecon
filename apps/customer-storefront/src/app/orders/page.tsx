@@ -29,6 +29,12 @@ export default function CustomerOrdersPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
+  React.useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login?redirect=/orders');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
   const { data: ordersData, isLoading: isOrdersLoading } = useQuery({
     queryKey: ['customer-orders-list'],
     queryFn: async () => {
@@ -48,7 +54,7 @@ export default function CustomerOrdersPage() {
         <p className="text-xs text-slate-500">
           Track real-time shipment milestones, download GST tax invoices, and view order history.
         </p>
-        <Link href="/login" className="inline-block w-full">
+        <Link href="/login?redirect=/orders" className="inline-block w-full">
           <Button className="w-full bg-[#0B72E7] text-white font-bold rounded-xl text-xs h-10">
             Sign In to Track Orders
           </Button>

@@ -98,15 +98,18 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               <span>Deals</span>
             </Link>
 
-            <Link 
-              href="/orders" 
-              className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
-                pathname === '/orders' ? 'text-[#0B72E7] font-bold' : ''
-              }`}
-            >
-              <Package className="w-3.5 h-3.5" />
-              <span>Orders</span>
-            </Link>
+            {/* Orders link is visible ONLY to logged-in users */}
+            {isAuthenticated && (
+              <Link 
+                href="/orders" 
+                className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
+                  pathname === '/orders' ? 'text-[#0B72E7] font-bold' : ''
+                }`}
+              >
+                <Package className="w-3.5 h-3.5" />
+                <span>My Orders</span>
+              </Link>
+            )}
 
             <Link 
               href="/assistant" 
@@ -131,7 +134,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
           <div className="flex items-center gap-3 shrink-0">
             {/* Cart Button */}
             <button
-              onClick={onOpenCart || (() => router.push('/products'))}
+              onClick={onOpenCart || (() => router.push('/cart'))}
               className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs font-bold transition-all relative cursor-pointer border border-slate-200/70 shadow-2xs group"
               title="Shopping Cart"
             >
@@ -148,34 +151,35 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               )}
             </button>
 
-            {/* If Not Authenticated (Guest User): Show Login + Sign Up */}
+            {/* If Not Authenticated (Guest User): Show Sign In & Register */}
             {!isAuthenticated ? (
               <div className="hidden sm:flex items-center gap-2">
                 <Link href="/login">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className="text-xs h-9 px-3.5 font-bold text-slate-700 hover:text-[#0B72E7] hover:bg-blue-50 rounded-xl"
+                    className="text-xs h-9 px-3.5 font-bold text-slate-700 hover:text-[#0B72E7] hover:bg-blue-50 rounded-xl cursor-pointer"
                   >
-                    Login
+                    <LogIn className="w-3.5 h-3.5 mr-1" />
+                    <span>Sign In</span>
                   </Button>
                 </Link>
 
-                <Link href="/login">
+                <Link href="/register">
                   <Button 
                     size="sm" 
-                    className="text-xs h-9 px-4 font-bold bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl shadow-xs"
+                    className="text-xs h-9 px-4 font-bold bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl shadow-xs cursor-pointer"
                   >
-                    Sign Up
+                    <span>Register</span>
                   </Button>
                 </Link>
               </div>
             ) : (
-              /* If Authenticated: Clean Customer Account Menu */
+              /* If Authenticated: Clean Customer Account Menu with My Orders, Account & Logout */
               <div className="relative">
                 <button
                   onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-100 border border-slate-200/80 transition-all text-left bg-slate-50/50 shadow-2xs"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-slate-100 border border-slate-200/80 transition-all text-left bg-slate-50/50 shadow-2xs cursor-pointer"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
                     {displayName.charAt(0).toUpperCase()}
@@ -210,6 +214,15 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                       </Link>
 
                       <Link 
+                        href="/account"
+                        onClick={() => setIsAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
+                      >
+                        <User className="w-4 h-4 text-slate-400" />
+                        <span>Account & Addresses</span>
+                      </Link>
+
+                      <Link 
                         href="/wishlist"
                         onClick={() => setIsAccountDropdownOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
@@ -234,10 +247,10 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                           logout();
                           setIsAccountDropdownOpen(false);
                         }}
-                        className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-rose-50 text-rose-600 font-semibold"
+                        className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-rose-50 text-rose-600 font-semibold cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 text-rose-500" />
-                        <span>Sign Out</span>
+                        <span>Logout</span>
                       </button>
                     </div>
                   </div>
@@ -302,24 +315,42 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
             >
               ✨ AI Shopping Assistant
             </Link>
-            <Link 
-              href="/login" 
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="block px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-500 border-t border-slate-100 pt-2"
-            >
-              Become a Merchant
-            </Link>
-
-            {!isAuthenticated && (
+            {isAuthenticated ? (
+              <div className="space-y-1 pt-2 border-t border-slate-100">
+                <Link 
+                  href="/orders" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl hover:bg-slate-50 font-bold text-slate-800"
+                >
+                  📦 My Orders
+                </Link>
+                <Link 
+                  href="/account" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+                >
+                  👤 Account & Addresses
+                </Link>
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-600 font-bold cursor-pointer"
+                >
+                  🚪 Logout ({displayName})
+                </button>
+              </div>
+            ) : (
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full text-xs font-bold rounded-xl">
-                    Login
+                  <Button variant="outline" className="w-full text-xs font-bold rounded-xl cursor-pointer">
+                    Sign In
                   </Button>
                 </Link>
-                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full text-xs font-bold bg-[#0B72E7] text-white rounded-xl">
-                    Sign Up
+                <Link href="/register" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Button className="w-full text-xs font-bold bg-[#0B72E7] text-white rounded-xl cursor-pointer">
+                    Register
                   </Button>
                 </Link>
               </div>

@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Product, CartItem, CartState } from '@/types/commerce';
+import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
+import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -45,26 +47,37 @@ import { ProductGridSkeleton } from '@/components/common/SkeletonLoaders';
 
 export default function PublicHomePage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [searchPrompt, setSearchPrompt] = useState('');
   const [activeRecommendationTab, setActiveRecommendationTab] = useState<'personalized' | 'trending' | 'recent'>('personalized');
   
-  const [cart, setCart] = useState<CartState>({
-    items: [],
-    subtotal: 0,
-    delivery_fee: 0,
-    platform_fee: 0,
-    gst_included: 0,
-    tax_gst: 0,
-    shipping: 0,
-    discount: 0,
-    coupon_applied: null,
-    total: 0,
-    currency: 'INR'
+  const [cart, setCart] = useState<CartState>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('razorcommerce_cart');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      items: [],
+      subtotal: 0,
+      delivery_fee: 0,
+      platform_fee: 0,
+      gst_included: 0,
+      tax_gst: 0,
+      shipping: 0,
+      discount: 0,
+      coupon_applied: null,
+      total: 0,
+      currency: 'INR'
+    };
   });
   
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
 
   // Fetch catalog products from API
   const { data: catalogData, isLoading } = useQuery({
@@ -78,7 +91,24 @@ export default function PublicHomePage() {
   const products: Product[] = Array.isArray(catalogData) ? catalogData : [];
   const round2 = (num: number) => Math.round((num + Number.EPSILON) * 100) / 100;
 
+  // Sync cart to localStorage for Amazon-style cart persistence & post-login merge
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('razorcommerce_cart', JSON.stringify(cart));
+    } catch (e) {}
+  }, [cart]);
+
   const handleAddToCart = (product: Product) => {
+    // GUEST GATING: If not authenticated, open login modal and do NOT add item immediately
+    if (!isAuthenticated) {
+      setPendingProduct(product);
+      try {
+        localStorage.setItem('razorcommerce_pending_item', JSON.stringify(product));
+      } catch (e) {}
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.items.find((i) => i.product_id === product.id);
       let updatedItems: CartItem[];
@@ -116,6 +146,15 @@ export default function PublicHomePage() {
   };
 
   const handleBuyNow = async (product: Product) => {
+    // GUEST GATING: If not authenticated, redirect to login with redirect to checkout
+    if (!isAuthenticated) {
+      try {
+        localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify(product));
+      } catch (e) {}
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
     const singleCart: CartState = {
       items: [{
         product_id: product.id,
@@ -899,6 +938,11 @@ export default function PublicHomePage() {
         }}
         onCheckout={async () => {
           if (cart.items.length === 0) return;
+          if (!isAuthenticated) {
+            setIsCartOpen(false);
+            router.push('/login?redirect=/checkout');
+            return;
+          }
           try {
             const res: any = await apiClient.post('/commerce/checkout', { cart });
             setCheckoutResult(res);
@@ -916,6 +960,14 @@ export default function PublicHomePage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
+      />
+
+      {/* Customer Authentication Gating Modal */}
+      <CustomerAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        redirectPath="/cart"
+        pendingItemName={pendingProduct?.name}
       />
     </div>
   );

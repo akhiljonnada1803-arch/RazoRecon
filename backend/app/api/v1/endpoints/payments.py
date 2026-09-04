@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Body, Header
+from fastapi import APIRouter, HTTPException, Query, Body, Header, Depends
 from typing import List, Optional, Dict, Any
 from app.schemas.payments import (
     CreateOrderRequestDTO,
@@ -8,14 +8,20 @@ from app.schemas.payments import (
     OrderDTO,
     PaymentDTO
 )
+from app.schemas.auth import UserDTO
 from app.services.payment_service import payment_service
+from app.core.auth_dependency import require_authenticated_customer
 
 router = APIRouter()
 
 @router.post("/create-order", response_model=CreateOrderResponseDTO)
-def create_order(payload: CreateOrderRequestDTO):
+def create_order(
+    payload: CreateOrderRequestDTO,
+    customer: UserDTO = Depends(require_authenticated_customer)
+):
     """
     Create a new Razorpay Order in Test Mode and generate a checkout session.
+    Requires verified customer authentication.
     """
     try:
         return payment_service.create_order(payload)
