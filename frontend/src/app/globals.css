@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Razorpay / RazorpayX Clean FinTech Light Theme Palette */
+    --background: 210 40% 98%;      /* #F8FAFC */
+    --foreground: 222 47% 11%;      /* #0F172A */
+    
+    --card: 0 0% 100%;              /* #FFFFFF */
+    --card-foreground: 222 47% 11%; /* #0F172A */
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    
+    --primary: 212 91% 48%;         /* #0B72E7 Razorpay Blue */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 215 85% 18%;       /* #072654 Razorpay Navy */
+    --secondary-foreground: 0 0% 100%;
+    
+    --muted: 210 40% 96%;           /* #F1F5F9 */
+    --muted-foreground: 215 16% 47%;/* #64748B */
+    
+    --accent: 212 91% 96%;          /* #EFF6FF */
+    --accent-foreground: 212 91% 48%;
+    
+    --destructive: 0 84% 60%;       /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 214 32% 91%;          /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 212 91% 48%;
+    --radius: 0.5rem;
+  }
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  min-height: 100vh;
+}
+
+/* Crisp Razorpay UI Table Styling */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Subtle clean scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
