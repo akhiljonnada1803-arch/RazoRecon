@@ -205,35 +205,46 @@ export function ShoppingCartDrawer({
               </form>
 
               {/* Cost Breakdown */}
-              <div className="space-y-1.5 text-xs border-t border-slate-200 pt-3 text-slate-600">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span className="font-semibold text-slate-800">
-                    ₹{cart.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              <div className="space-y-2 text-xs border-t border-slate-200 pt-3 text-slate-600">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600 font-medium">Items Total (GST Inclusive)</span>
+                  <span className="font-bold text-slate-900">
+                    ₹{(cart.items_total || cart.subtotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>GST (18% Input Credit Eligible)</span>
-                  <span className="font-semibold text-slate-800">
-                    ₹{cart.tax_gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Delivery Fee</span>
+                  <span className="font-semibold text-emerald-600 font-mono">
+                    {(cart.delivery_fee ?? cart.shipping) === 0 ? 'FREE' : `₹${(cart.delivery_fee ?? cart.shipping).toFixed(2)}`}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Standard Shipping</span>
-                  <span className="font-semibold text-emerald-600">
-                    {cart.shipping === 0 ? 'FREE' : `₹${cart.shipping.toFixed(2)}`}
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Platform Fee</span>
+                  <span className="font-semibold text-emerald-600 font-mono">
+                    {(cart.platform_fee ?? 0) === 0 ? 'FREE' : `₹${(cart.platform_fee ?? 0).toFixed(2)}`}
                   </span>
                 </div>
+
                 {cart.discount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-semibold">
-                    <span>Discount</span>
+                  <div className="flex justify-between items-center text-emerald-600 font-semibold">
+                    <span>Discounts</span>
                     <span>-₹{cart.discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm font-extrabold text-[#072654] border-t border-slate-200 pt-2">
-                  <span>Total Amount</span>
-                  <span className="text-[#0B72E7] text-base">
+
+                <div className="flex justify-between items-center text-sm font-extrabold text-[#072654] border-t border-slate-200 pt-2.5">
+                  <span>Final Payable Amount</span>
+                  <span className="text-[#0B72E7] text-base font-extrabold font-mono">
                     ₹{cart.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="p-2 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-[10px] text-emerald-800 font-medium flex items-center gap-1.5 mt-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    Includes ₹{(cart.gst_included || cart.tax_gst).toLocaleString('en-IN', { minimumFractionDigits: 2 })} GST • No surprise tax added at checkout
                   </span>
                 </div>
               </div>

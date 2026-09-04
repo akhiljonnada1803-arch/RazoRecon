@@ -180,17 +180,23 @@ class CheckoutService:
         items_rows = cursor.fetchall()
 
         items: List[CartItemDTO] = []
-        subtotal = 0.0
-        tax_amount = 0.0
+        items_total = 0.0
+        gst_included_amount = 0.0
         total_qty = 0
 
         for r in items_rows:
-            item_subtotal = round(float(r["price"]) * int(r["quantity"]), 2)
-            item_tax = round(item_subtotal * (float(r["gst_rate_pct"]) / 100.0), 2)
+            item_price = float(r["price"])
+            item_qty = int(r["quantity"])
+            item_subtotal = round(item_price * item_qty, 2)
+            gst_pct = float(r["gst_rate_pct"]) if r["gst_rate_pct"] is not None else 18.0
             
-            subtotal += item_subtotal
-            tax_amount += item_tax
-            total_qty += int(r["quantity"])
+            # Embedded GST component calculation
+            base_item_subtotal = round(item_subtotal / (1.0 + (gst_pct / 100.0)), 2)
+            item_gst = round(item_subtotal - base_item_subtotal, 2)
+            
+            items_total += item_subtotal
+            gst_included_amount += item_gst
+            total_qty += item_qty
 
             items.append(CartItemDTO(
                 product_id=r["product_id"],
@@ -198,11 +204,11 @@ class CheckoutService:
                 name=r["name"],
                 brand=r["brand"],
                 category=r["category"],
-                price=float(r["price"]),
-                quantity=int(r["quantity"]),
+                price=item_price,
+                quantity=item_qty,
                 subtotal=item_subtotal,
                 image_url=r["image_url"],
-                gst_rate_pct=float(r["gst_rate_pct"]),
+                gst_rate_pct=gst_pct,
                 hsn_sac_code=r["hsn_sac_code"],
                 active_offer=r["active_offer"]
             ))
@@ -215,17 +221,23 @@ class CheckoutService:
         if coupon_code and coupon_code in AVAILABLE_COUPONS:
             coupon_info = AVAILABLE_COUPONS[coupon_code]
             if coupon_info["type"] == "percentage":
-                discount_amount = round(subtotal * (coupon_info["value"] / 100.0), 2)
+                discount_amount = round(items_total * (coupon_info["value"] / 100.0), 2)
                 discount_pct = coupon_info["value"]
             elif coupon_info["type"] == "flat":
-                discount_amount = min(subtotal, coupon_info["value"])
-                discount_pct = round((discount_amount / max(1.0, subtotal)) * 100, 1)
+                discount_amount = min(items_total, coupon_info["value"])
+                discount_pct = round((discount_amount / max(1.0, items_total)) * 100, 1)
 
-        final_amount = max(0.0, round(subtotal + tax_amount - discount_amount, 2))
+        delivery_fee = 0.0  # Free Delivery
+        platform_fee = 0.0  # Zero Platform Fee
+        final_amount = max(0.0, round(items_total + delivery_fee + platform_fee - discount_amount, 2))
 
         summary = CartSummaryDTO(
-            subtotal=round(subtotal, 2),
-            tax_amount=round(tax_amount, 2),
+            items_total=round(items_total, 2),
+            subtotal=round(items_total, 2),
+            delivery_fee=delivery_fee,
+            platform_fee=platform_fee,
+            gst_included_amount=round(gst_included_amount, 2),
+            tax_amount=round(gst_included_amount, 2),
             discount_amount=round(discount_amount, 2),
             discount_code=coupon_code,
             discount_pct=discount_pct,
@@ -439,8 +451,12 @@ class CheckoutService:
             cart_id=cart.id,
             receipt=order_res.receipt,
             currency="INR",
-            order_amount=cart.summary.subtotal,
-            taxes=cart.summary.tax_amount,
+            items_total=cart.summary.items_total,
+            order_amount=cart.summary.items_total,
+            delivery_fee=cart.summary.delivery_fee,
+            platform_fee=cart.summary.platform_fee,
+            gst_included=cart.summary.gst_included_amount,
+            taxes=cart.summary.gst_included_amount,
             discounts=cart.summary.discount_amount,
             final_amount=cart.summary.final_amount,
             status="created",

@@ -22,7 +22,13 @@ class ProductDetailDTO(BaseModel):
     name: str
     brand: str
     category: str
-    price: float
+    price: float  # Customer-facing GST-inclusive price
+    customer_price: Optional[float] = None  # Explicit GST-inclusive price
+    base_price: Optional[float] = None  # Net price before GST
+    gst_rate: Optional[float] = 0.18  # Fractional GST rate (e.g. 0.18)
+    gst_rate_pct: float = 18.0  # Percentage GST rate (e.g. 18.0)
+    gst_amount: Optional[float] = None  # GST component in INR
+    price_display: Optional[str] = None  # e.g. "₹14,999 Inclusive of GST"
     cost_price: float = 0.0
     original_price: Optional[float] = None
     currency: str = "INR"
@@ -42,7 +48,6 @@ class ProductDetailDTO(BaseModel):
     specs: List[ProductSpecDTO] = []
     in_stock: bool = True
     delivery_time: str = "2-3 business days"
-    gst_rate_pct: float = 18.0
     hsn_sac_code: str = "8470"
     offer_id: Optional[str] = None
     offer_text: Optional[str] = None
@@ -58,6 +63,10 @@ class ProductCreateDTO(BaseModel):
     brand: Optional[str] = "Acme Hardware"
     category: str
     price: float
+    base_price: Optional[float] = None
+    customer_price: Optional[float] = None
+    gst_rate: Optional[float] = 0.18
+    gst_rate_pct: Optional[float] = 18.0
     cost_price: Optional[float] = None
     original_price: Optional[float] = None
     stock_quantity: Optional[int] = 50
@@ -149,6 +158,12 @@ class AICatalogProductItemDTO(BaseModel):
     product_id: str
     name: str
     price: float
+    customer_price: float
+    base_price: float
+    gst_rate: float = 0.18
+    gst_rate_pct: float = 18.0
+    gst_inclusive: bool = True
+    price_display: str = ""
     category: str
     stock: int
     description: str
@@ -157,7 +172,6 @@ class AICatalogProductItemDTO(BaseModel):
     brand: str
     specs: Dict[str, str] = {}
     active_offer: Optional[str] = None
-    gst_rate_pct: float = 18.0
 
 class AICatalogContextDTO(BaseModel):
     schema_version: str = "2026.1"

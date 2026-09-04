@@ -79,24 +79,29 @@ export default function CustomerProductsPage() {
   };
 
   const calculateCart = (items: CartItem[], coupon: string | null = cart.coupon_applied || null): CartState => {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax_gst = Math.round(subtotal * 0.18);
-    const shipping = subtotal > 5000 || subtotal === 0 ? 0 : 499;
+    const items_total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const gst_included = Math.round(items_total - (items_total / 1.18));
+    const delivery_fee = items_total > 5000 || items_total === 0 ? 0 : 499;
+    const platform_fee = 0;
     
     let discount = 0;
     if (coupon?.toUpperCase() === 'RAZOR2026') {
-      discount = Math.round(subtotal * 0.10);
+      discount = Math.round(items_total * 0.10);
     } else if (coupon?.toUpperCase() === 'FINTECH50') {
-      discount = Math.min(2500, Math.round(subtotal * 0.15));
+      discount = Math.min(2500, Math.round(items_total * 0.15));
     }
 
-    const total = Math.max(0, subtotal + tax_gst + shipping - discount);
+    const total = Math.max(0, items_total + delivery_fee + platform_fee - discount);
 
     return {
       items,
-      subtotal,
-      tax_gst,
-      shipping,
+      items_total,
+      subtotal: items_total,
+      delivery_fee,
+      platform_fee,
+      gst_included,
+      tax_gst: gst_included,
+      shipping: delivery_fee,
       discount,
       coupon_applied: coupon,
       total,
@@ -415,9 +420,12 @@ export default function CustomerProductsPage() {
                   {/* Pricing and Action */}
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-400 block uppercase font-mono">Price</span>
-                      <span className="text-base font-bold text-[#072654]">
+                      <span className="text-base font-extrabold text-[#072654] block leading-tight">
                         ₹{product.price.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5 mt-0.5">
+                        <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                        Inclusive of GST
                       </span>
                     </div>
 

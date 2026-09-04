@@ -17,12 +17,16 @@ class CartItemDTO(BaseModel):
     active_offer: Optional[str] = None
 
 class CartSummaryDTO(BaseModel):
-    subtotal: float = 0.0
-    tax_amount: float = 0.0
+    items_total: float = 0.0  # Total of GST-inclusive customer prices
+    subtotal: float = 0.0  # Alias for items_total
+    delivery_fee: float = 0.0
+    platform_fee: float = 0.0
+    gst_included_amount: float = 0.0  # GST embedded in items_total
+    tax_amount: float = 0.0  # Alias for gst_included_amount
     discount_amount: float = 0.0
     discount_code: Optional[str] = None
     discount_pct: Optional[float] = 0.0
-    final_amount: float = 0.0
+    final_amount: float = 0.0  # items_total + delivery_fee + platform_fee - discount_amount
     items_count: int = 0
     total_quantity: int = 0
     currency: str = "INR"
@@ -61,9 +65,13 @@ class CheckoutOrderResponseDTO(BaseModel):
     cart_id: str
     receipt: str
     currency: str = "INR"
+    items_total: float = 0.0
     order_amount: float
-    taxes: float
-    discounts: float
+    delivery_fee: float = 0.0
+    platform_fee: float = 0.0
+    gst_included: float = 0.0
+    taxes: float = 0.0
+    discounts: float = 0.0
     final_amount: float
     status: str
     checkout_session_url: str

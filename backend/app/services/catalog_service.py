@@ -233,13 +233,26 @@ class CatalogService:
         if not raw_inv_status:
             raw_inv_status = "OUT_OF_STOCK" if r["stock_quantity"] <= 0 else ("LOW_STOCK" if r["stock_quantity"] <= r["reorder_threshold"] else "IN_STOCK")
 
+        price = float(r["price"])
+        gst_pct = float(r["gst_rate_pct"]) if "gst_rate_pct" in keys and r["gst_rate_pct"] is not None else 18.0
+        base_price = round(price / (1.0 + (gst_pct / 100.0)), 2)
+        gst_amount = round(price - base_price, 2)
+        customer_price = price
+        display_str = f"₹{int(customer_price):,} Inclusive of GST" if customer_price == int(customer_price) else f"₹{customer_price:,.2f} Inclusive of GST"
+
         return ProductDetailDTO(
             id=r["id"],
             sku=r["sku"],
             name=r["name"],
             brand=r["brand"],
             category=r["category"],
-            price=float(r["price"]),
+            price=price,
+            customer_price=customer_price,
+            base_price=base_price,
+            gst_rate=round(gst_pct / 100.0, 4),
+            gst_rate_pct=gst_pct,
+            gst_amount=gst_amount,
+            price_display=display_str,
             cost_price=float(r["cost_price"]),
             original_price=float(r["original_price"]) if r["original_price"] is not None else None,
             currency=r["currency"],
@@ -259,7 +272,6 @@ class CatalogService:
             specs=specs,
             in_stock=bool(r["in_stock"]),
             delivery_time=r["delivery_time"] or "2-3 business days",
-            gst_rate_pct=float(r["gst_rate_pct"]),
             hsn_sac_code=r["hsn_sac_code"] or "8470",
             offer_id=r["offer_id"],
             offer_text=r["offer_text"],
@@ -681,12 +693,17 @@ class CatalogService:
                 brand=p.brand,
                 category=p.category,
                 price=p.price,
+                customer_price=p.customer_price or p.price,
+                base_price=p.base_price or round(p.price / 1.18, 2),
+                gst_rate=p.gst_rate or 0.18,
+                gst_rate_pct=p.gst_rate_pct,
+                gst_inclusive=True,
+                price_display=p.price_display or f"₹{int(p.price):,} Inclusive of GST",
                 stock=p.stock_quantity,
                 description=p.description or p.tagline or p.name,
                 availability=p.in_stock,
                 specs={s.key: s.value for s in p.specs[:4]},
-                active_offer=p.offer_text,
-                gst_rate_pct=p.gst_rate_pct
+                active_offer=p.offer_text
             )
             for p in res.products
         ]

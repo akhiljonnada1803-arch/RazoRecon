@@ -84,9 +84,14 @@ export function ProductComparisonModal({
                         </div>
                         <div className="font-bold text-sm text-slate-900 line-clamp-1">{prod.name}</div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-extrabold text-[#0B72E7]">
-                            ₹{prod.price.toLocaleString('en-IN')}
-                          </span>
+                          <div>
+                            <span className="text-sm font-extrabold text-[#0B72E7] block">
+                              ₹{prod.price.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-medium">
+                              Incl. of GST
+                            </span>
+                          </div>
                           <div className="flex items-center gap-1 text-amber-500 font-semibold">
                             <Star className="h-3 w-3 fill-amber-400" />
                             <span>{prod.rating}</span>

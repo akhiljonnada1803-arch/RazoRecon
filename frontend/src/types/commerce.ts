@@ -9,7 +9,14 @@ export interface Product {
   name: string;
   brand?: string;
   category: string;
-  price: number;
+  price: number; // Customer-facing GST-inclusive price
+  customer_price?: number;
+  base_price?: number; // Net price excluding GST
+  gst_rate?: number; // e.g. 0.18
+  gst_rate_pct?: number; // e.g. 18.0
+  gst_amount?: number;
+  price_display?: string;
+  cost_price?: number;
   original_price?: number;
   currency?: string;
   rating?: number;
@@ -28,7 +35,6 @@ export interface Product {
   offer?: string;
   active_offer?: string;
   delivery_time?: string;
-  gst_rate_pct?: number;
 }
 
 export interface ProductCategoryStats {
@@ -67,7 +73,11 @@ export interface CartItem {
 
 export interface CartState {
   items: CartItem[];
+  items_total?: number;
   subtotal: number;
+  delivery_fee?: number;
+  platform_fee?: number;
+  gst_included?: number;
   tax_gst: number;
   shipping: number;
   discount: number;
@@ -95,31 +105,34 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  action_type?: string;
+  checkout_link?: string;
   recommended_products?: Product[];
   comparison_data?: ComparisonData | null;
   suggested_prompts?: string[];
-  action_type?: string;
-  checkout_link?: string;
 }
 
 export interface CommerceChatResponse {
   message: string;
-  recommended_products: Product[];
-  comparison_data?: ComparisonData | null;
-  suggested_prompts: string[];
-  cart?: CartState;
   action_triggered?: string;
+  action_type?: string;
   checkout_link?: string;
+  cart?: any;
+  recommended_products?: Product[];
+  comparison?: ComparisonData | null;
+  comparison_data?: ComparisonData | null;
+  suggested_prompts?: string[];
 }
 
 export interface CheckoutResult {
-  payment_link_id: string;
-  payment_url: string;
   order_id: string;
+  payment_link?: string;
+  payment_link_id?: string;
+  payment_url?: string;
+  qr_code_data?: string;
+  qr_code_mock?: string;
   amount: number;
   currency: string;
   status: string;
-  qr_code_mock: string;
-  expires_at: string;
-  summary_items: CartItem[];
+  receipt?: string;
 }

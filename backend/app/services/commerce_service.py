@@ -297,8 +297,9 @@ class CommerceService:
         return None
 
     def calculate_cart_totals(self, cart: CartDTO) -> CartDTO:
-        subtotal = sum(item.price * item.quantity for item in cart.items)
-        tax_gst = round(subtotal * 0.18, 2)
+        subtotal = round(sum(item.price * item.quantity for item in cart.items), 2)
+        # GST embedded in items (already included in customer price)
+        tax_gst = round(subtotal - (subtotal / 1.18), 2) if subtotal > 0 else 0.0
         shipping = 0.0 if subtotal > 5000 or len(cart.items) == 0 else 250.0
         
         discount = 0.0
@@ -309,7 +310,7 @@ class CommerceService:
             elif code in ["WELCOME20"]:
                 discount = round(subtotal * 0.20, 2) # 20% discount
 
-        total = max(0.0, round(subtotal + tax_gst + shipping - discount, 2))
+        total = max(0.0, round(subtotal + shipping - discount, 2))
         
         cart.subtotal = subtotal
         cart.tax_gst = tax_gst
@@ -430,8 +431,9 @@ class CommerceService:
             message = (
                 f"🎉 **Coupon '{code}' successfully applied!**\n\n"
                 f"You saved **₹{active_cart.discount:,.2f}** on your order.\n"
-                f"• **New Subtotal**: ₹{active_cart.subtotal:,.2f}\n"
-                f"• **GST (18%)**: ₹{active_cart.tax_gst:,.2f}\n"
+                f"• **Items Total**: ₹{active_cart.subtotal:,.2f} (Inclusive of GST)\n"
+                f"• **GST Included**: ₹{active_cart.tax_gst:,.2f} (No surprise charge)\n"
+                f"• **Discount**: -₹{active_cart.discount:,.2f}\n"
                 f"• **Final Total**: **₹{active_cart.total:,.2f}**"
             )
             suggested_prompts = [
@@ -472,8 +474,8 @@ class CommerceService:
             active_cart = self.calculate_cart_totals(active_cart)
             action_triggered = "add_to_cart"
             message = (
-                f"✅ **Added to Cart**: **{target_prod.name}** (₹{target_prod.price:,.2f})\n\n"
-                f"Your cart now has **{len(active_cart.items)} unique item(s)** totaling **₹{active_cart.total:,.2f}** (inclusive of 18% GST). Would you like to proceed to checkout or explore compatible accessories?"
+                f"✅ **Added to Cart**: **{target_prod.name}** (₹{target_prod.price:,.2f} Inclusive of GST)\n\n"
+                f"Your cart now has **{len(active_cart.items)} unique item(s)** totaling **₹{active_cart.total:,.2f}** (Inclusive of 18% GST). Would you like to proceed to checkout or explore compatible accessories?"
             )
             recommended_products = [target_prod]
             suggested_prompts = [
@@ -515,10 +517,10 @@ class CommerceService:
                 items_str = "\n".join([f"• **{item.name}** × {item.quantity} — ₹{item.price * item.quantity:,.2f}" for item in active_cart.items])
                 message = (
                     f"🛒 **Your Shopping Cart:**\n\n{items_str}\n\n"
-                    f"• **Subtotal**: ₹{active_cart.subtotal:,.2f}\n"
-                    f"• **GST (18%)**: ₹{active_cart.tax_gst:,.2f}\n"
+                    f"• **Items Total**: ₹{active_cart.subtotal:,.2f} (Inclusive of GST)\n"
+                    f"• **GST Included**: ₹{active_cart.tax_gst:,.2f}\n"
                     f"• **Discount**: -₹{active_cart.discount:,.2f}\n"
-                    f"• **Total Payable**: **₹{active_cart.total:,.2f}**"
+                    f"• **Final Payable**: **₹{active_cart.total:,.2f}**"
                 )
             suggested_prompts = [
                 "Generate Razorpay checkout link",

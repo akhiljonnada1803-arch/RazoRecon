@@ -36,9 +36,12 @@ export function CheckoutSuccessModal({
   if (!isOpen || !result) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(result.payment_url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    const url = result.payment_url || result.payment_link || '';
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
   };
 
   const handleSimulateSuccess = async () => {
@@ -118,7 +121,7 @@ export function CheckoutSuccessModal({
                 <div className="flex justify-between text-slate-600">
                   <span>Reconciliation Reference:</span>
                   <span className="font-mono font-bold text-slate-900">
-                    {reconData?.reconciliation?.transaction_id || `REC-RZP-${result.payment_link_id.slice(-8).toUpperCase()}`}
+                    {reconData?.reconciliation?.transaction_id || `REC-RZP-${(result.payment_link_id || result.order_id || 'RZP').slice(-8).toUpperCase()}`}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
@@ -129,24 +132,22 @@ export function CheckoutSuccessModal({
                   <span>Razorpay MDR Fee (2.0% + 18% GST):</span>
                   <span>-₹{reconData?.fee ? (reconData.fee + reconData.tax).toFixed(2) : (result.amount * 0.0236).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-emerald-700 border-t border-slate-100 pt-1.5">
-                  <span>Net Expected Payout:</span>
+                <div className="flex justify-between text-emerald-600 font-bold border-t border-emerald-100 pt-1.5">
+                  <span>Net Settlement to Merchant:</span>
                   <span>₹{reconData?.net_amount ? reconData.net_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : (result.amount * 0.9764).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
-              <Badge className="bg-emerald-600 text-white font-mono text-xs">
-                MATCHED • 100% RECONCILED
-              </Badge>
+              <div className="p-3 bg-emerald-100/60 rounded-xl text-[11px] text-emerald-800 font-medium">
+                Instant settlement booked to Razorpay Current A/C ending in •••• 4092.
+              </div>
             </div>
           ) : (
             <>
-              {/* Payment Summary Box */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Total Payable (Incl. 18% GST)
-                  </span>
+              {/* Amount Breakdown Strip */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Payable Amount</span>
                   <span className="text-xl font-extrabold text-[#0B72E7]">
                     ₹{result.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
@@ -155,7 +156,7 @@ export function CheckoutSuccessModal({
                 <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                   <div>
                     <span className="text-slate-500 block text-[10px]">Payment Link ID</span>
-                    <span className="font-mono font-semibold text-slate-800">{result.payment_link_id}</span>
+                    <span className="font-mono font-semibold text-slate-800">{result.payment_link_id || result.order_id}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block text-[10px]">Link Expiry</span>
@@ -168,7 +169,7 @@ export function CheckoutSuccessModal({
               <div className="flex flex-col items-center justify-center p-4 bg-white border border-slate-200 rounded-2xl space-y-3 shadow-xs">
                 <div className="h-44 w-44 p-2 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-center">
                   <img
-                    src={result.qr_code_mock}
+                    src={result.qr_code_mock || result.qr_code_data || 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay'}
                     alt="BharatQR Razorpay Payment"
                     className="w-full h-full object-contain rounded-xl"
                   />
@@ -187,7 +188,7 @@ export function CheckoutSuccessModal({
               <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-xl border border-slate-200">
                 <input
                   readOnly
-                  value={result.payment_url}
+                  value={result.payment_url || result.payment_link || ''}
                   className="flex-1 bg-transparent text-xs font-mono text-slate-700 px-2 outline-hidden truncate"
                 />
                 <Button
@@ -220,7 +221,7 @@ export function CheckoutSuccessModal({
                   Simulate Payment Success
                 </Button>
                 <Button
-                  onClick={() => window.open(result.payment_url, '_blank')}
+                  onClick={() => window.open(result.payment_url || result.payment_link || '#', '_blank')}
                   className="h-10 text-xs font-bold bg-[#0B72E7] hover:bg-[#095bc0] text-white rounded-xl gap-1.5 shadow-sm"
                 >
                   <ExternalLink className="h-4 w-4" />

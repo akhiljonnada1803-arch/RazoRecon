@@ -472,7 +472,7 @@ export default function MerchantCatalogInventoryHubPage() {
                 <tr>
                   <th className="py-3.5 px-5 font-semibold">Product & SKU</th>
                   <th className="py-3.5 px-4 font-semibold">Category</th>
-                  <th className="py-3.5 px-4 font-semibold">Unit Price</th>
+                  <th className="py-3.5 px-4 font-semibold">Pricing & Tax (Base + GST)</th>
                   <th className="py-3.5 px-5 font-semibold">In-Line Stock Units</th>
                   <th className="py-3.5 px-5 font-semibold">Inventory Status</th>
                   <th className="py-3.5 px-4 font-semibold">Valuation</th>
@@ -515,9 +515,19 @@ export default function MerchantCatalogInventoryHubPage() {
                         </Badge>
                       </td>
 
-                      {/* Unit Price */}
-                      <td className="py-4 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
-                        ₹{product.price.toLocaleString('en-IN')}
+                      {/* Pricing: Base Price, GST Amount, Customer Price */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-900 text-xs">
+                            <span>₹{product.price.toLocaleString('en-IN')}</span>
+                            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                              Incl. GST
+                            </span>
+                          </div>
+                          <span className="font-mono text-[10px] text-slate-500 mt-0.5">
+                            Base: ₹{(product.base_price ?? Math.round(product.price / 1.18)).toLocaleString('en-IN')} • GST ({product.gst_rate_pct ?? 18}%): ₹{(product.gst_amount ?? (product.price - Math.round(product.price / 1.18))).toLocaleString('en-IN')}
+                          </span>
+                        </div>
                       </td>
 
                       {/* IN-LINE QUICK STOCK UNIT ADJUSTER */}
@@ -795,7 +805,7 @@ export default function MerchantCatalogInventoryHubPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Price (INR) *
+                    Customer Price (INR, Incl. GST) *
                   </label>
                   <Input
                     type="number"
@@ -806,6 +816,9 @@ export default function MerchantCatalogInventoryHubPage() {
                     onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
                     className="h-9 text-xs rounded-xl font-mono font-bold"
                   />
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    Base: ₹{Math.round(formData.price / 1.18).toLocaleString('en-IN')} + 18% GST: ₹{(formData.price - Math.round(formData.price / 1.18)).toLocaleString('en-IN')}
+                  </span>
                 </div>
 
                 <div>

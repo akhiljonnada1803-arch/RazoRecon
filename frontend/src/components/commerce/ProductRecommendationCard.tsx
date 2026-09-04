@@ -99,15 +99,14 @@ export function ProductRecommendationCard({
               <div className="text-base font-extrabold text-[#072654]">
                 ₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
-              {product.original_price && (
-                <div className="text-[11px] text-slate-500 line-through">
-                  ₹{product.original_price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
-              )}
+              <div className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5">
+                <ShieldCheck className="h-2.5 w-2.5 text-emerald-600" />
+                Inclusive of GST
+              </div>
             </div>
             <div className="text-[10px] text-slate-500 text-right flex items-center gap-1">
               <Truck className="h-3 w-3 text-slate-500" />
-              {product.delivery_time}
+              {product.delivery_time || '2-3 Days'}
             </div>
           </div>
 

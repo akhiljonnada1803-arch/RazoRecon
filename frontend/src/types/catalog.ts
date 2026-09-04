@@ -21,7 +21,13 @@ export interface CatalogProduct {
   name: string;
   brand: string;
   category: string;
-  price: number;
+  price: number; // Customer-facing GST-inclusive price
+  customer_price?: number;
+  base_price?: number;
+  gst_rate?: number;
+  gst_rate_pct: number;
+  gst_amount?: number;
+  price_display?: string;
   cost_price: number;
   original_price?: number;
   currency: string;
@@ -37,7 +43,6 @@ export interface CatalogProduct {
   specs: ProductSpec[];
   in_stock: boolean;
   delivery_time: string;
-  gst_rate_pct: number;
   hsn_sac_code: string;
   offer_id?: string;
   offer_text?: string;
