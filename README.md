@@ -1,293 +1,160 @@
 # RazorCommerce AI — Autonomous AI Commerce Operating System
 
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI_0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js_14_App_Router-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js_15_App_Router-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
 [![TailwindCSS](https://img.shields.io/badge/Styling-Tailwind_CSS-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript_5-blue.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Python](https://img.shields.io/badge/Language-Python_3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
+[![Architecture](https://img.shields.io/badge/Architecture-4--Service_Multi--App-blueviolet.svg)](#-4-service-multi-application-architecture)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **RazorCommerce AI**: *An AI Commerce Operating System that enables merchants to become AI-buyable while autonomously growing revenue through conversational commerce, intelligent recommendations, and agent-driven checkout.*
+> **RazorCommerce AI** is an AI Commerce Operating System built on Razorpay APIs. It enables merchants to become AI-buyable while customers autonomously discover, compare, and purchase products through intelligent shopping agents with transparent GST-inclusive pricing and 1-click Razorpay checkouts.
 
 ---
 
-## 🌟 Top-Level Product Architecture (Razorpay Track 01)
+## 🏛️ 4-Service Multi-Application Architecture
 
+The platform is partitioned into **four independently running services**, each tailored for its specific persona and operating on dedicated ports with shared backend APIs and database:
+
+```mermaid
+graph TD
+    subgraph Client Apps [Independent Frontend Services]
+        A["1. Customer Storefront (Port 3000)<br/>Theme: Amazon + Flipkart<br/>Users: Guests & Consumer Shoppers"]
+        B["2. Merchant Portal (Port 3001)<br/>Theme: Shopify Seller Dashboard<br/>Users: Merchants & Store Operators"]
+        C["3. Platform Admin Console (Port 3002)<br/>Theme: Enterprise SaaS / Datadog<br/>Users: Platform Administrators"]
+    end
+
+    subgraph Backend Core [Shared Backend Service]
+        D["4. FastAPI Backend (Port 8000)<br/>Shared SQLite / PostgreSQL Database<br/>Shared JWT Auth & Commerce REST APIs"]
+    end
+
+    A -->|REST APIs & JWT| D
+    B -->|REST APIs & JWT| D
+    C -->|REST APIs & JWT| D
 ```
-+---------------------------------------------------------------------------------------------------+
-|                                      RAZORCOMMERCE AI OPERATING SYSTEM                            |
-+---------------------------------------------------------------------------------------------------+
-|  1. Merchant Hub       2. AI Commerce        3. Revenue Growth    4. Finance Intelligence         |
-|  - /merchant/dashboard - /commerce-agent     - /growth            - /finance/reconciliation       |
-|  - /merchant/catalog   - /shop               - /growth/upsell     - /finance/exceptions           |
-|  - /merchant/orders    - /shop/product/[id]  - /growth/campaigns  - /finance/vendors              |
-|  - /merchant/customers - /shop/cart          - /growth/segments   - /finance/copilot              |
-|                        - /shop/checkout                                                           |
-|                                              5. Audit & Compliance 6. Administration              |
-|  ⭐ Flagship Track 01 Demo: /hero-demo       - /audit/logs         - /admin/users & roles         |
-|                                              - /audit/timeline     - /admin/integrations          |
-|                                              - /audit/compliance                                  |
-+---------------------------------------------------------------------------------------------------+
-```
-
-### 1. 🔐 Enterprise Authentication & Granular RBAC
-* **SQLite-backed Identity Provider** with PBKDF2-SHA256 password hashing and JWT sessions.
-* **4 Pre-configured Enterprise Personas**:
-  * **Finance Controller** (`controller@acme.com` / `demo123`): Reconciliation, exception resolution, vendor intelligence, month-end close.
-  * **Chief Financial Officer (CFO)** (`cfo@acme.com` / `demo123`): Executive dashboard, CFO Copilot, 90-day cash forecasting, audit logs.
-  * **Statutory Auditor** (`auditor@acme.com` / `demo123`): Read-only forensic review, vendor memory dossiers, exception trails.
-  * **Platform Admin** (`admin@razorrecon.ai` / `demo123`): Full cross-system configuration and tenant management.
-* **Quick Persona Switcher**: Seamlessly switch roles in real-time with instant UI route gating and `403 Access Denied` sentinels.
-
-### 2. ⚡ Zero-Data Architecture & One-Click Demo Suite
-* Initial clean state displays **zero hardcoded values or synthetic placeholders**.
-* Single-click **"Connect Demo Razorpay Account"** orchestrates:
-  * Ingestion of **500 payment records**.
-  * Auto-matching of **470 transactions (94.0% auto-match rate)**.
-  * Detection of **30 actionable exceptions** (settlement delays, GST variances, duplicate invoices, unregistered wires).
-  * Population of **22 scored vendor behavioral memory profiles**.
-
-### 3. ⚖️ Deterministic 3-Way Reconciliation Engine
-* Reconciles gateway payouts (Razorpay, Stripe, Shopify Direct, Amazon Marketplace) against bank deposits and internal ERP ledgers.
-* Recomputes gross-to-net gateway MDR fees (2.0% + 18% GST).
-* Correctly classifies Amazon Marketplace rolling reserves (e.g. 10–15% 14-day holdbacks) as temporary assets rather than revenue leakage.
-
-### 4. 🧠 Forensic Vendor Behavioral Memory & Risk Scoring
-* Dynamic risk state machine updating upon exception resolution:
-  $$\text{Risk Score} = 0.40 \times \text{Exc Freq} + 0.30 \times \text{Delays} + 0.20 \times \text{Tax Mismatches} + 0.10 \times \text{Duplicates}$$
-* Interactive 6-section **Vendor Intelligence Center** (`/vendor-intelligence`) with sliding dossiers, risk timelines, and AI mitigation playbooks.
-
-### 5. 🤖 ReAct CFO Copilot (`/copilot`)
-* Tool-augmented executive intelligence assistant.
-* Executes live Python tools (`get_match_rate_analysis`, `get_cash_forecast`, `get_top_risks_and_fraud`, `get_vendor_exceptions`) and cites policy rules from a 148-passage accounting knowledge base.
-* Offline deterministic heuristic fallback when external LLM API keys are omitted.
-
-### 6. 🔒 Autonomous Month-End Close (`/month-close`)
-* 7-phase automated financial close checklist with period locking and forensic audit trail generation.
-
-### 7. 📦 AI Commerce Catalog Module (`/catalog`)
-* **SQLite Persistent Storage**: Stored in `backend/data/catalog.db` with relational schemas for `products`, `offers`, and `categories`.
-* **4 Dedicated UI Sections**:
-  1. **Total Products**: Live count of active SKUs, total catalog valuation in ₹ Lakhs, and portfolio health.
-  2. **Categories**: Taxonomies across 7 categories (*Payment Terminals, Soundboxes, FinOps Software, Workstations, Security, Storage, Retail Peripherals*) with dynamic filter chips.
-  3. **Inventory Status**: Real-time stock breakdown (*In Stock, Low Stock, Out of Stock, Total Units*) and visual inventory distribution progress bar.
-  4. **AI Readable Catalog**: Interactive inspector and 1-click JSON/Markdown copier providing token-optimized schema context for LLMs & autonomous commerce agents.
-* **5-Column Enterprise Table**: **Product** (with thumbnail, SKU, tagline), **Price** (₹ INR, margin %, MRP), **Stock** (Units & status badge), **Category**, and **Offer** (promotional badge & discount text).
-* **Offer Engine Integration**: Configurable discounts and promotional badges (*BESTSELLER, FESTIVE SALE, ENTERPRISE, PRO WORKSTATION, COMPLIANCE DEAL*) linked to coupon codes (`RAZOR2026`, `FESTIVE15`, `ENTERPRISE5000`, etc.).
-* **Exposed REST APIs**:
-  * `GET /products` (and `/catalog`): Filtered, searched, sorted, and paginated product catalog.
-  * `POST /products`: Add new product SKU with technical specs and promotional offers.
-  * `PUT /products/:id`: Update pricing, stock, metadata, or active offer.
-  * `DELETE /products/:id`: Remove product SKU from the SQLite database.
-  * `GET /products/stats`: Aggregate valuation, total inventory units, in-stock rate, and alert counts.
-  * `GET /products/offers`: Active promotional offers and discount rules.
-  * `GET /products/ai-context`: Token-optimized LLM and agent context.
-
-
-### 8. 🛒 Conversational Commerce Agent (`/commerce-agent`)
-* **ChatGPT-style Conversational Shopping**: Natural language search across enterprise hardware, developer peripherals, and FinOps software licenses priced in ₹ INR.
-* **Interactive Product Recommendation Cards**: Highlights key technical specifications, star ratings, and instant cart actions.
-* **Side-by-Side Product Comparison Matrix**: Multi-attribute comparison table with AI advisor recommendations.
-* **Slide-Over Shopping Cart Drawer**: Quantity steppers, coupon validation (`RAZOR2026` for 10% instant discount), and 18% GST tax breakdown.
-* **1-Click Razorpay Payment Link Generator**: Generates dynamic checkout links (`https://rzp.io/l/...`), BharatQR codes, and simulated payment reconciliation.
-
-### 9. 📈 Revenue Growth Agent (`/growth-agent`)
-* **Upsell & Tier-Upgrade Engine**: Recommends high-value upgrades (e.g., mPOS to Android V3 Pro with thermal printers, Quarterly to Annual Enterprise FinOps licenses, Countertop to Self-Checkout Kiosks) with real-time price delta, gross margin delta %, and conversion probability.
-* **Cross-Sell & Basket Affinity Mining**: Analyzes 500+ historical merchant co-purchases to recommend synergistic complements with statistical metrics (Support %, Confidence %, and Lift Score > 2.0x).
-* **Real-Time Revenue Uplift & Margin Expansion Prediction**: Computes **Current Cart Value**, **Predicted Cart Value**, **Expected Uplift %**, and **Margin Expansion %** with probability-weighted impact forecasting.
-### 10. 📣 Campaign Orchestrator (`/campaigns`)
-* **AI-Generated Campaigns**: Strategic goal-driven campaign formulation (*Revenue Surge, Winback, Hardware Launch, Clearance*) with dynamic copywriting and multi-channel targeting (WhatsApp Business, Email, SMS, In-App Push).
-* **Price Elasticity & Discount Simulation**: Microeconomic simulation model calculating volume expansion vs margin dilution, price elasticity factor ($E$), conversion lift %, gross campaign revenue, discount costs, and campaign ROI %.
-* **RFM Customer Segmentation**: 5 behavioral clusters (*High-Volume Enterprise, Fast-Growing D2C Retailers, At-Risk Inactive Merchants, Seasonal Festive Sellers, New Onboarding*) with merchant reach, AOV, churn risk %, and GMV.
-* **Time-Series Revenue Forecasting**: Day-by-day projected revenue trajectory comparing baseline organic sales against campaign revenue lift.
-### 11. 💳 Razorpay Test Mode & Auto-Reconciliation Integration
-* **Create Order API (`POST /api/payments/create-order`)**: Generates Razorpay order IDs (`order_rzp_...`), creates checkout session URLs, and persists order records in SQLite `orders` table.
-* **HMAC Signature Verification (`POST /api/payments/verify`)**: Validates SHA256 signatures, updates order status to `paid`, and writes payment records to SQLite `payments` table.
-* **Webhook Processing (`POST /api/webhooks/razorpay`)**: Validates `X-Razorpay-Signature` against webhook secret, processing `payment.captured`, `order.paid`, and `payment.failed`.
-* **Automatic Reconciliation Trigger**: Every captured payment automatically triggers the **Reconciliation Engine**, recomputing the 2.0% Razorpay MDR processing fee + 18% GST on fees, and recording the matched deposit in the memory engine and ledger with 0 discrepancies.
-
-### 12. 🤖 Agent-to-Agent Commerce Simulator (`/agent-commerce`)
-* **Autonomous Buyer & Seller Protocol**: Dual-agent architecture where **Buyer Agent** (Corporate Procurement AI) and **Seller Agent** (Merchant Commerce AI) negotiate and settle transactions autonomously.
-* **Visual 6-Step Workflow Timeline**:
-  1. **Search Product**: Intent parsing, catalog query, and initial quote generation.
-  2. **Negotiate**: Multi-turn price elasticity and 10% enterprise volume discount consensus.
-  3. **Generate Cart**: Binding order assembly with 18% GST calculation and free shipping.
-  4. **Create Payment**: Razorpay test order provision (`order_rzp_...`).
-  5. **Verify Payment**: Cryptographic HMAC SHA256 signature verification.
-  6. **Update Ledger**: Double-entry ERP general ledger sync and memory engine reconciliation.
-
-### 13. ⚡ AI Checkout Engine (`/checkout`)
-
-* **Interactive 4-Phase Flow**: `1. Agent Assistant → 2. Interactive Cart → 3. Order Creation → 4. Razorpay Checkout`.
-* **Conversational AI Checkout Assistant**: Natural language prompt executor (*"Add 2 POS terminals and apply coupon"*, *"Add 4G Soundbox Pro"*, *"Reset cart"*) with contextual recommendations and one-click auto-coupon optimizer.
-* **Full Cart Operations**: Add, remove, and stepper quantity increment/decrement with catalog quick-selector drawer.
-* **Granular Checkout Summary**:
-  * **Order Amount (Subtotal)**
-  * **Taxes (18% GST with ITC eligibility)**
-  * **Discounts (Coupon / Offer Engine deductions)**
-  * **Final Amount (in ₹ INR)**
-* **Razorpay Test Mode Checkout & Shareable Links**:
-  * Generates Razorpay Order ID (`order_rzp_...`) and instant shareable payment link (`https://rzp.io/l/...`).
-  * Dynamic BharatQR / UPI QR code simulation.
-  * 1-Click test payment simulation executing HMAC verification and auto-reconciliation.
-### 14. 🏆 Flagship AI Commerce Hero Demo — Razorpay Track 01 (`/hero-demo`)
-
-An interactive, end-to-end 10-phase demonstration orchestrating the entire lifecycle of an autonomous AI commerce transaction with instant reconciliation:
-
-```
-1. Merchant uploads catalog
-   ↓
-2. AI understands catalog (vector embeddings & semantic indexing)
-   ↓
-3. Customer asks for product (intent parsing & constraint formulation)
-   ↓
-4. Agent recommends products (semantic search & match score %)
-   ↓
-5. Agent creates cart (tax computation & enterprise coupon application)
-   ↓
-6. Agent initiates Razorpay checkout (order generation & payment link creation)
-   ↓
-7. Payment success (HMAC verification & instant double-entry ERP reconciliation)
-   ↓
-8. Upsell recommendations (margin-maximizing complementary add-ons)
-   ↓
-9. Purchase stored in memory (customer behavioral profile & tier updates)
-   ↓
-10. Future recommendations personalized (adaptive RFM quotes)
-```
-
-#### Key Architecture & Forensic Standards for Track 01:
-* **Interactive 10-Step Workflow Stepper**: Real-time progress bar, visual status badges, and direct phase navigation.
-* **4 Procurement Scenarios**:
-  1. *Acme Retail Store Expansion (Mumbai Fleet)*
-  2. *Novus Cloud Multi-Channel FinOps Sync*
-  3. *Fintech Trading Desk Workstation Setup*
-  4. *Statutory Finance Archive & Hardware Security*
-* **Playback Controls**: Auto-play, pause, 1x/2x/4x playback speed, manual forward/backward, and 1-Click Fast Forward.
-* **Mandatory Step-by-Step Forensics**:
-  * **Reasoning Trace**: ReAct framework detailing Goal, Thought, Observation, Action Taken, Decision Rationale, and JSON payloads.
-  * **Audit Trail**: Actor-attributed events (`Merchant`, `AI Embeddings Engine`, `Customer`, `Commerce Agent`, `Razorpay Gateway`, `Reconciliation Engine`).
-  * **Risk Status & SLA**: Real-time fraud detection score (0/100), GST compliance, and zero-discrepancy reconciliation verification.
-  * **Double-Entry General Ledger Voucher**: Live accounting entries posting debits to Operating Bank and Gateway Fees, and credits to Revenue accounts.
-
 
 ---
 
-## 🏗️ Architecture & Technology Stack
+## 📱 Independent Service Specifications
 
-```
-+-------------------------------------------------------------------------------+
-|                            FRONTEND (Next.js 14)                              |
-|  App Router | AppShell Route Guard | AuthContext (RBAC) | TanStack Query v5   |
-+---------------------------------------+---------------------------------------+
-                                        | JSON / REST / Bearer JWT
-+---------------------------------------v---------------------------------------+
-|                               FASTAPI BACKEND                                 |
-|  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
-+-------------------------------------------------------------------------------+
-|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | A2A Simulator|
-+-----------------+---------------+-------------+----------------+--------------+
-                                        |
-+---------------------------------------v---------------------------------------+
-|                        STORAGE & DATA PERSISTENCE                             |
-|  backend/data/auth.db (RBAC)         |   backend/data/payments.db (Orders)    |
-|  backend/data/memory_engine.db (Vendors)                                      |
-+-------------------------------------------------------------------------------+
-```
-
-### Stack Breakdown
-* **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons, Recharts, TanStack Query v5.
-* **Backend**: FastAPI, Uvicorn, Pydantic v2, Python 3.11+.
-* **Database**: SQLite 3 with parameterized queries and transactional consistency (`auth.db`, `payments.db`, `memory_engine.db`).
-* **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, Price Elasticity Modeling, OpenAI GPT-4o-mini / Heuristic Fallback.
+| Service | Directory | Port | UI Theme | Target Audience | Key Routes & Pages |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. Customer Storefront** | `apps/customer-storefront` | `http://localhost:3000` | Amazon + Flipkart | Consumer Buyers & Guests | Home (`/`), Categories (`/categories`), Product Details (`/products/[id]`), Shopping Cart (`/cart`), Checkout (`/checkout`), Orders (`/orders`), Wishlist (`/wishlist`), AI Assistant (`/assistant`) |
+| **2. Merchant Portal** | `apps/merchant-portal` | `http://localhost:3001` | Shopify Seller Dashboard | Store Owners & Ops Teams | Hub (`/`), Catalog (`/catalog`), Inventory (`/inventory`), Orders & 7-Stage Fulfillment (`/orders`), Shipping & Logistics (`/shipping`), Campaigns (`/campaigns`), Revenue (`/revenue`), Copilot (`/copilot`), Settings (`/settings`) |
+| **3. Platform Admin Console** | `apps/admin-console` | `http://localhost:3002` | Enterprise SaaS Console | Platform Superadmins | Overview (`/`), Merchant Approvals (`/merchants`), Users & RBAC (`/users`), Payment Core (`/payments`), Fraud Center (`/fraud`), Disputes (`/disputes`), Analytics (`/analytics`), Settings (`/settings`) |
+| **4. FastAPI Backend Core** | `backend` | `http://localhost:8000` | OpenAPI / REST | All Frontend Services | Shared DB (`payments.db`, `catalog.db`, `auth.db`), Shared JWT Auth, HMAC Signature Verification, Multi-Courier Tracking APIs |
 
 ---
 
-## 🚀 Quickstart & Local Setup
+## 🚀 Quickstart & Run Commands
 
-### Prerequisites
-* **Node.js** v18+ and `npm`
-* **Python** v3.10+ and `pip`
-
-### 1. Backend Setup
+### 1. Start the FastAPI Backend (Port 8000)
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Install dependencies
-pip install -r ../requirements.txt
-
-# Start FastAPI uvicorn development server (Port 8000)
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-*API Documentation will be live at: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)*
+*API Swagger Documentation is live at: [http://localhost:8000/docs](http://localhost:8000/docs)*
 
-### 2. Frontend Setup
+---
+
+### 2. Start the Frontend Services
+
+You can start any service individually or run them concurrently:
+
+#### 🛒 Option A: Customer Storefront (Port 3000)
 ```bash
-# Navigate to frontend directory
-cd frontend
+# From workspace root:
+npm run dev:customer
 
-# Install npm dependencies
-npm install
-
-# Start Next.js development server (Port 3001)
-npm run dev -- -p 3001
+# Or from app directory:
+cd apps/customer-storefront
+npm run dev
 ```
-*Frontend workspace will be live at: [http://localhost:3001](http://localhost:3001)*
+*Customer Storefront is live at: [http://localhost:3000](http://localhost:3000)*
+
+#### 🏬 Option B: Merchant Portal (Port 3001)
+```bash
+# From workspace root:
+npm run dev:merchant
+
+# Or from app directory:
+cd apps/merchant-portal
+npm run dev
+```
+*Merchant Portal is live at: [http://localhost:3001](http://localhost:3001)*
+
+#### 👑 Option C: Platform Admin Console (Port 3002)
+```bash
+# From workspace root:
+npm run dev:admin
+
+# Or from app directory:
+cd apps/admin-console
+npm run dev
+```
+*Platform Admin Console is live at: [http://localhost:3002](http://localhost:3002)*
 
 ---
 
-## 🔑 Demo Credentials
+## 🔑 Demo Personas & Credentials
 
-| Role | Email | Password | Allowed Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Finance Controller** | `controller@acme.com` | `demo123` | Reconciliation, Exception Queue, Vendor Intel, Month Close |
-| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent, Campaigns, A2A Commerce |
-| **Statutory Auditor** | `auditor@acme.com` | `demo123` | Read-only Audit Logs, Vendor Dossiers, Exception History |
-| **Platform Admin** | `admin@razorrecon.ai` | `demo123` | Complete Unrestricted Platform & System Access |
-
-*Use the **Autofill Demo Persona** buttons on `/login` or the **Navbar Switcher** for instant role switching.*
+| Persona | Email | Password | Dedicated Application Port | Permissions & Capabilities |
+| :--- | :--- | :--- | :--- | :--- |
+| **Consumer Shopper** | `customer@acme.com` | `demo123` | **Port 3000** (`http://localhost:3000`) | Autonomous AI Search, GST-Inclusive Catalog, Cart, Razorpay Multi-Checkout, Order Tracking |
+| **Merchant Seller** | `owner@acme.com` | `demo123` | **Port 3001** (`http://localhost:3001`) | Catalog & Inventory Management, 7-Stage Order Pipeline, Courier Dispatch, Revenue Analytics, AI Copilot |
+| **Platform Administrator** | `admin@razorcommerce.ai` | `demo123` | **Port 3002** (`http://localhost:3002`) | Merchant KYC Approvals, Multi-Rail Payment Core, Fraud & Exception Monitoring, Disputes, API Keys |
 
 ---
 
-## 📡 API Endpoints Overview
+## 📦 Core Feature Modules
+
+### 1. 🛍️ Customer Marketplace Storefront (Port 3000)
+* **Above-the-Fold Featured Products**: Instant visual engagement with 4-column responsive grid, rating stars, reviews count, and free delivery indicators.
+* **Transparent GST-Inclusive Pricing**: Customer prices are always displayed as `₹X Inclusive of GST` with zero surprise taxes added at checkout.
+* **AI Shopping Assistant**: Autonomous conversational buyer copilot for natural-language product discovery, real-time comparison, and recommendations.
+* **Razorpay Multi-Method Checkout**:
+  * **UPI / QR**: Dynamic QR code generation, UPI ID verification (GPay, PhonePe, Paytm, CRED).
+  * **Cards**: Credit and Debit cards with CVV verification and instant OTP flow.
+  * **Net Banking**: HDFC, ICICI, SBI, Axis, Kotak, and 50+ Indian banks.
+  * **Wallets & Pay Later**: Amazon Pay, Paytm Wallet, Simpl, LazyPay.
+
+### 2. 🏬 Merchant Operations Portal (Port 3001)
+* **Catalog & Inventory Center**: 50 pre-seeded enterprise SKUs with stock level adjustments, base price vs customer price calculation, and promotional offers.
+* **7-Stage Order Logistics Pipeline**:
+  $$\text{PAYMENT\_RECEIVED} \rightarrow \text{ACCEPTED} \rightarrow \text{PICKING} \rightarrow \text{PACKED} \rightarrow \text{READY\_FOR\_PICKUP} \rightarrow \text{IN\_TRANSIT} \rightarrow \text{DELIVERED}$$
+* **Simulated Courier Integration**: Delhivery, Blue Dart, Shiprocket, and Ekart with automated AWB generation and 11-stage tracking milestones.
+* **Growth & Campaign Orchestration**: AI-generated campaigns, price elasticity modeling, and revenue lift forecasting.
+* **Commerce AI Copilot**: ReAct tool-augmented seller assistant for sales forecasting, low-stock warnings, and pricing recommendations.
+
+### 3. 👑 Platform Admin Console (Port 3002)
+* **Merchant Governance**: Merchant KYC review, onboardings, settlement bank account verification, and catalog quotas.
+* **Multi-Rail Payment Engine**: Live transaction ledger, 3-way reconciliation (Razorpay, Bank Payouts, Ledger), and MDR fee recomputation.
+* **Fraud & Exception Center**: Real-time anomaly detection, settlement delay alerts, duplicate payment resolution, and audit logs.
+* **Disputes & Chargebacks**: Automated evidence submission, mediation workflows, and instant source refund triggers.
+* **Developer Platform**: REST API Key generation, HMAC webhook secret management, and protocol health monitoring with 99.99% SLA metrics.
+
+---
+
+## 📡 REST API Reference
 
 | Endpoint | Method | Tag | Description |
 | :--- | :--- | :--- | :--- |
-| `/api/v1/agent-commerce/scenarios` | `GET` | A2A Commerce | List preset procurement scenarios |
-| `/api/v1/agent-commerce/simulate` | `POST` | A2A Commerce | Run full 6-phase autonomous simulation |
-| `/api/payments/create-order` | `POST` | Payments | Create order & generate Razorpay checkout session |
-| `/api/payments/verify` | `POST` | Payments | Verify HMAC signature & auto-reconcile transaction |
-| `/api/payments/orders` | `GET` | Payments | List stored orders from SQLite database |
-| `/api/payments/list` | `GET` | Payments | List stored payments with reconciliation status |
-| `/api/webhooks/razorpay` | `POST` | Webhooks | Ingest Razorpay webhooks & auto-reconcile |
-| `/api/v1/auth/login` | `POST` | Auth | Authenticate user & receive JWT token |
-| `/api/v1/auth/quick-switch` | `POST` | Auth | Demo role switcher without full logout |
-| `/api/v1/dashboard/executive` | `GET` | Dashboard | Executive financial KPIs and cash runway |
-| `/api/v1/reconciliation` | `GET` | Reconciliation | Multi-channel deposit reconciliation |
-| `/api/v1/reconciliation/run-razorpay` | `POST` | Reconciliation | Ingest payments & run 3-way match |
-| `/api/v1/vendors/risk` | `GET` | Vendor Risk | Scored counterparty risk ratings |
-| `/api/v1/memory/vendors` | `GET` | Memory | Behavioral vendor memory profiles |
-| `/api/v1/copilot/query` | `POST` | Copilot | ReAct tool-augmented CFO Copilot |
-| `/api/v1/month-close/execute` | `POST` | Month Close | Autonomous 7-step close execution |
-| `/api/v1/commerce/products` | `GET` | Commerce | List & search catalog products |
-| `/api/v1/commerce/chat` | `POST` | Commerce | Natural language shopping agent |
-| `/api/v1/commerce/checkout` | `POST` | Commerce | Generate 1-click Razorpay payment link |
-| `/api/v1/catalog` | `GET` | Catalog | List, search & filter 50 catalog products |
-| `/api/v1/catalog` | `POST` | Catalog | Create new product SKU with specs & stock |
-| `/api/v1/catalog/{id}/stock` | `PATCH` | Catalog | Quick inventory stock level adjustment |
-| `/api/v1/catalog/ai-context` | `GET` | Catalog | AI-readable JSON schema for LLMs & RAG |
-| `/api/v1/growth/analyze` | `POST` | Growth | Upsell/cross-sell recommendations & uplift prediction |
-| `/api/v1/growth/sample-baskets` | `GET` | Growth | Predefined merchant industry sample baskets |
-| `/api/v1/growth/affinity-matrix` | `GET` | Growth | Market basket association rules & lift scores |
-| `/api/v1/campaigns` | `GET` | Campaigns | Full campaign orchestrator overview & KPIs |
-| `/api/v1/campaigns/segments` | `GET` | Campaigns | List RFM customer segments |
-| `/api/v1/campaigns/simulate` | `POST` | Campaigns | Price elasticity & discount simulation |
-| `/api/v1/campaigns/generate` | `POST` | Campaigns | AI-generated campaign formulation |
-| `/api/v1/campaigns/{id}/status` | `PATCH` | Campaigns | Toggle campaign active/draft status |
-| `/api/v1/campaigns/{id}` | `DELETE` | Campaigns | Delete campaign |
-| `/api/v1/demo/connect-razorpay` | `POST` | Demo | 1-click full dataset demo generator |
-| `/api/v1/demo/reset` | `POST` | Demo | Reset platform to clean zero-data state |
+| `/api/v1/catalog/products` | `GET` | Catalog | Filtered, searched & paginated 50-SKU catalog |
+| `/api/v1/catalog/products` | `POST` | Catalog | Add new SKU with specs, base price & GST rate |
+| `/api/v1/catalog/products/{id}/stock` | `PATCH` | Catalog | Real-time inventory unit adjustment |
+| `/api/v1/commerce/checkout` | `POST` | Commerce | Create order, deduct inventory & generate Razorpay session |
+| `/api/v1/commerce/verify-payment` | `POST` | Commerce | Verify HMAC signature, capture payment & persist order |
+| `/api/v1/merchant/orders` | `GET` | Merchant | List store orders with fulfillment status |
+| `/api/v1/merchant/orders/{id}/status` | `PUT` | Merchant | Transition order stage (Picking, Packed, Ready) |
+| `/api/v1/merchant/shipping/assign` | `POST` | Logistics | Assign courier (Delhivery/BlueDart) & generate AWB |
+| `/api/v1/merchant/shipping/track/{awb}` | `GET` | Logistics | 11-stage shipment tracking timeline |
+| `/api/v1/growth/campaigns` | `GET` | Growth | List active automated growth campaigns |
+| `/api/v1/growth/simulate` | `POST` | Growth | Price elasticity & volume expansion simulation |
+| `/api/v1/auth/login` | `POST` | Auth | Authenticate user & issue JWT bearer token |
+| `/api/v1/auth/quick-switch` | `POST` | Auth | 1-Click persona switcher for demo workflows |
+| `/api/v1/admin/merchants` | `GET` | Admin | Directory of registered merchant stores & KYC status |
+| `/api/v1/reconciliation` | `GET` | Payments | 3-way reconciliation audit ledger |
+| `/api/v1/exceptions` | `GET` | Risk | Actionable payment and fulfillment exception queue |
 
 ---
 
