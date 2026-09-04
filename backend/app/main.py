@@ -39,6 +39,10 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+from app.api.v1.endpoints import payments, webhooks
+app.include_router(payments.router, prefix="/api/payments", tags=["Direct Payments API"])
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Direct Webhooks API"])
+
 @app.get("/api/forecast")
 async def direct_forecast_redirect():
     from app.services.forecast_service import ForecastService

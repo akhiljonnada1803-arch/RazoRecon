@@ -82,7 +82,11 @@
 * **Price Elasticity & Discount Simulation**: Microeconomic simulation model calculating volume expansion vs margin dilution, price elasticity factor ($E$), conversion lift %, gross campaign revenue, discount costs, and campaign ROI %.
 * **RFM Customer Segmentation**: 5 behavioral clusters (*High-Volume Enterprise, Fast-Growing D2C Retailers, At-Risk Inactive Merchants, Seasonal Festive Sellers, New Onboarding*) with merchant reach, AOV, churn risk %, and GMV.
 * **Time-Series Revenue Forecasting**: Day-by-day projected revenue trajectory comparing baseline organic sales against campaign revenue lift.
-* **Core Metrics**: Displays **Campaign Name**, **Target Segment**, **Expected Revenue Lift (₹ / %)**, and **Projected Orders**.
+### 11. 💳 Razorpay Test Mode & Auto-Reconciliation Integration
+* **Create Order API (`POST /api/payments/create-order`)**: Generates Razorpay order IDs (`order_rzp_...`), creates checkout session URLs, and persists order records in SQLite `orders` table.
+* **HMAC Signature Verification (`POST /api/payments/verify`)**: Validates SHA256 signatures, updates order status to `paid`, and writes payment records to SQLite `payments` table.
+* **Webhook Processing (`POST /api/webhooks/razorpay`)**: Validates `X-Razorpay-Signature` against webhook secret, processing `payment.captured`, `order.paid`, and `payment.failed`.
+* **Automatic Reconciliation Trigger**: Every captured payment automatically triggers the **Reconciliation Engine**, recomputing the 2.0% Razorpay MDR processing fee + 18% GST on fees, and recording the matched deposit in the memory engine and ledger with 0 discrepancies.
 
 ---
 
@@ -98,19 +102,20 @@
 |                               FASTAPI BACKEND                                 |
 |  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
 +-------------------------------------------------------------------------------+
-|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Campaigns    |
+|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Payments     |
 +-----------------+---------------+-------------+----------------+--------------+
                                         |
 +---------------------------------------v---------------------------------------+
 |                        STORAGE & DATA PERSISTENCE                             |
-|  backend/data/auth.db (RBAC)   |   backend/data/memory_engine.db (Vendors)    |
+|  backend/data/auth.db (RBAC)         |   backend/data/payments.db (Orders)    |
+|  backend/data/memory_engine.db (Vendors)                                      |
 +-------------------------------------------------------------------------------+
 ```
 
 ### Stack Breakdown
 * **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons, Recharts, TanStack Query v5.
 * **Backend**: FastAPI, Uvicorn, Pydantic v2, Python 3.11+.
-* **Database**: SQLite 3 with parameterized queries and transactional consistency.
+* **Database**: SQLite 3 with parameterized queries and transactional consistency (`auth.db`, `payments.db`, `memory_engine.db`).
 * **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, Price Elasticity Modeling, OpenAI GPT-4o-mini / Heuristic Fallback.
 
 ---
@@ -166,6 +171,11 @@ npm run dev -- -p 3001
 
 | Endpoint | Method | Tag | Description |
 | :--- | :--- | :--- | :--- |
+| `/api/payments/create-order` | `POST` | Payments | Create order & generate Razorpay checkout session |
+| `/api/payments/verify` | `POST` | Payments | Verify HMAC signature & auto-reconcile transaction |
+| `/api/payments/orders` | `GET` | Payments | List stored orders from SQLite database |
+| `/api/payments/list` | `GET` | Payments | List stored payments with reconciliation status |
+| `/api/webhooks/razorpay` | `POST` | Webhooks | Ingest Razorpay webhooks & auto-reconcile |
 | `/api/v1/auth/login` | `POST` | Auth | Authenticate user & receive JWT token |
 | `/api/v1/auth/quick-switch` | `POST` | Auth | Demo role switcher without full logout |
 | `/api/v1/dashboard/executive` | `GET` | Dashboard | Executive financial KPIs and cash runway |

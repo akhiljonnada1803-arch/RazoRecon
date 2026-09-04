@@ -20,9 +20,13 @@ from app.api.v1.endpoints import (
     catalog,
     growth,
     campaigns,
+    payments,
+    webhooks,
 )
 
 api_router = APIRouter()
+api_router.include_router(payments.router, prefix="/payments", tags=["Razorpay Test Mode Payments"])
+api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Razorpay Webhooks"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["Campaign Orchestrator"])
 api_router.include_router(growth.router, prefix="/growth", tags=["Revenue Growth Agent"])
 api_router.include_router(catalog.router, prefix="/catalog", tags=["Product Catalog Management"])

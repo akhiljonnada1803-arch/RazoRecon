@@ -590,19 +590,37 @@ class CommerceService:
 
     def generate_checkout_link(self, cart: CartDTO) -> CheckoutResponseDTO:
         calculated_cart = self.calculate_cart_totals(cart)
-        order_id = f"order_{uuid.uuid4().hex[:12]}"
-        link_id = f"plink_{uuid.uuid4().hex[:10]}"
-        payment_url = f"https://rzp.io/l/{link_id}"
+        from app.services.payment_service import payment_service
+        from app.schemas.payments import CreateOrderRequestDTO, OrderItemDTO
+
+        order_items = [
+            OrderItemDTO(
+                product_id=i.product_id,
+                name=i.name,
+                price=i.price,
+                quantity=i.quantity
+            )
+            for i in calculated_cart.items
+        ]
+
+        order_res = payment_service.create_order(CreateOrderRequestDTO(
+            amount=calculated_cart.total,
+            currency="INR",
+            customer_email="finance.ops@acmedirect.com",
+            customer_phone="+919876543210",
+            items=order_items
+        ))
+
         expires_at = (datetime.datetime.utcnow() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         return CheckoutResponseDTO(
-            payment_link_id=link_id,
-            payment_url=payment_url,
-            order_id=order_id,
+            payment_link_id=order_res.order_id,
+            payment_url=order_res.checkout_session_url,
+            order_id=order_res.order_id,
             amount=calculated_cart.total,
             currency="INR",
             status="created",
-            qr_code_mock=f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={payment_url}",
+            qr_code_mock=f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={order_res.checkout_session_url}",
             expires_at=expires_at,
             summary_items=calculated_cart.items
         )
