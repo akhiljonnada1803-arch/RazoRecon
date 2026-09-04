@@ -109,7 +109,24 @@
   4. **Create Payment**: Razorpay test order provision (`order_rzp_...`).
   5. **Verify Payment**: Cryptographic HMAC SHA256 signature verification.
   6. **Update Ledger**: Double-entry ERP general ledger sync and memory engine reconciliation.
-* **Interactive Playback Toolbar**: Play, pause, step next, speed (1x, 2x, 4x), and scenario switcher (*Retail Store Expansion, FinOps Enterprise License, Dev Workstations, Storage Cluster*).
+
+### 13. ⚡ AI Checkout Engine (`/checkout`)
+
+* **Interactive 4-Phase Flow**: `1. Agent Assistant → 2. Interactive Cart → 3. Order Creation → 4. Razorpay Checkout`.
+* **Conversational AI Checkout Assistant**: Natural language prompt executor (*"Add 2 POS terminals and apply coupon"*, *"Add 4G Soundbox Pro"*, *"Reset cart"*) with contextual recommendations and one-click auto-coupon optimizer.
+* **Full Cart Operations**: Add, remove, and stepper quantity increment/decrement with catalog quick-selector drawer.
+* **Granular Checkout Summary**:
+  * **Order Amount (Subtotal)**
+  * **Taxes (18% GST with ITC eligibility)**
+  * **Discounts (Coupon / Offer Engine deductions)**
+  * **Final Amount (in ₹ INR)**
+* **Razorpay Test Mode Checkout & Shareable Links**:
+  * Generates Razorpay Order ID (`order_rzp_...`) and instant shareable payment link (`https://rzp.io/l/...`).
+  * Dynamic BharatQR / UPI QR code simulation.
+  * 1-Click test payment simulation executing HMAC verification and auto-reconciliation.
+* **Live Transaction & Settlement Tracker**: Real-time monitoring of payment lifecycle (*Created → Pending Payment → Captured → Reconciled with 0 Discrepancy*).
+* **Immutable Forensic Audit Logs**: SQLite `checkout_audit_logs` tracking every state transition with Actor (`Agent`, `User`, `System`), Event type, Timestamp, and metadata JSON payload inspector.
+
 
 ---
 

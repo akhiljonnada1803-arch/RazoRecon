@@ -49,7 +49,9 @@ const NAVIGATION_SECTIONS: NavSection[] = [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/catalog', label: 'Product Catalog', icon: Package, badge: '50 SKUs' },
       { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
+      { href: '/checkout', label: 'AI Checkout Engine', icon: CreditCard, badge: 'Cart & Pay' },
       { href: '/growth-agent', label: 'Revenue Growth Agent', icon: TrendingUp, badge: 'Growth AI' },
+
       { href: '/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'Campaigns' },
       { href: '/agent-commerce', label: 'A2A Commerce Simulator', icon: Bot, badge: 'A2A Sim' },
       { href: '/review', label: 'Exception Queue', icon: CheckSquare },
