@@ -49,7 +49,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/hero-demo': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG', 'BROWSE_CATALOG'],
   '/agent-commerce': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG'],
   
-  // Merchant Hub
+  // Merchant Operations (Shopify / Amazon Seller Style)
   '/dashboard': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG'],
   '/merchant/dashboard': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG', 'MANAGE_ORDERS'],
   '/merchant/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY'],
@@ -57,7 +57,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/merchant/orders': ['MANAGE_ORDERS', 'VIEW_ALL_ORDERS'],
   '/merchant/shipping': ['ASSIGN_DELIVERY_PARTNERS', 'MANAGE_LOGISTICS', 'UPDATE_SHIPMENT_STATUS'],
   '/merchant/customers': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_ORDERS'],
-  '/merchant/agent-api': ['MANAGE_CATALOG', 'MANAGE_AGENT_CONFIG', 'VIEW_MERCHANT_ANALYTICS'],
+  '/merchant/settings': ['MANAGE_MERCHANT_SETTINGS', 'VIEW_MERCHANT_ANALYTICS'],
 
   // Customer Experience
   '/customer/assistant': ['USE_AI_SHOPPING_ASSISTANT', 'BROWSE_CATALOG'],
@@ -68,27 +68,20 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/customer/recommendations': ['VIEW_RECOMMENDATIONS', 'BROWSE_CATALOG'],
   '/customer/profile': ['MANAGE_PROFILE'],
 
-  // Consumer Storefront / Cart
-  '/shop': ['BROWSE_CATALOG', 'MANAGE_CATALOG'],
-  '/shop/cart': ['BROWSE_CATALOG', 'PLACE_ORDERS'],
-  '/shop/checkout': ['PLACE_ORDERS', 'BROWSE_CATALOG'],
-
   // Growth Engine
   '/growth': ['MANAGE_PROMOTIONS', 'VIEW_MERCHANT_ANALYTICS'],
   '/growth/upsell': ['MANAGE_PROMOTIONS'],
   '/growth/campaigns': ['MANAGE_PROMOTIONS'],
   '/growth/segments': ['MANAGE_PROMOTIONS', 'VIEW_MERCHANT_ANALYTICS'],
 
-  // Finance & Audit
-  '/finance/reconciliation': ['RUN_RECONCILIATION', 'MANAGE_MERCHANT_SETTINGS'],
-  '/finance/exceptions': ['RUN_RECONCILIATION'],
-  '/finance/vendors': ['RUN_RECONCILIATION', 'VIEW_MERCHANT_ANALYTICS'],
-  '/finance/copilot': ['RUN_RECONCILIATION', 'VIEW_MERCHANT_ANALYTICS'],
-  '/audit/logs': ['VIEW_AUDIT_LOGS'],
-  '/audit/timeline': ['VIEW_AUDIT_LOGS'],
-  '/audit/compliance': ['VIEW_AUDIT_LOGS'],
-
-  // Administration
+  // Platform Admin Developer & Infrastructure Console
+  '/admin/dashboard': ['MANAGE_PLATFORM_SETTINGS'],
+  '/admin/agent-api': ['MANAGE_PLATFORM_SETTINGS', 'MANAGE_AGENT_CONFIG'],
+  '/admin/agent-catalog-feed': ['MANAGE_PLATFORM_SETTINGS', 'MANAGE_AGENT_CONFIG'],
+  '/admin/api-keys': ['MANAGE_PLATFORM_SETTINGS'],
+  '/admin/webhooks': ['MANAGE_PLATFORM_SETTINGS'],
+  '/admin/ai-buyer-logs': ['MANAGE_PLATFORM_SETTINGS'],
+  '/admin/protocol-monitoring': ['MANAGE_PLATFORM_SETTINGS'],
   '/admin/users': ['MANAGE_USERS', 'MANAGE_PLATFORM_SETTINGS'],
   '/admin/roles': ['MANAGE_USERS', 'MANAGE_PLATFORM_SETTINGS'],
   '/admin/integrations': ['MANAGE_PLATFORM_SETTINGS', 'MANAGE_DELIVERY_PARTNERS'],

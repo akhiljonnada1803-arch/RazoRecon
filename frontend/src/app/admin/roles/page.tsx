@@ -71,7 +71,7 @@ export default function AdminRolesPage() {
                 Granted Permission Policies ({role.permissions?.length || 0})
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {(role.permissions || []).map((perm, idx) => (
+                {(role.permissions || []).map((perm: string, idx: number) => (
                   <Badge
                     key={idx}
                     className="bg-blue-50 text-[#0B72E7] border-blue-200 text-[10px] font-mono"

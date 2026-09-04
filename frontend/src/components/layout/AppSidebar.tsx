@@ -30,8 +30,11 @@ import {
   Heart,
   Truck,
   Code2,
-  Compass,
-  UserCheck
+  Terminal,
+  Key,
+  Activity,
+  Server,
+  Settings
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -47,6 +50,7 @@ interface NavSection {
   }>;
 }
 
+// 1. CUSTOMER NAVIGATION
 const CUSTOMER_SECTIONS: NavSection[] = [
   {
     title: 'AI SHOPPING HUB',
@@ -73,7 +77,38 @@ const CUSTOMER_SECTIONS: NavSection[] = [
   },
 ];
 
+// 2. MERCHANT BUSINESS OPERATIONS (Shopify / Amazon Seller Central Style)
 const MERCHANT_SECTIONS: NavSection[] = [
+  {
+    title: 'STORE MANAGEMENT',
+    items: [
+      { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard },
+      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
+      { href: '/merchant/inventory', label: 'Inventory Control', icon: Layers, badge: 'Stock' },
+      { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
+      { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
+      { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
+    ],
+  },
+  {
+    title: 'GROWTH & MARKETING',
+    items: [
+      { href: '/growth/campaigns', label: 'Campaign Manager', icon: Megaphone, badge: 'Auto' },
+      { href: '/growth/upsell', label: 'Upsell Engine', icon: Sparkles, badge: 'Active' },
+      { href: '/growth', label: 'Revenue Dashboard', icon: TrendingUp, badge: '+28.9%' },
+    ],
+  },
+  {
+    title: 'SETTINGS',
+    items: [
+      { href: '/merchant/settings', label: 'Store Settings', icon: Settings },
+      { href: '/hero-demo', label: 'Interactive Demo', icon: Sparkles, badge: 'Track 01' },
+    ],
+  },
+];
+
+// 3. PLATFORM ADMIN DEVELOPER & INFRASTRUCTURE CONSOLE
+const ADMIN_SECTIONS: NavSection[] = [
   {
     title: 'FLAGSHIP HERO DEMO',
     items: [
@@ -81,49 +116,23 @@ const MERCHANT_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'MERCHANT OPERATIONS',
+    title: 'DEVELOPER CONSOLE',
     items: [
-      { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard },
-      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
-      { href: '/merchant/inventory', label: 'Inventory Control', icon: Layers, badge: 'Stock' },
-      { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
-      { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
-      { href: '/merchant/customers', label: 'Customer LTV & Memory', icon: Users, badge: 'Insights' },
-      { href: '/merchant/agent-api', label: 'Agent API Center', icon: Code2, badge: 'Track 01' },
+      { href: '/admin/dashboard', label: 'Console Overview', icon: LayoutDashboard },
+      { href: '/admin/agent-api', label: 'Agent API Center', icon: Code2, badge: 'REST API' },
+      { href: '/admin/agent-catalog-feed', label: 'Agent Catalog Feed', icon: Terminal, badge: 'JSON Feed' },
+      { href: '/admin/api-keys', label: 'API Key Management', icon: Key, badge: 'Auth' },
+      { href: '/admin/webhooks', label: 'Webhook Management', icon: Radio, badge: 'Events' },
+      { href: '/admin/ai-buyer-logs', label: 'AI Buyer Request Logs', icon: Activity, badge: 'Live Traces' },
+      { href: '/admin/protocol-monitoring', label: 'Protocol Monitoring', icon: Zap, badge: '99.99%' },
     ],
   },
   {
-    title: 'GROWTH ENGINE',
-    items: [
-      { href: '/growth', label: 'Revenue Overview', icon: TrendingUp, badge: '+28.9%' },
-      { href: '/growth/upsell', label: 'Upsell & Cross-Sell', icon: Sparkles, badge: 'Engine' },
-      { href: '/growth/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'AI Gen' },
-      { href: '/growth/segments', label: 'RFM Segments', icon: Layers, badge: 'Clusters' },
-    ],
-  },
-  {
-    title: 'FINANCE INTELLIGENCE',
-    items: [
-      { href: '/finance/reconciliation', label: 'Reconciliation Engine', icon: GitCompare },
-      { href: '/finance/exceptions', label: 'Exception Queue', icon: CheckSquare },
-      { href: '/finance/vendors', label: 'Vendor Intelligence', icon: ShieldAlert, badge: 'Risk' },
-      { href: '/finance/copilot', label: 'CFO AI Copilot', icon: BrainCircuit, badge: 'ReAct' },
-    ],
-  },
-  {
-    title: 'AUDIT & COMPLIANCE',
-    items: [
-      { href: '/audit/logs', label: 'Audit Logs', icon: FileText },
-      { href: '/audit/timeline', label: 'Visual Timeline', icon: Clock },
-      { href: '/audit/compliance', label: 'Compliance & GST', icon: ShieldCheck, badge: '100%' },
-    ],
-  },
-  {
-    title: 'ADMINISTRATION',
+    title: 'PLATFORM ADMINISTRATION',
     items: [
       { href: '/admin/users', label: 'User Directory', icon: Users },
       { href: '/admin/roles', label: 'RBAC Roles', icon: Shield },
-      { href: '/admin/integrations', label: 'Integrations & ERP', icon: Sliders },
+      { href: '/admin/integrations', label: 'ERP & Gateways', icon: Sliders },
     ],
   },
 ];
@@ -132,21 +141,33 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user, isCustomer, canAccessRoute } = useAuth();
 
-  const sections = isCustomer ? CUSTOMER_SECTIONS : MERCHANT_SECTIONS;
+  const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';
+
+  let sections: NavSection[];
+  if (isCustomer) {
+    sections = CUSTOMER_SECTIONS;
+  } else if (isPlatformAdmin) {
+    sections = ADMIN_SECTIONS;
+  } else {
+    sections = MERCHANT_SECTIONS;
+  }
 
   return (
     <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 h-screen sticky top-0 z-30 shadow-[1px_0_3px_rgba(0,0,0,0.02)]">
       <div className="flex flex-col h-full overflow-hidden">
-        {/* RazorCommerce Brand Header */}
+        {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 shrink-0">
-          <Link href={isCustomer ? "/customer/assistant" : "/merchant/dashboard"} className="flex items-center gap-2.5">
+          <Link 
+            href={isCustomer ? "/customer/assistant" : isPlatformAdmin ? "/admin/dashboard" : "/merchant/dashboard"} 
+            className="flex items-center gap-2.5"
+          >
             <div className="h-8 w-8 rounded-lg bg-[#0B72E7] flex items-center justify-center text-white font-bold shadow-sm shadow-blue-500/30">
               <CreditCard className="h-4.5 w-4.5" />
             </div>
             <div>
               <span className="font-bold text-sm tracking-tight text-[#072654] block">Razor<span className="text-[#0B72E7]">Commerce</span> AI</span>
               <span className="text-[10px] font-medium text-slate-500 block -mt-0.5">
-                {isCustomer ? 'AI Shopping Experience' : 'Commerce Operating System'}
+                {isCustomer ? 'AI Shopping Experience' : isPlatformAdmin ? 'Developer & Admin Console' : 'Merchant Seller Portal'}
               </span>
             </div>
           </Link>
@@ -162,16 +183,16 @@ export function AppSidebar() {
             <div className="flex items-center gap-2 overflow-hidden">
               <div className={cn(
                 "h-6 w-6 rounded-lg flex items-center justify-center text-white font-bold text-[10px] shrink-0",
-                isCustomer ? "bg-purple-600" : "bg-[#072654]"
+                isCustomer ? "bg-purple-600" : isPlatformAdmin ? "bg-slate-900" : "bg-[#072654]"
               )}>
-                {isCustomer ? 'CU' : (user?.company.slice(0, 2).toUpperCase() || 'AC')}
+                {isCustomer ? 'CU' : isPlatformAdmin ? 'AD' : (user?.company.slice(0, 2).toUpperCase() || 'MC')}
               </div>
               <div className="truncate">
                 <span className="font-semibold text-slate-800 block truncate text-[11px]">
-                  {isCustomer ? (user?.name || 'Customer Account') : (user?.company || 'Acme Direct Corp')}
+                  {isCustomer ? (user?.name || 'Customer Account') : isPlatformAdmin ? 'Platform Admin' : (user?.company || 'Acme Direct Store')}
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono block truncate">
-                  {user?.email || 'user@razorcommerce.ai'}
+                  {user?.email || 'operator@razorcommerce.ai'}
                 </span>
               </div>
             </div>
@@ -179,6 +200,8 @@ export function AppSidebar() {
               "text-[9px] font-mono font-bold px-1 py-0.5 rounded border",
               isCustomer 
                 ? "text-purple-700 bg-purple-50 border-purple-200" 
+                : isPlatformAdmin
+                ? "text-slate-800 bg-slate-200 border-slate-300"
                 : "text-[#0B72E7] bg-blue-50 border-blue-200"
             )}>
               {user?.role.split(' ')[0] || 'User'}
@@ -199,7 +222,12 @@ export function AppSidebar() {
                 </span>
                 {allowedItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || (item.href !== '/merchant/dashboard' && item.href !== '/customer/assistant' && pathname.startsWith(item.href));
+                  const isActive = pathname === item.href || (
+                    item.href !== '/merchant/dashboard' && 
+                    item.href !== '/admin/dashboard' && 
+                    item.href !== '/customer/assistant' && 
+                    pathname.startsWith(item.href)
+                  );
 
                   return (
                     <Link
@@ -238,20 +266,24 @@ export function AppSidebar() {
           })}
         </div>
 
-        {/* Footer Role Permission Pill */}
+        {/* Footer Role Pill */}
         <div className="p-3 border-t border-slate-200 bg-slate-50/50 shrink-0">
           <div className="rounded-xl bg-white border border-slate-200 p-2.5 space-y-1 text-xs shadow-2xs">
             <div className="flex items-center justify-between text-slate-800 font-semibold text-[11px]">
               <span className="flex items-center gap-1.5 truncate">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#0B72E7]" />
-                <span className="truncate">{user?.role || 'Customer'}</span>
+                <span className="truncate">{user?.role || 'Merchant'}</span>
               </span>
               <span className="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
                 Active
               </span>
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              {isCustomer ? 'Autonomous AI Buyer Experience' : 'Merchant AI Commerce Operating System'}
+              {isCustomer 
+                ? 'Autonomous AI Buyer Experience' 
+                : isPlatformAdmin
+                ? 'AI Commerce Developer Console'
+                : 'Shopify / Amazon Seller Operations'}
             </p>
           </div>
         </div>

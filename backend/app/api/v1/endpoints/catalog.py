@@ -166,12 +166,43 @@ def update_product(
         raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
     return updated
 
+@router.patch("/{product_id}/status", response_model=ProductDetailDTO)
+@router.put("/{product_id}/status", response_model=ProductDetailDTO)
+@router.patch("/products/{product_id}/status", response_model=ProductDetailDTO)
+@router.put("/products/{product_id}/status", response_model=ProductDetailDTO)
+def update_product_inventory_status(
+    product_id: str = Path(..., description="Unique product identifier"),
+    status: Optional[str] = Query(None, description="New inventory status: IN_STOCK, LOW_STOCK, OUT_OF_STOCK, PRE_ORDER, DISCONTINUED"),
+    body: Optional[Dict[str, Any]] = Body(None)
+):
+    """Update interactive inventory status badge for a product."""
+    target_status = status
+    if not target_status and body and "status" in body:
+        target_status = body["status"]
+    if not target_status:
+        target_status = "IN_STOCK"
+
+    updated = catalog_service.update_inventory_status(product_id=product_id, status=target_status)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
+    return updated
+
 @router.patch("/{product_id}/stock", response_model=ProductDetailDTO)
+@router.put("/{product_id}/stock", response_model=ProductDetailDTO)
+@router.patch("/products/{product_id}/stock", response_model=ProductDetailDTO)
+@router.put("/products/{product_id}/stock", response_model=ProductDetailDTO)
 def adjust_product_stock(
     product_id: str = Path(..., description="Unique product identifier"),
-    payload: StockAdjustmentDTO = Body(...)
+    payload: Optional[StockAdjustmentDTO] = Body(default=None),
+    stock_quantity: Optional[int] = Query(default=None)
 ):
     """Quickly increment, decrement, or override inventory count for a product."""
+    if payload is None:
+        if stock_quantity is not None:
+            payload = StockAdjustmentDTO(adjustment_type="set", quantity=stock_quantity)
+        else:
+            payload = StockAdjustmentDTO(adjustment_type="set", quantity=50)
+
     updated = catalog_service.adjust_stock(
         product_id=product_id,
         adj=payload
@@ -181,6 +212,7 @@ def adjust_product_stock(
     return updated
 
 @router.delete("/{product_id}")
+@router.delete("/products/{product_id}")
 def delete_product(product_id: str = Path(..., description="Unique product identifier")):
     """Remove a product from the enterprise catalog."""
     success = catalog_service.delete_product(product_id)

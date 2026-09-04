@@ -128,6 +128,7 @@ class CatalogService:
                     stock_quantity INTEGER NOT NULL DEFAULT 50,
                     reorder_threshold INTEGER NOT NULL DEFAULT 10,
                     stock_status TEXT NOT NULL DEFAULT 'In Stock',
+                    inventory_status TEXT NOT NULL DEFAULT 'IN_STOCK',
                     rating REAL NOT NULL DEFAULT 4.8,
                     reviews_count INTEGER NOT NULL DEFAULT 120,
                     image_url TEXT NOT NULL,
@@ -147,6 +148,20 @@ class CatalogService:
                     updated_at TEXT NOT NULL
                 )
             """)
+
+            # Migration check for existing DBs
+            cursor.execute("PRAGMA table_info(products)")
+            existing_cols = [row["name"] for row in cursor.fetchall()]
+            if "inventory_status" not in existing_cols:
+                cursor.execute("ALTER TABLE products ADD COLUMN inventory_status TEXT DEFAULT 'IN_STOCK'")
+                cursor.execute("""
+                    UPDATE products SET inventory_status = CASE 
+                        WHEN stock_quantity <= 0 THEN 'OUT_OF_STOCK'
+                        WHEN stock_quantity <= reorder_threshold THEN 'LOW_STOCK'
+                        ELSE 'IN_STOCK'
+                    END
+                """)
+                conn.commit()
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS offers (
@@ -186,20 +201,21 @@ class CatalogService:
         for p in RAW_SEED_PRODUCTS:
             pid = f"prod_{uuid.uuid4().hex[:10]}"
             stock_status = "In Stock" if p["stock"] > p["reorder"] else ("Low Stock" if p["stock"] > 0 else "Out of Stock")
+            inventory_status = "IN_STOCK" if p["stock"] > p["reorder"] else ("LOW_STOCK" if p["stock"] > 0 else "OUT_OF_STOCK")
             in_stock = 1 if p["stock"] > 0 else 0
             
             cursor.execute("""
                 INSERT OR REPLACE INTO products (
                     id, sku, name, brand, category, price, cost_price, original_price,
-                    currency, stock_quantity, reorder_threshold, stock_status,
+                    currency, stock_quantity, reorder_threshold, stock_status, inventory_status,
                     rating, reviews_count, image_url, tagline, description,
                     features, specs, in_stock, delivery_time, gst_rate_pct, hsn_sac_code,
                     offer_id, offer_text, offer_discount_pct, offer_badge,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pid, p["sku"], p["name"], p["brand"], p["category"], p["price"], p["cost_price"], p["original_price"],
-                "INR", p["stock"], p["reorder"], stock_status,
+                "INR", p["stock"], p["reorder"], stock_status, inventory_status,
                 4.8, 120, p["image"], p["tagline"], p["desc"],
                 json.dumps(p["features"]), json.dumps([{"key": k, "value": v} for k, v in p["specs"]]), in_stock,
                 "2-3 business days", 18.0, "8470",
@@ -211,6 +227,11 @@ class CatalogService:
         features = json.loads(r["features"]) if r["features"] else []
         specs_raw = json.loads(r["specs"]) if r["specs"] else []
         specs = [ProductSpecDTO(key=s.get("key", ""), value=s.get("value", "")) for s in specs_raw]
+
+        keys = r.keys()
+        raw_inv_status = r["inventory_status"] if "inventory_status" in keys and r["inventory_status"] else None
+        if not raw_inv_status:
+            raw_inv_status = "OUT_OF_STOCK" if r["stock_quantity"] <= 0 else ("LOW_STOCK" if r["stock_quantity"] <= r["reorder_threshold"] else "IN_STOCK")
 
         return ProductDetailDTO(
             id=r["id"],
@@ -226,6 +247,7 @@ class CatalogService:
             stock=int(r["stock_quantity"]),
             reorder_threshold=int(r["reorder_threshold"]),
             stock_status=r["stock_status"],
+            inventory_status=raw_inv_status,
             rating=float(r["rating"]),
             reviews_count=int(r["reviews_count"]),
             image_url=r["image_url"],
@@ -370,20 +392,22 @@ class CatalogService:
         features_json = json.dumps(features_list)
         specs_json = json.dumps([s.model_dump() for s in (data.specs or [])])
 
+        inv_status = data.inventory_status or ("OUT_OF_STOCK" if stock_qty <= 0 else ("LOW_STOCK" if stock_qty <= reorder_th else "IN_STOCK"))
+
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO products (
                     id, sku, name, brand, category, price, cost_price, original_price,
-                    currency, stock_quantity, reorder_threshold, stock_status,
+                    currency, stock_quantity, reorder_threshold, stock_status, inventory_status,
                     rating, reviews_count, image_url, tagline, description,
                     features, specs, in_stock, delivery_time, gst_rate_pct, hsn_sac_code,
                     offer_id, offer_text, offer_discount_pct, offer_badge,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pid, sku, data.name, data.brand or "Acme Direct", data.category, data.price, cost_price, data.original_price,
-                "INR", stock_qty, reorder_th, stock_status,
+                "INR", stock_qty, reorder_th, stock_status, inv_status,
                 4.8, 1, image_url, data.tagline or "", data.description,
                 features_json, specs_json, in_stock, data.delivery_time or "2-3 business days",
                 data.gst_rate_pct or 18.0, data.hsn_sac_code or "8470",
@@ -433,6 +457,15 @@ class CatalogService:
             params.append(stock_status)
             update_fields.append("in_stock = ?")
             params.append(1 if target_stock > 0 else 0)
+            if data.inventory_status is None:
+                new_inv = "OUT_OF_STOCK" if target_stock <= 0 else ("LOW_STOCK" if target_stock <= reorder else "IN_STOCK")
+                update_fields.append("inventory_status = ?")
+                params.append(new_inv)
+
+        if data.inventory_status is not None:
+            update_fields.append("inventory_status = ?")
+            params.append(data.inventory_status)
+
         if data.reorder_threshold is not None:
             update_fields.append("reorder_threshold = ?")
             params.append(data.reorder_threshold)
@@ -476,6 +509,41 @@ class CatalogService:
 
         return self.get_product_by_id(existing.id)
 
+    def update_inventory_status(self, product_id: str, status: str) -> Optional[ProductDetailDTO]:
+        existing = self.get_product_by_id(product_id)
+        if not existing:
+            return None
+
+        status_upper = status.upper().strip()
+        valid_statuses = ["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK", "PRE_ORDER", "DISCONTINUED"]
+        if status_upper not in valid_statuses:
+            status_upper = "IN_STOCK"
+
+        stock_status_map = {
+            "IN_STOCK": "In Stock",
+            "LOW_STOCK": "Low Stock",
+            "OUT_OF_STOCK": "Out of Stock",
+            "PRE_ORDER": "Pre-Order",
+            "DISCONTINUED": "Discontinued"
+        }
+        stock_status = stock_status_map.get(status_upper, "In Stock")
+        in_stock = 0 if status_upper in ["OUT_OF_STOCK", "DISCONTINUED"] else 1
+        now_str = datetime.datetime.now().isoformat()
+
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE products SET
+                    inventory_status = ?,
+                    stock_status = ?,
+                    in_stock = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (status_upper, stock_status, in_stock, now_str, existing.id))
+            conn.commit()
+
+        return self.get_product_by_id(existing.id)
+
     def adjust_stock(self, product_id: str, adj: StockAdjustmentDTO) -> Optional[ProductDetailDTO]:
         existing = self.get_product_by_id(product_id)
         if not existing:
@@ -489,6 +557,7 @@ class CatalogService:
             new_qty = max(0, adj.quantity)
 
         stock_status = "In Stock" if new_qty > existing.reorder_threshold else ("Low Stock" if new_qty > 0 else "Out of Stock")
+        inv_status = "OUT_OF_STOCK" if new_qty <= 0 else ("LOW_STOCK" if new_qty <= existing.reorder_threshold else "IN_STOCK")
         in_stock = 1 if new_qty > 0 else 0
         now_str = datetime.datetime.now().isoformat()
 
@@ -498,10 +567,11 @@ class CatalogService:
                 UPDATE products SET
                     stock_quantity = ?,
                     stock_status = ?,
+                    inventory_status = ?,
                     in_stock = ?,
                     updated_at = ?
                 WHERE id = ?
-            """, (new_qty, stock_status, in_stock, now_str, existing.id))
+            """, (new_qty, stock_status, inv_status, in_stock, now_str, existing.id))
             conn.commit()
 
         return self.get_product_by_id(existing.id)

@@ -22,6 +22,8 @@ export interface Product {
   specs?: ProductSpec[];
   stock?: number;
   stock_quantity?: number;
+  stock_status?: string;
+  inventory_status?: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'PRE_ORDER' | 'DISCONTINUED';
   in_stock?: boolean;
   offer?: string;
   active_offer?: string;

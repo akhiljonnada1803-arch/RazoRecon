@@ -30,6 +30,7 @@ class ProductDetailDTO(BaseModel):
     stock: int = 50
     reorder_threshold: int = 10
     stock_status: str = "In Stock" # "In Stock" | "Low Stock" | "Out of Stock"
+    inventory_status: str = "IN_STOCK" # "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | "PRE_ORDER" | "DISCONTINUED"
     rating: float = 4.8
     reviews_count: int = 120
     image_url: str
@@ -62,6 +63,7 @@ class ProductCreateDTO(BaseModel):
     stock_quantity: Optional[int] = 50
     stock: Optional[int] = None
     reorder_threshold: Optional[int] = 10
+    inventory_status: Optional[str] = "IN_STOCK"
     image_url: Optional[str] = None
     images: Optional[List[str]] = None
     tagline: Optional[str] = ""
@@ -89,6 +91,7 @@ class ProductUpdateDTO(BaseModel):
     stock_quantity: Optional[int] = None
     stock: Optional[int] = None
     reorder_threshold: Optional[int] = None
+    inventory_status: Optional[str] = None
     image_url: Optional[str] = None
     images: Optional[List[str]] = None
     tagline: Optional[str] = None

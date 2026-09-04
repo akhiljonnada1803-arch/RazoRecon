@@ -19,15 +19,24 @@ import {
   Layers, 
   ArrowUpDown,
   UploadCloud,
-  Image as ImageIcon,
+  ChevronDown,
   Check,
   X,
-  Code,
-  DollarSign
+  Clock,
+  Ban,
+  Boxes
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+const INVENTORY_STATUSES = [
+  { id: 'IN_STOCK', label: 'In Stock', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200', dotClass: 'bg-emerald-500' },
+  { id: 'LOW_STOCK', label: 'Low Stock', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200', dotClass: 'bg-amber-500' },
+  { id: 'OUT_OF_STOCK', label: 'Out of Stock', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200', dotClass: 'bg-rose-500' },
+  { id: 'PRE_ORDER', label: 'Pre-Order', badgeClass: 'bg-blue-50 text-[#0B72E7] border-blue-200', dotClass: 'bg-[#0B72E7]' },
+  { id: 'DISCONTINUED', label: 'Discontinued', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200', dotClass: 'bg-slate-400' }
+];
 
 export default function MerchantCatalogPage() {
   const queryClient = useQueryClient();
@@ -35,11 +44,11 @@ export default function MerchantCatalogPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
 
   // Image Upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
 
   // Form state for add/edit product
@@ -49,6 +58,7 @@ export default function MerchantCatalogPage() {
     category: 'Fintech Hardware',
     price: 9999,
     stock: 50,
+    inventory_status: 'IN_STOCK',
     image_url: 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=500&auto=format&fit=crop&q=60',
     key_features: 'Fast Thermal Printer, 4G Dual SIM, All Cards Accepted',
     active_offer: 'BESTSELLER'
@@ -84,6 +94,18 @@ export default function MerchantCatalogPage() {
     },
   });
 
+  // Status Change Mutation
+  const statusMutation = useMutation({
+    mutationFn: ({ productId, status }: { productId: string; status: string }) => {
+      return apiClient.patch(`/catalog/products/${productId}/status?status=${status}`);
+    },
+    onSuccess: () => {
+      setActiveDropdownId(null);
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['merchant', 'inventory'] });
+    }
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/catalog/products/${id}`),
     onSuccess: () => {
@@ -114,6 +136,7 @@ export default function MerchantCatalogPage() {
       category: 'Fintech Hardware',
       price: 9999,
       stock: 50,
+      inventory_status: 'IN_STOCK',
       image_url: 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=500&auto=format&fit=crop&q=60',
       key_features: 'Fast Thermal Printer, 4G Dual SIM, All Cards Accepted',
       active_offer: 'BESTSELLER'
@@ -129,10 +152,11 @@ export default function MerchantCatalogPage() {
       description: p.description || '',
       category: p.category,
       price: p.price,
-      stock: p.stock_quantity || 0,
+      stock: p.stock_quantity ?? p.stock ?? 0,
+      inventory_status: p.inventory_status || (p.in_stock ? 'IN_STOCK' : 'OUT_OF_STOCK'),
       image_url: p.image_url || '',
       key_features: (p.features || []).join(', '),
-      active_offer: p.offer || ''
+      active_offer: p.offer || p.active_offer || ''
     });
     setUploadedImages(p.image_url ? [p.image_url] : []);
     setIsAddModalOpen(true);
@@ -141,21 +165,18 @@ export default function MerchantCatalogPage() {
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setIsUploading(true);
-    setUploadError(null);
 
     try {
       const file = files[0];
       const formDataUpload = new FormData();
       formDataUpload.append('file', file);
 
-      // Attempt multipart upload to /catalog/upload
       const res: any = await apiClient.post('/catalog/upload', formDataUpload);
       if (res?.url) {
         setFormData(prev => ({ ...prev, image_url: res.url }));
         setUploadedImages(prev => [res.url, ...prev]);
       }
     } catch (err: any) {
-      // Fallback: local FileReader object URL
       const file = files[0];
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -177,12 +198,18 @@ export default function MerchantCatalogPage() {
       category: formData.category,
       price: Number(formData.price),
       stock_quantity: Number(formData.stock),
-      in_stock: Number(formData.stock) > 0,
+      inventory_status: formData.inventory_status,
+      in_stock: formData.inventory_status !== 'OUT_OF_STOCK' && formData.inventory_status !== 'DISCONTINUED',
       image_url: formData.image_url,
       features: formData.key_features.split(',').map(f => f.trim()).filter(Boolean),
       offer: formData.active_offer || undefined
     };
     saveMutation.mutate(payload);
+  };
+
+  const getStatusConfig = (status?: string, inStock: boolean = true) => {
+    const s = status ? status.toUpperCase() : (inStock ? 'IN_STOCK' : 'OUT_OF_STOCK');
+    return INVENTORY_STATUSES.find(item => item.id === s) || INVENTORY_STATUSES[0];
   };
 
   const categories = ['ALL', 'Fintech Hardware', 'POS Devices', 'Soundboxes', 'Developer Hardware', 'Enterprise Software'];
@@ -193,7 +220,7 @@ export default function MerchantCatalogPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-            <span>Merchant Operations</span>
+            <span>Store Operations</span>
             <span>•</span>
             <span className="text-[#0B72E7]">Catalog Management</span>
           </div>
@@ -201,7 +228,7 @@ export default function MerchantCatalogPage() {
             Product Catalog & SKU Registry
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Manage your AI-buyable product inventory, drag-and-drop media assets, and active pricing rules.
+            Manage your store SKUs, media gallery, pricing rules, and real-time inventory availability.
           </p>
         </div>
 
@@ -224,7 +251,7 @@ export default function MerchantCatalogPage() {
             <Package className="h-4 w-4 text-[#0B72E7]" />
           </div>
           <div className="text-xl font-bold text-[#072654]">{stats?.total_products || products.length || 50}</div>
-          <span className="text-[10px] text-emerald-600 font-medium">Synced with AI Agents</span>
+          <span className="text-[10px] text-emerald-600 font-medium">Auto-synced</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
@@ -233,12 +260,12 @@ export default function MerchantCatalogPage() {
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-xl font-bold text-emerald-700">{stats?.in_stock_count || 46}</div>
-          <span className="text-[10px] text-slate-500">Ready for instant dispatch</span>
+          <span className="text-[10px] text-slate-500">Ready for order fulfillment</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase font-mono">Low / Out Stock</span>
+            <span className="text-xs font-semibold uppercase font-mono">Low / Out of Stock</span>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
           </div>
           <div className="text-xl font-bold text-amber-700">{stats?.out_of_stock_count || 4}</div>
@@ -247,11 +274,11 @@ export default function MerchantCatalogPage() {
 
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase font-mono">Active Campaigns</span>
+            <span className="text-xs font-semibold uppercase font-mono">Active Promotions</span>
             <Sparkles className="h-4 w-4 text-indigo-600" />
           </div>
           <div className="text-xl font-bold text-indigo-700">{stats?.active_offers_count || 12}</div>
-          <span className="text-[10px] text-indigo-600 font-medium">Offer engine active</span>
+          <span className="text-[10px] text-indigo-600 font-medium">Special deals enabled</span>
         </div>
       </div>
 
@@ -262,7 +289,7 @@ export default function MerchantCatalogPage() {
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               type="text"
-              placeholder="Search catalog by name, SKU, or specs..."
+              placeholder="Search catalog by product name, SKU, or specs..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 text-xs rounded-xl border-slate-200"
@@ -287,7 +314,7 @@ export default function MerchantCatalogPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table with Interactive Inventory Status Badges */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         {isLoading ? (
           <div className="p-8 space-y-3">
@@ -297,7 +324,7 @@ export default function MerchantCatalogPage() {
           </div>
         ) : products.length === 0 ? (
           <div className="p-12 text-center space-y-3">
-            <Package className="h-12 w-12 text-slate-300 mx-auto" />
+            <Boxes className="h-12 w-12 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-slate-800">No products found</h3>
             <p className="text-xs text-slate-500">Try adjusting your category filter or search query.</p>
           </div>
@@ -309,87 +336,133 @@ export default function MerchantCatalogPage() {
                   <th className="py-3.5 px-6 font-semibold">Product & SKU</th>
                   <th className="py-3.5 px-6 font-semibold">Category</th>
                   <th className="py-3.5 px-6 font-semibold">Price (INR)</th>
-                  <th className="py-3.5 px-6 font-semibold">Stock Status</th>
+                  <th className="py-3.5 px-6 font-semibold">Stock Quantity</th>
+                  <th className="py-3.5 px-6 font-semibold">Inventory Status</th>
                   <th className="py-3.5 px-6 font-semibold">Active Offer</th>
                   <th className="py-3.5 px-6 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {products.map((product) => (
-                  <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={product.image_url || 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=100'}
-                          alt={product.name}
-                          className="h-10 w-10 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                        <div>
-                          <span className="font-bold text-slate-800 block text-xs">{product.name}</span>
-                          <span className="font-mono text-[10px] text-slate-400">SKU: {product.sku || product.id.slice(0, 8)}</span>
+                {products.map((product) => {
+                  const statusCfg = getStatusConfig(product.inventory_status, product.in_stock);
+                  const isDropdownOpen = activeDropdownId === product.id;
+                  const stockQty = product.stock_quantity ?? product.stock ?? 0;
+
+                  return (
+                    <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={product.image_url || 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=100'}
+                            alt={product.name}
+                            className="h-10 w-10 rounded-xl object-cover border border-slate-200 shrink-0"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-800 block text-xs">{product.name}</span>
+                            <span className="font-mono text-[10px] text-slate-400">SKU: {product.sku || product.id.slice(0, 8)}</span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-4 px-6">
-                      <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 bg-slate-50 border-slate-200">
-                        {product.category}
-                      </Badge>
-                    </td>
-
-                    <td className="py-4 px-6 font-mono font-bold text-slate-900">
-                      ₹{product.price.toLocaleString('en-IN')}
-                    </td>
-
-                    <td className="py-4 px-6">
-                      {product.in_stock ? (
-                        <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>{product.stock_quantity} in stock</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-rose-700 font-semibold text-xs">
-                          <XCircle className="h-3.5 w-3.5 text-rose-600" />
-                          <span>Out of stock</span>
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-4 px-6">
-                      {product.offer ? (
-                        <Badge className="bg-blue-50 text-[#0B72E7] border-blue-200 text-[10px] font-semibold">
-                          <Tag className="h-2.5 w-2.5 mr-1" />
-                          {product.offer}
+                      <td className="py-4 px-6">
+                        <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 bg-slate-50 border-slate-200">
+                          {product.category}
                         </Badge>
-                      ) : (
-                        <span className="text-slate-400 font-mono text-[10px]">None</span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenEdit(product)}
-                          className="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
-                          title="Edit product"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete product "${product.name}"?`)) {
-                              deleteMutation.mutate(product.id);
-                            }
-                          }}
-                          className="h-7 w-7 rounded-lg bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-600 transition-colors"
-                          title="Delete product"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-4 px-6 font-mono font-bold text-slate-900">
+                        ₹{product.price.toLocaleString('en-IN')}
+                      </td>
+
+                      <td className="py-4 px-6 font-mono text-slate-800 font-semibold">
+                        {stockQty} units
+                      </td>
+
+                      {/* 4. INTERACTIVE INVENTORY STATUS BADGE */}
+                      <td className="py-4 px-6 relative">
+                        <div className="relative inline-block">
+                          <button
+                            onClick={() => setActiveDropdownId(isDropdownOpen ? null : product.id)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer shadow-2xs hover:opacity-90 ${statusCfg.badgeClass}`}
+                            title="Click to change inventory status"
+                          >
+                            <span className={`h-2 w-2 rounded-full ${statusCfg.dotClass}`} />
+                            <span>{statusCfg.label}</span>
+                            <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {isDropdownOpen && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-30"
+                                onClick={() => setActiveDropdownId(null)}
+                              />
+                              <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-2xl border border-slate-200 shadow-xl z-40 p-1.5 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                                <div className="px-2 py-1 text-[10px] font-mono uppercase font-bold text-slate-400">
+                                  Update Status
+                                </div>
+                                {INVENTORY_STATUSES.map((st) => (
+                                  <button
+                                    key={st.id}
+                                    onClick={() => statusMutation.mutate({ productId: product.id, status: st.id })}
+                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                      (product.inventory_status || 'IN_STOCK') === st.id
+                                        ? 'bg-blue-50 text-[#0B72E7]'
+                                        : 'text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`h-2 w-2 rounded-full ${st.dotClass}`} />
+                                      <span>{st.label}</span>
+                                    </div>
+                                    {(product.inventory_status || 'IN_STOCK') === st.id && (
+                                      <Check className="h-3.5 w-3.5 text-[#0B72E7]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-6">
+                        {product.offer || product.active_offer ? (
+                          <Badge className="bg-blue-50 text-[#0B72E7] border-blue-200 text-[10px] font-semibold">
+                            <Tag className="h-2.5 w-2.5 mr-1" />
+                            {product.offer || product.active_offer}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400 font-mono text-[10px]">Standard</span>
+                        )}
+                      </td>
+
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenEdit(product)}
+                            className="h-7 w-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+                            title="Edit SKU"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete product "${product.name}"?`)) {
+                                deleteMutation.mutate(product.id);
+                              }
+                            }}
+                            className="h-7 w-7 rounded-lg bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-rose-600 transition-colors"
+                            title="Delete SKU"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -402,7 +475,7 @@ export default function MerchantCatalogPage() {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-bold text-base text-[#072654]">
-                {editingProduct ? 'Edit Product SKU' : 'Add New Product to Catalog'}
+                {editingProduct ? 'Edit Product SKU' : 'Add New Product to Store'}
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
@@ -465,13 +538,16 @@ export default function MerchantCatalogPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-700">Active Offer / Discount</label>
-                  <Input
-                    value={formData.active_offer}
-                    onChange={(e) => setFormData({ ...formData, active_offer: e.target.value })}
-                    placeholder="e.g., 10% OFF or BESTSELLER"
-                    className="h-9 rounded-xl border-slate-200 text-xs"
-                  />
+                  <label className="font-semibold text-slate-700">Inventory Status</label>
+                  <select
+                    value={formData.inventory_status}
+                    onChange={(e) => setFormData({ ...formData, inventory_status: e.target.value })}
+                    className="w-full h-9 rounded-xl border border-slate-200 px-3 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {INVENTORY_STATUSES.map(st => (
+                      <option key={st.id} value={st.id}>{st.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -506,7 +582,7 @@ export default function MerchantCatalogPage() {
                         className="h-16 w-16 object-cover rounded-xl border border-slate-200 shadow-2xs"
                       />
                       <div className="text-left">
-                        <span className="text-xs font-bold text-slate-700 block">Image Selected</span>
+                        <span className="text-xs font-bold text-slate-700 block">Image Loaded</span>
                         <span className="text-[10px] text-[#0B72E7] underline">Click to replace file</span>
                       </div>
                     </div>
@@ -523,7 +599,7 @@ export default function MerchantCatalogPage() {
                 <Input
                   value={formData.image_url}
                   onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  placeholder="Or paste direct image URL (https://...)"
+                  placeholder="Or paste image URL (https://...)"
                   className="h-8 rounded-xl border-slate-200 text-[11px]"
                 />
               </div>
@@ -534,7 +610,7 @@ export default function MerchantCatalogPage() {
                   rows={2}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Detailed specifications for AI customer discovery..."
+                  placeholder="Product specifications and features..."
                   className="w-full rounded-xl border border-slate-200 p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
