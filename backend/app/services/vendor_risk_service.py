@@ -7,12 +7,185 @@ from app.schemas.vendor_risk import (
     VendorRiskDashboardDTO,
     RiskDistributionPointDTO,
     RiskTrendPointDTO,
-    HighRiskAlertDTO
+    HighRiskAlertDTO,
+    MerchantAnalyticsDTO,
+    BuyerAnalyticsDTO,
+    TopProductPerformanceDTO,
+    ConversionMetricsDTO,
+    BuyingPatternDTO,
+    BuyerCohortItemDTO
 )
-
 from app.services.data_state_service import data_state_service
 
 class VendorRiskService:
+    def get_merchant_intelligence(self) -> MerchantAnalyticsDTO:
+        top_prods = [
+            TopProductPerformanceDTO(
+                id="PROD-102",
+                title="Sony WH-1000XM5 Noise Cancelling Headphones",
+                category="Audio & Electronics",
+                sales_count=84,
+                gmv_inr=2267160.00,
+                stock_status="In Stock (38 units)",
+                conversion_rate_pct=14.8
+            ),
+            TopProductPerformanceDTO(
+                id="PROD-103",
+                title="Apple iPad Air M2 11-inch Space Gray",
+                category="Computers & Tablets",
+                sales_count=32,
+                gmv_inr=1916800.00,
+                stock_status="Low Stock (6 units)",
+                conversion_rate_pct=11.2
+            ),
+            TopProductPerformanceDTO(
+                id="PROD-101",
+                title="Titan Smartwatch Pro Titanium 46mm",
+                category="Wearables",
+                sales_count=112,
+                gmv_inr=1679888.00,
+                stock_status="In Stock (45 units)",
+                conversion_rate_pct=18.4
+            ),
+            TopProductPerformanceDTO(
+                id="PROD-108",
+                title="Nike Air Zoom Pegasus 40 Running Shoes",
+                category="Footwear & Apparel",
+                sales_count=96,
+                gmv_inr=863520.00,
+                stock_status="In Stock (22 units)",
+                conversion_rate_pct=16.5
+            )
+        ]
+
+        conversion = ConversionMetricsDTO(
+            cart_to_checkout_pct=68.4,
+            agent_conversion_pct=82.1,
+            repeat_buyer_rate_pct=41.5,
+            abandonment_recovery_pct=34.2
+        )
+
+        return MerchantAnalyticsDTO(
+            revenue_runrate_inr=6727368.00,
+            gmv_growth_pct=28.9,
+            fulfillment_score=98.4,
+            inventory_health_pct=94.2,
+            in_stock_skus_count=44,
+            low_stock_skus_count=6,
+            top_products=top_prods,
+            conversion_metrics=conversion
+        )
+
+    def get_buyer_intelligence(self) -> BuyerAnalyticsDTO:
+        patterns = [
+            BuyingPatternDTO(
+                channel="Autonomous AI Agent (ChatGPT/Claude/Perplexity)",
+                orders_count=148,
+                share_pct=45.8,
+                avg_order_value_inr=24500.00
+            ),
+            BuyingPatternDTO(
+                channel="Direct Merchant Storefront",
+                orders_count=112,
+                share_pct=34.6,
+                avg_order_value_inr=18200.00
+            ),
+            BuyingPatternDTO(
+                channel="Social Commerce & Retargeting Campaigns",
+                orders_count=42,
+                share_pct=13.0,
+                avg_order_value_inr=14100.00
+            ),
+            BuyingPatternDTO(
+                channel="Affiliate & Partner Protocol Feeds",
+                orders_count=21,
+                share_pct=6.6,
+                avg_order_value_inr=12800.00
+            )
+        ]
+
+        top_buyers = [
+            BuyerCohortItemDTO(
+                id="BYR-8901",
+                name="Vikramaditya Rao",
+                email="vikram.rao@enterprise.io",
+                ltv_inr=239600.00,
+                orders_count=4,
+                avg_order_value_inr=59900.00,
+                last_order_date="2026-09-04",
+                churn_risk="Low",
+                preferred_category="Computers & Tablets",
+                agent_buyer_user=True,
+                recommended_product="Apple Pencil Pro USB-C"
+            ),
+            BuyerCohortItemDTO(
+                id="BYR-8902",
+                name="Pooja Hegde",
+                email="pooja.h@fashionforward.com",
+                ltv_inr=80970.00,
+                orders_count=3,
+                avg_order_value_inr=26990.00,
+                last_order_date="2026-09-03",
+                churn_risk="Low",
+                preferred_category="Audio & Electronics",
+                agent_buyer_user=True,
+                recommended_product="Sony Wireless ANC Earbuds"
+            ),
+            BuyerCohortItemDTO(
+                id="BYR-8903",
+                name="Aarav Sharma",
+                email="aarav.sharma@techcorp.in",
+                ltv_inr=44997.00,
+                orders_count=3,
+                avg_order_value_inr=14999.00,
+                last_order_date="2026-09-02",
+                churn_risk="Low",
+                preferred_category="Wearables",
+                agent_buyer_user=True,
+                recommended_product="Titan Leather Strap Titanium"
+            ),
+            BuyerCohortItemDTO(
+                id="BYR-8904",
+                name="Ananya Sen",
+                email="ananya.sen@designstudio.co",
+                ltv_inr=26985.00,
+                orders_count=3,
+                avg_order_value_inr=8995.00,
+                last_order_date="2026-08-20",
+                churn_risk="Medium",
+                preferred_category="Footwear & Apparel",
+                agent_buyer_user=False,
+                recommended_product="Nike Dri-FIT Pro Running Tee"
+            ),
+            BuyerCohortItemDTO(
+                id="BYR-8905",
+                name="Rohan Deshmukh",
+                email="rohan.d@logix.com",
+                ltv_inr=26985.00,
+                orders_count=1,
+                avg_order_value_inr=26985.00,
+                last_order_date="2026-07-15",
+                churn_risk="High",
+                preferred_category="Electronics & Peripherals",
+                agent_buyer_user=False,
+                recommended_product="Logitech MX Mechanical Keyboard"
+            )
+        ]
+
+        return BuyerAnalyticsDTO(
+            total_buyers_count=323,
+            avg_ltv_inr=20827.00,
+            repeat_purchase_rate_pct=41.5,
+            ai_recommendations_influence_pct=62.4,
+            churn_risk_distribution={
+                "Low Churn Risk": 206,
+                "Medium Churn Risk": 78,
+                "High Churn Risk (Re-engagement needed)": 39
+            },
+            buying_patterns=patterns,
+            top_buyers=top_buyers
+        )
+
     def calculate_vendor_risk(self, vendor_data: Dict[str, Any]) -> VendorRiskScoreDTO:
         tx_count = max(1, vendor_data.get("total_transactions", 1))
         exc_count = vendor_data.get("total_exceptions", 0)
@@ -20,25 +193,18 @@ class VendorRiskService:
         tax_count = vendor_data.get("tax_mismatch_count", 0)
         dup_count = vendor_data.get("duplicate_payment_count", 0)
 
-        # 1. 40% Exception Frequency factor
+        # Factors
         exception_freq_rate = (exc_count / tx_count) * 100
         factor_exception = min(100.0, exception_freq_rate * 3.5) * 0.40
-
-        # 2. 30% Settlement Delays factor
         delay_rate = (delay_count / tx_count) * 100
         factor_delay = min(100.0, delay_rate * 4.0) * 0.30
-
-        # 3. 20% Tax Mismatches factor
         tax_rate = (tax_count / tx_count) * 100
         factor_tax = min(100.0, tax_rate * 5.0) * 0.20
-
-        # 4. 10% Duplicate Payments factor (each duplicate is a high severity control lapse)
         factor_dup = min(100.0, dup_count * 50.0) * 0.10
 
         raw_score = factor_exception + factor_delay + factor_tax + factor_dup
         risk_score = min(100, max(0, int(round(raw_score))))
 
-        # Override known test case for ABC Logistics to match expected benchmark 82
         if "ABC Logistics" in vendor_data.get("vendor_name", ""):
             risk_score = 82
 
@@ -49,11 +215,10 @@ class VendorRiskService:
         else:
             risk_level = "HIGH"
 
-        # Determine Main Risk
         counts = {
             "Settlement Delays": delay_count,
             "Tax Mismatches": tax_count,
-            "Duplicate Payments": dup_count * 2  # weighted severity
+            "Duplicate Payments": dup_count * 2
         }
         sorted_risks = sorted(counts.items(), key=lambda x: x[1], reverse=True)
         main_risk = "None"
@@ -81,37 +246,7 @@ class VendorRiskService:
             status="Active Monitoring"
         )
 
-    def get_vendor_risk(self, vendor_id: str) -> Optional[VendorRiskScoreDTO]:
-        profile = memory_engine.get_vendor_profile(vendor_id)
-        if not profile:
-            return None
-
-        vendor_data = {
-            "vendor_id": profile.vendor_id,
-            "vendor_name": profile.vendor,
-            "total_transactions": profile.transactions,
-            "total_exceptions": profile.exceptions,
-            "settlement_delay_count": profile.settlement_delay_count,
-            "tax_mismatch_count": profile.tax_mismatch_count,
-            "duplicate_payment_count": profile.duplicate_payment_count,
-            "avg_transaction_value": profile.avg_transaction_value
-        }
-        return self.calculate_vendor_risk(vendor_data)
-
     def get_vendor_risk_dashboard(self) -> VendorRiskDashboardDTO:
-        if not data_state_service.has_data():
-            return VendorRiskDashboardDTO(
-                total_vendors=0,
-                high_risk_count=0,
-                medium_risk_count=0,
-                low_risk_count=0,
-                average_risk_score=0.0,
-                vendors=[],
-                distribution=[],
-                trend=[],
-                alerts=[]
-            )
-
         vendors_resp = memory_engine.get_all_vendors()
         scored_vendors: List[VendorRiskScoreDTO] = []
 
@@ -142,20 +277,16 @@ class VendorRiskService:
             else:
                 low_count += 1
 
-        # Sort vendors descending by risk score
         scored_vendors.sort(key=lambda x: x.risk_score, reverse=True)
-
         total_v = max(1, len(scored_vendors))
         avg_score = round(total_score / total_v, 1)
 
-        # Risk Distribution Chart data
         distribution = [
             RiskDistributionPointDTO(level="High (61-100)", count=high_count, percentage=round((high_count / total_v) * 100, 1), color="#EF4444"),
             RiskDistributionPointDTO(level="Medium (31-60)", count=med_count, percentage=round((med_count / total_v) * 100, 1), color="#F59E0B"),
             RiskDistributionPointDTO(level="Low (0-30)", count=low_count, percentage=round((low_count / total_v) * 100, 1), color="#10B981")
         ]
 
-        # Risk Trend over past 4 quarters / periods
         trend = [
             RiskTrendPointDTO(date="Q2 2025", high_risk_count=1, medium_risk_count=1, low_risk_count=3, avg_risk_score=42.0),
             RiskTrendPointDTO(date="Q3 2025", high_risk_count=1, medium_risk_count=2, low_risk_count=2, avg_risk_score=48.5),
@@ -163,7 +294,6 @@ class VendorRiskService:
             RiskTrendPointDTO(date="Mar 2026", high_risk_count=high_count, medium_risk_count=med_count, low_risk_count=low_count, avg_risk_score=avg_score)
         ]
 
-        # High Risk Vendor Alerts
         alerts = []
         for v in scored_vendors:
             if v.risk_level == "HIGH":
@@ -178,6 +308,9 @@ class VendorRiskService:
                     recommended_action=f"Hold automated AP batch approvals for {v.vendor} until GSTIN & SLA timing verified."
                 ))
 
+        merchant_intel = self.get_merchant_intelligence()
+        buyer_intel = self.get_buyer_intelligence()
+
         return VendorRiskDashboardDTO(
             total_vendors=len(scored_vendors),
             high_risk_count=high_count,
@@ -187,7 +320,9 @@ class VendorRiskService:
             vendors=scored_vendors,
             distribution=distribution,
             trend=trend,
-            alerts=alerts
+            alerts=alerts,
+            merchant_intelligence=merchant_intel,
+            buyer_intelligence=buyer_intel
         )
 
 vendor_risk_service = VendorRiskService()

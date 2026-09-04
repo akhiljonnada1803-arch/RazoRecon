@@ -2,191 +2,224 @@ from __future__ import annotations
 
 import sys
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "src"))
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from reconcile import reconcile, load_payouts
-from categorize import load_bank_feed
 from app.schemas.exception_intelligence import (
+    CommerceExceptionDTO,
     InvestigatedExceptionDTO,
     ExceptionSummaryMetricsDTO,
     ExceptionIntelligenceResponseDTO,
 )
 
+SAMPLE_COMMERCE_EXCEPTIONS = [
+    {
+        "exception_id": "EXC-2026-001",
+        "category": "Payment Failure",
+        "order_id": "ORD-2026-8950",
+        "sku_id": "PROD-102",
+        "customer_name": "Rohan Gupta",
+        "date": "2026-09-04 18:22:00",
+        "amount": 26990.00,
+        "severity": "High",
+        "root_cause": "Customer UPI handle (rohan@okaxis) timed out after 3DS authorization stage during high-traffic checkout.",
+        "impact": "Uncollected revenue of ₹26,990.00; risk of cart abandonment by buyer.",
+        "action": "Trigger automated Razorpay Smart Payment Link via SMS & WhatsApp with 15-minute price lock.",
+        "available_workflows": [
+            "Re-issue Dynamic Razorpay Payment Link",
+            "Switch to Cash on Delivery (COD) with ₹100 buffer",
+            "Cancel & Release Inventory Lock"
+        ],
+        "confidence": 98,
+        "channel": "Razorpay UPI Gateway",
+        "discrepancy_amount": 26990.00,
+        "evidence": [
+            "Payment ID: pay_Nq89412039 timed out at T+180s",
+            "Bank error code: BHARATPE_UPI_TIMEOUT",
+            "Cart contents: Sony WH-1000XM5 Headphones (1 unit)"
+        ]
+    },
+    {
+        "exception_id": "EXC-2026-002",
+        "category": "Shipping Delay",
+        "order_id": "ORD-2026-8935",
+        "sku_id": "PROD-105",
+        "customer_name": "Meera Nambiar",
+        "date": "2026-09-03 11:15:00",
+        "amount": 14999.00,
+        "severity": "Medium",
+        "root_cause": "Delhivery Hub manifest transit delay (+36 hours over standard SLA) due to Bangalore-Chennai interstate highway maintenance.",
+        "impact": "Customer SLA delivery breach; potential CSAT drop and negative review risk.",
+        "action": "Re-route package via Blue Dart Apex Express priority air dispatch and notify customer with live tracking link.",
+        "available_workflows": [
+            "Fast-track Reroute via Blue Dart Express",
+            "Send Proactive WhatsApp Delay Notification + ₹500 Coupon",
+            "Escalate to Carrier Account Manager"
+        ],
+        "confidence": 95,
+        "channel": "Delhivery Freight Logistics",
+        "discrepancy_amount": 0.00,
+        "evidence": [
+            "AWB: DEL-994821034IN status stuck in 'Hub In-Transit'",
+            "SLA committed delivery date: 2026-09-03",
+            "Predicted delivery lag: +38 hours"
+        ]
+    },
+    {
+        "exception_id": "EXC-2026-003",
+        "category": "Inventory Shortage",
+        "order_id": "ORD-2026-8952",
+        "sku_id": "PROD-103",
+        "customer_name": "Vikramaditya Rao",
+        "date": "2026-09-04 19:05:00",
+        "amount": 59900.00,
+        "severity": "Critical",
+        "root_cause": "Concurrent checkout by Claude Commerce Bot and manual buyer simultaneously locked last 2 units of Apple iPad Air.",
+        "impact": "Overselling condition; primary fulfillment warehouse has 0 units remaining.",
+        "action": "Auto-split fulfillment from Mumbai Secondary Warehouse (WH-02) and initiate immediate stock reallocation.",
+        "available_workflows": [
+            "Reallocate Stock from Secondary Warehouse (WH-02)",
+            "Upgrade Buyer to Next Tier SKU at No Extra Cost",
+            "Issue Instant Full Refund with Apology Code"
+        ],
+        "confidence": 99,
+        "channel": "Catalog Inventory Engine",
+        "discrepancy_amount": 59900.00,
+        "evidence": [
+            "SKU: PROD-103 available inventory: 0",
+            "Active lock requests: 2 simultaneous checkout sessions at 19:04:58",
+            "WH-02 Stock count: 8 units available for cross-docking"
+        ]
+    },
+    {
+        "exception_id": "EXC-2026-004",
+        "category": "Courier API Failure",
+        "order_id": "ORD-2026-8948",
+        "sku_id": "PROD-108",
+        "customer_name": "Pooja Hegde",
+        "date": "2026-09-04 16:30:00",
+        "amount": 8995.00,
+        "severity": "High",
+        "root_cause": "Shiprocket AWB creation endpoint returned 502 Bad Gateway during automated package packing sync.",
+        "impact": "Manifest generation blocked; package packed in warehouse but cannot be picked up by courier.",
+        "action": "Retry Courier Webhook with exponential backoff or failover to Delhivery direct dispatch API.",
+        "available_workflows": [
+            "Retry Courier Webhook & Generate AWB",
+            "Failover Carrier to Delhivery Direct API",
+            "Generate Manual Shipping Label & Barcode"
+        ],
+        "confidence": 97,
+        "channel": "Shiprocket Unified API Bridge",
+        "discrepancy_amount": 0.00,
+        "evidence": [
+            "Endpoint: POST /api/v2/shiprocket/awb/generate returned HTTP 502",
+            "Payload size: 1.4KB",
+            "Retry count: 2 attempts failed"
+        ]
+    },
+    {
+        "exception_id": "EXC-2026-005",
+        "category": "Refund Issue",
+        "order_id": "ORD-2026-8920",
+        "sku_id": "PROD-104",
+        "customer_name": "Karthik Verma",
+        "date": "2026-09-03 14:10:00",
+        "amount": 14900.00,
+        "severity": "High",
+        "root_cause": "Customer initiated product return accepted, but instant RazorpayX refund payout rejected due to destination bank IFSC maintenance window.",
+        "impact": "Customer awaiting ₹14,900.00 credit; banking SLA breach threshold approaching.",
+        "action": "Execute automated retry via alternate IMPS banking switch or disburse to customer Razorpay Wallet.",
+        "available_workflows": [
+            "Trigger Instant RazorpayX Refund Payout (IMPS)",
+            "Disburse Immediate Store Credit with 5% Bonus",
+            "Request Alternate Bank Account Verification"
+        ],
+        "confidence": 96,
+        "channel": "RazorpayX Payouts Engine",
+        "discrepancy_amount": 14900.00,
+        "evidence": [
+            "Payout ID: pout_K8941920 failed with error IFSC_BANK_DOWNTIME",
+            "Return consignment signed and verified in warehouse on 2026-09-03",
+            "Customer SLA window remaining: 4 hours"
+        ]
+    },
+    {
+        "exception_id": "EXC-2026-006",
+        "category": "Order Creation Failure",
+        "order_id": "ORD-2026-8955",
+        "sku_id": "PROD-109",
+        "customer_name": "Ananya Sen",
+        "date": "2026-09-04 19:45:00",
+        "amount": 18450.00,
+        "severity": "Medium",
+        "root_cause": "Autonomous AI Buyer passed shipping pincode with 5 digits instead of 6, failing geographic validation.",
+        "impact": "Checkout session stalled in memory; merchant order draft unconfirmed.",
+        "action": "Auto-correct postal code using city-locality resolution heuristic (Bangalore Koramangala -> 560034) and auto-approve order.",
+        "available_workflows": [
+            "Auto-Correct Postal Code & Approve Order",
+            "Prompt AI Buyer to Verify Delivery Address",
+            "Hold Order for Manual Merchant Verification"
+        ],
+        "confidence": 94,
+        "channel": "Agentic Protocol Ingestion",
+        "discrepancy_amount": 18450.00,
+        "evidence": [
+            "Raw payload address: '56034 Koramangala, Bangalore'",
+            "Resolved valid PIN: 560034",
+            "Buyer agent: Claude Commerce Bot v1.4"
+        ]
+    }
+]
+
 class ExceptionIntelligenceService:
     _resolved_cache: Dict[str, str] = {}
 
-    def _parse_amount(self, s: str) -> float:
-        return float(s.replace("₹", "").replace("Rs.", "").replace("Rs", "").replace(",", "").replace("$", "")) if s else 0.0
-
     async def investigate_all(self) -> ExceptionIntelligenceResponseDTO:
-        matches = reconcile()
-        feed = load_bank_feed()
-        feed_map = {r["txn_id"]: r for r in feed}
-        payouts = load_payouts()
-        payout_map = {p.payout_id: p for p in payouts}
+        exceptions: List[CommerceExceptionDTO] = []
 
-        exceptions: List[InvestigatedExceptionDTO] = []
-        exc_counter = 1
+        for raw in SAMPLE_COMMERCE_EXCEPTIONS:
+            exc_id = raw["exception_id"]
+            is_resolved = exc_id in self._resolved_cache
+            status = "Resolved" if is_resolved else "Open"
+            resolved_action = self._resolved_cache.get(exc_id)
 
-        # 1. Investigate Partial Settlements from Reconciliation Engine (e.g. Amazon Reserves)
-        for m in matches:
-            if m.status == "partial_reserve":
-                feed_item = feed_map.get(m.txn_id, {})
-                disc = abs(m.discrepancy or 0.0)
-                exc_id = f"EXC-2026-{exc_counter:03d}"
-                exc_counter += 1
-
-                is_resolved = exc_id in self._resolved_cache
-                status = "Resolved" if is_resolved else "Open"
-
-                exceptions.append(
-                    InvestigatedExceptionDTO(
-                        exception_id=exc_id,
-                        txn_id=m.txn_id,
-                        payout_id=m.payout_id,
-                        date=feed_item.get("date", "2026-03-15"),
-                        amount=m.deposit_amount,
-                        type="Partial Settlement",
-                        root_cause=f"Amazon rolling reserve withheld ₹{disc:,.2f} pending 14-day customer delivery validation.",
-                        impact="Temporary working capital delay & liquidity withholding.",
-                        action="Track 14-day rolling reserve release schedule; auto-reconcile on T+14 payout arrival.",
-                        confidence=98,
-                        severity="Medium",
-                        status=status,
-                        channel="Amazon Marketplace",
-                        discrepancy_amount=round(disc, 2),
-                        evidence=[
-                            f"Deposit amount received: ₹{m.deposit_amount:,.2f}",
-                            f"Expected settlement net: ₹{m.expected_net:,.2f}",
-                            f"Net discrepancy calculated: ₹{disc:,.2f}",
-                            "Standard Amazon 7-day reserve policy active for tier-1 merchant.",
-                        ],
-                    )
+            exceptions.append(
+                CommerceExceptionDTO(
+                    exception_id=exc_id,
+                    category=raw["category"],
+                    order_id=raw.get("order_id"),
+                    sku_id=raw.get("sku_id"),
+                    customer_name=raw.get("customer_name"),
+                    date=raw["date"],
+                    amount=raw["amount"],
+                    severity=raw["severity"],
+                    status=status,
+                    root_cause=raw["root_cause"],
+                    impact=raw["impact"],
+                    action=raw["action"],
+                    available_workflows=raw.get("available_workflows", []),
+                    confidence=raw.get("confidence", 95),
+                    channel=raw.get("channel", "RazorCommerce Unified API"),
+                    discrepancy_amount=raw.get("discrepancy_amount", 0.0),
+                    evidence=raw.get("evidence", []),
+                    resolved_action=resolved_action
                 )
-
-        # 2. Investigate Tax / Fee Mismatch
-        exc_id = f"EXC-2026-{exc_counter:03d}"
-        exc_counter += 1
-        exceptions.append(
-            InvestigatedExceptionDTO(
-                exception_id=exc_id,
-                txn_id="BT0014",
-                payout_id="PO0013",
-                date="2026-03-08",
-                amount=5420.00,
-                type="Tax Mismatch",
-                root_cause="GST differs by ₹50.00 between gateway settlement fee schedule and bank statement netting.",
-                impact="Input Tax Credit (ITC) compliance risk & GSTR-2B reconciliation discrepancy.",
-                action="Verify GST calculation with payment processor monthly invoice and post ₹50.00 rounding adjustment.",
-                confidence=96,
-                severity="Medium",
-                status="Resolved" if exc_id in self._resolved_cache else "Open",
-                channel="Shopify Direct",
-                discrepancy_amount=50.00,
-                evidence=[
-                    "Processor gross fee: ₹162.60 (inclusive of 18% GST)",
-                    "Expected GST debit: ₹24.80 | Posted GST: ₹74.80",
-                    "Tax calculation rule: GST Rule Sec 16(2) compliance verification triggered.",
-                ],
             )
-        )
 
-        # 3. Investigate Delayed Settlement (Timing Lag)
-        exc_id = f"EXC-2026-{exc_counter:03d}"
-        exc_counter += 1
-        exceptions.append(
-            InvestigatedExceptionDTO(
-                exception_id=exc_id,
-                txn_id="BT0042",
-                payout_id="PO0041",
-                date="2026-03-22",
-                amount=18450.00,
-                type="Delayed Settlement",
-                root_cause="Settlement initiated on Friday (2026-03-20); bank credited deposit on Tuesday (2026-03-24) due to weekend clearing lag (+4 days).",
-                impact="Inter-period cash transit delay; books show momentary transit balance.",
-                action="Apply automated weekend settlement tolerance rule (T+5 days) and link transit batch.",
-                confidence=95,
-                severity="Low",
-                status="Resolved" if exc_id in self._resolved_cache else "Open",
-                channel="Stripe Gateway",
-                discrepancy_amount=0.00,
-                evidence=[
-                    "Initiation timestamp: 2026-03-20 18:30:00 UTC",
-                    "Bank clearance timestamp: 2026-03-24 09:15:00 IST",
-                    "Settlement window within 10-day engine tolerance.",
-                ],
-            )
-        )
-
-        # 4. Investigate Duplicate Payment Warning
-        exc_id = f"EXC-2026-{exc_counter:03d}"
-        exc_counter += 1
-        exceptions.append(
-            InvestigatedExceptionDTO(
-                exception_id=exc_id,
-                txn_id="BT0061",
-                payout_id=None,
-                date="2026-03-28",
-                amount=12500.00,
-                type="Duplicate Payment",
-                root_cause="Two identical debit transactions of ₹12,500.00 posted within 3 hours to vendor 'AWS Cloud Services'.",
-                impact="Excess cash outflow; double debit risk on corporate account.",
-                action="Initiate vendor refund request & flag duplicate invoice batch in AP ledger.",
-                confidence=92,
-                severity="Critical",
-                status="Resolved" if exc_id in self._resolved_cache else "Open",
-                channel="Bank Direct Debit",
-                discrepancy_amount=12500.00,
-                evidence=[
-                    "Debit #1: BT0060 (2026-03-28 10:14) - ₹12,500.00",
-                    "Debit #2: BT0061 (2026-03-28 13:08) - ₹12,500.00",
-                    "Same merchant descriptor: 'AWS EMEA AWS.AMAZON.CO WA'",
-                ],
-            )
-        )
-
-        # 5. Investigate Missing Invoice (Unvouched Outflow)
-        exc_id = f"EXC-2026-{exc_counter:03d}"
-        exc_counter += 1
-        exceptions.append(
-            InvestigatedExceptionDTO(
-                exception_id=exc_id,
-                txn_id="BT0065",
-                payout_id=None,
-                date="2026-03-30",
-                amount=8900.00,
-                type="Missing Invoice",
-                root_cause="Direct wire transfer of ₹8,900.00 to 'Creative Studio agency' without matching purchase order or tax invoice.",
-                impact="Unvouched business expense; audit documentation deficiency.",
-                action="Request tax invoice from procurement department and upload to document repository.",
-                confidence=90,
-                severity="High",
-                status="Resolved" if exc_id in self._resolved_cache else "Open",
-                channel="Bank Wire",
-                discrepancy_amount=8900.00,
-                evidence=[
-                    "Bank wire reference: WT-88219-CREATIVE",
-                    "No matching vendor bill found in accounting records for March 2026",
-                    "Transaction flagged as Needs Review by AI Categorization Agent.",
-                ],
-            )
-        )
-
-        # Metrics aggregation
         total = len(exceptions)
         critical = sum(1 for e in exceptions if e.severity == "Critical")
         high = sum(1 for e in exceptions if e.severity == "High")
         medium = sum(1 for e in exceptions if e.severity == "Medium")
         low = sum(1 for e in exceptions if e.severity == "Low")
-        total_exposure = sum(e.discrepancy_amount or 0.0 for e in exceptions)
+        resolved = sum(1 for e in exceptions if e.status == "Resolved")
+        total_exposure = sum(e.discrepancy_amount or 0.0 for e in exceptions if e.status != "Resolved")
 
-        by_type: Dict[str, int] = {}
+        by_cat: Dict[str, int] = {}
         for e in exceptions:
-            by_type[e.type] = by_type.get(e.type, 0) + 1
+            by_cat[e.category] = by_cat.get(e.category, 0) + 1
 
         summary = ExceptionSummaryMetricsDTO(
             total_exceptions=total,
@@ -196,11 +229,19 @@ class ExceptionIntelligenceService:
             low_count=low,
             total_exposure_amount=round(total_exposure, 2),
             auto_investigated_pct=100.0,
-            by_type=by_type,
+            by_type=by_cat,
+            by_category=by_cat,
+            resolved_count=resolved
         )
 
-        return ExceptionIntelligenceResponseDTO(summary=summary, exceptions=exceptions)
+        return ExceptionIntelligenceResponseDTO(
+            summary=summary, 
+            exceptions=exceptions,
+            status="Success"
+        )
 
     async def resolve_exception(self, exception_id: str, action: str) -> bool:
         self._resolved_cache[exception_id] = action
         return True
+
+exception_intelligence_service = ExceptionIntelligenceService()

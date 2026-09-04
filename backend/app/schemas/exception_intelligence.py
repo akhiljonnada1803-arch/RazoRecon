@@ -1,22 +1,31 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
-class InvestigatedExceptionDTO(BaseModel):
+class CommerceExceptionDTO(BaseModel):
     exception_id: str
-    txn_id: str
-    payout_id: Optional[str] = None
+    category: str  # "Payment Failure" | "Order Creation Failure" | "Shipping Delay" | "Inventory Shortage" | "Refund Issue" | "Courier API Failure"
+    order_id: Optional[str] = None
+    sku_id: Optional[str] = None
+    customer_name: Optional[str] = None
     date: str
     amount: float
-    type: str  # "Missing Invoice" | "Duplicate Payment" | "Partial Settlement" | "Tax Mismatch" | "Delayed Settlement"
+    severity: str    # "Critical" | "High" | "Medium" | "Low"
+    status: str      # "Open" | "In Resolution" | "Resolved"
     root_cause: str
     impact: str
     action: str
-    confidence: int  # 0 to 100
-    severity: str    # "Critical" | "High" | "Medium" | "Low"
-    status: str      # "Open" | "In Investigation" | "Resolved"
-    channel: Optional[str] = None
+    available_workflows: List[str] = Field(default_factory=list)
+    confidence: int = 95
+    channel: Optional[str] = "RazorCommerce Unified API"
     discrepancy_amount: Optional[float] = 0.0
     evidence: List[str] = Field(default_factory=list)
+    resolved_action: Optional[str] = None
+
+# Backward compatibility alias
+class InvestigatedExceptionDTO(CommerceExceptionDTO):
+    txn_id: Optional[str] = "TXN-2026-01"
+    payout_id: Optional[str] = None
+    type: Optional[str] = None
 
 class ExceptionSummaryMetricsDTO(BaseModel):
     total_exceptions: int
@@ -27,10 +36,13 @@ class ExceptionSummaryMetricsDTO(BaseModel):
     total_exposure_amount: float
     auto_investigated_pct: float
     by_type: Dict[str, int]
+    by_category: Optional[Dict[str, int]] = Field(default_factory=dict)
+    resolved_count: int = 0
 
 class ExceptionIntelligenceResponseDTO(BaseModel):
     summary: ExceptionSummaryMetricsDTO
-    exceptions: List[InvestigatedExceptionDTO]
+    exceptions: List[CommerceExceptionDTO]
+    status: str = "Success"
 
 class ResolveExceptionRequestDTO(BaseModel):
     exception_id: str

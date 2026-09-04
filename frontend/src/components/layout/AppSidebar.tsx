@@ -34,7 +34,9 @@ import {
   Key,
   Activity,
   Server,
-  Settings
+  Settings,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -86,6 +88,10 @@ const MERCHANT_SECTIONS: NavSection[] = [
       { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
       { href: '/merchant/inventory', label: 'Inventory Control', icon: Layers, badge: 'Stock' },
       { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
+      { href: '/reconciliation', label: 'Transaction Engine', icon: Zap, badge: 'Multi-Rail' },
+      { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incident' },
+      { href: '/vendor-intelligence', label: 'Merchant Intelligence', icon: Sparkles, badge: 'LTV / Churn' },
+      { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
       { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
       { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
     ],
@@ -116,15 +122,19 @@ const ADMIN_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'DEVELOPER CONSOLE',
+    title: 'DEVELOPER & COMMERCE CORE',
     items: [
       { href: '/admin/dashboard', label: 'Console Overview', icon: LayoutDashboard },
       { href: '/admin/agent-api', label: 'Agent API Center', icon: Code2, badge: 'REST API' },
       { href: '/admin/agent-catalog-feed', label: 'Agent Catalog Feed', icon: Terminal, badge: 'JSON Feed' },
+      { href: '/reconciliation', label: 'Transaction Engine', icon: Zap, badge: 'Multi-Rail' },
+      { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incidents' },
+      { href: '/vendor-intelligence', label: 'Commerce Intelligence', icon: Sparkles, badge: 'LTV / Churn' },
+      { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
       { href: '/admin/api-keys', label: 'API Key Management', icon: Key, badge: 'Auth' },
       { href: '/admin/webhooks', label: 'Webhook Management', icon: Radio, badge: 'Events' },
       { href: '/admin/ai-buyer-logs', label: 'AI Buyer Request Logs', icon: Activity, badge: 'Live Traces' },
-      { href: '/admin/protocol-monitoring', label: 'Protocol Monitoring', icon: Zap, badge: '99.99%' },
+      { href: '/admin/protocol-monitoring', label: 'Protocol Monitoring', icon: Server, badge: '99.99%' },
     ],
   },
   {
@@ -185,7 +195,7 @@ export function AppSidebar() {
                 "h-6 w-6 rounded-lg flex items-center justify-center text-white font-bold text-[10px] shrink-0",
                 isCustomer ? "bg-purple-600" : isPlatformAdmin ? "bg-slate-900" : "bg-[#072654]"
               )}>
-                {isCustomer ? 'CU' : isPlatformAdmin ? 'AD' : (user?.company.slice(0, 2).toUpperCase() || 'MC')}
+                {isCustomer ? 'CU' : isPlatformAdmin ? 'AD' : (user?.company ? user.company.slice(0, 2).toUpperCase() : 'MC')}
               </div>
               <div className="truncate">
                 <span className="font-semibold text-slate-800 block truncate text-[11px]">
@@ -199,93 +209,72 @@ export function AppSidebar() {
             <span className={cn(
               "text-[9px] font-mono font-bold px-1 py-0.5 rounded border",
               isCustomer 
-                ? "text-purple-700 bg-purple-50 border-purple-200" 
-                : isPlatformAdmin
-                ? "text-slate-800 bg-slate-200 border-slate-300"
-                : "text-[#0B72E7] bg-blue-50 border-blue-200"
+                ? "bg-purple-50 text-purple-700 border-purple-200" 
+                : isPlatformAdmin 
+                ? "bg-slate-900 text-white border-slate-800" 
+                : "bg-blue-50 text-[#0B72E7] border-blue-200"
             )}>
-              {user?.role.split(' ')[0] || 'User'}
+              {isCustomer ? 'CUSTOMER' : isPlatformAdmin ? 'ADMIN' : 'MERCHANT'}
             </span>
           </div>
         </div>
 
-        {/* Navigation Sections */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
-          {sections.map((section) => {
-            const allowedItems = section.items.filter((item) => canAccessRoute(item.href));
-            if (allowedItems.length === 0) return null;
-
-            return (
-              <div key={section.title} className="space-y-0.5">
-                <span className="px-3 text-[9px] font-bold tracking-wider text-slate-400 font-mono uppercase block mb-1">
-                  {section.title}
-                </span>
-                {allowedItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href || (
-                    item.href !== '/merchant/dashboard' && 
-                    item.href !== '/admin/dashboard' && 
-                    item.href !== '/customer/assistant' && 
-                    pathname.startsWith(item.href)
-                  );
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150",
-                        isActive
-                          ? "bg-blue-50 text-[#0B72E7] font-bold shadow-2xs"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon className={cn("h-4 w-4", isActive ? "text-[#0B72E7]" : "text-slate-400")} />
-                        <span>{item.label}</span>
-                      </div>
-
-                      {item.badge && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[9px] px-1.5 py-0 h-4 font-mono font-semibold",
-                            isActive 
-                              ? "bg-blue-100/60 text-[#0B72E7] border-blue-200" 
-                              : "bg-slate-100 text-slate-500 border-slate-200"
-                          )}
-                        >
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer Role Pill */}
-        <div className="p-3 border-t border-slate-200 bg-slate-50/50 shrink-0">
-          <div className="rounded-xl bg-white border border-slate-200 p-2.5 space-y-1 text-xs shadow-2xs">
-            <div className="flex items-center justify-between text-slate-800 font-semibold text-[11px]">
-              <span className="flex items-center gap-1.5 truncate">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#0B72E7]" />
-                <span className="truncate">{user?.role || 'Merchant'}</span>
+        {/* Navigation List */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {sections.map((section, idx) => (
+            <div key={idx} className="space-y-1">
+              <span className="px-3 text-[10px] font-bold text-slate-400 tracking-wider uppercase block">
+                {section.title}
               </span>
-              <span className="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
-                Active
-              </span>
+              {section.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/merchant/dashboard' && item.href !== '/admin/dashboard' && item.href !== '/customer/assistant' && pathname.startsWith(item.href));
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150',
+                      isActive
+                        ? 'bg-[#0B72E7] text-white shadow-xs font-bold'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-slate-500')} />
+                      <span>{item.label}</span>
+                    </div>
+
+                    {item.badge && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'text-[9px] font-mono border-0 font-bold px-1.5 py-0',
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-600'
+                        )}
+                      >
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
-            <p className="text-[10px] text-slate-500 leading-tight">
-              {isCustomer 
-                ? 'Autonomous AI Buyer Experience' 
-                : isPlatformAdmin
-                ? 'AI Commerce Developer Console'
-                : 'Shopify / Amazon Seller Operations'}
-            </p>
+          ))}
+        </nav>
+      </div>
+
+      {/* Footer System Status */}
+      <div className="p-3 border-t border-slate-200 shrink-0 bg-slate-50/50">
+        <div className="flex items-center justify-between text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-slate-700">Protocol v1.4 Active</span>
           </div>
+          <span className="font-mono text-[10px] text-slate-400">99.98% SLA</span>
         </div>
       </div>
     </aside>
