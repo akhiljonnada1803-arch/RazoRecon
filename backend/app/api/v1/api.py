@@ -22,9 +22,11 @@ from app.api.v1.endpoints import (
     campaigns,
     payments,
     webhooks,
+    agent_commerce,
 )
 
 api_router = APIRouter()
+api_router.include_router(agent_commerce.router, prefix="/agent-commerce", tags=["Agent-to-Agent Commerce"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Razorpay Test Mode Payments"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Razorpay Webhooks"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["Campaign Orchestrator"])

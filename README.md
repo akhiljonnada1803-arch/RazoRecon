@@ -88,6 +88,17 @@
 * **Webhook Processing (`POST /api/webhooks/razorpay`)**: Validates `X-Razorpay-Signature` against webhook secret, processing `payment.captured`, `order.paid`, and `payment.failed`.
 * **Automatic Reconciliation Trigger**: Every captured payment automatically triggers the **Reconciliation Engine**, recomputing the 2.0% Razorpay MDR processing fee + 18% GST on fees, and recording the matched deposit in the memory engine and ledger with 0 discrepancies.
 
+### 12. 🤖 Agent-to-Agent Commerce Simulator (`/agent-commerce`)
+* **Autonomous Buyer & Seller Protocol**: Dual-agent architecture where **Buyer Agent** (Corporate Procurement AI) and **Seller Agent** (Merchant Commerce AI) negotiate and settle transactions autonomously.
+* **Visual 6-Step Workflow Timeline**:
+  1. **Search Product**: Intent parsing, catalog query, and initial quote generation.
+  2. **Negotiate**: Multi-turn price elasticity and 10% enterprise volume discount consensus.
+  3. **Generate Cart**: Binding order assembly with 18% GST calculation and free shipping.
+  4. **Create Payment**: Razorpay test order provision (`order_rzp_...`).
+  5. **Verify Payment**: Cryptographic HMAC SHA256 signature verification.
+  6. **Update Ledger**: Double-entry ERP general ledger sync and memory engine reconciliation.
+* **Interactive Playback Toolbar**: Play, pause, step next, speed (1x, 2x, 4x), and scenario switcher (*Retail Store Expansion, FinOps Enterprise License, Dev Workstations, Storage Cluster*).
+
 ---
 
 ## 🏗️ Architecture & Technology Stack
@@ -102,7 +113,7 @@
 |                               FASTAPI BACKEND                                 |
 |  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
 +-------------------------------------------------------------------------------+
-|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Payments     |
+|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | A2A Simulator|
 +-----------------+---------------+-------------+----------------+--------------+
                                         |
 +---------------------------------------v---------------------------------------+
@@ -159,7 +170,7 @@ npm run dev -- -p 3001
 | Role | Email | Password | Allowed Capabilities |
 | :--- | :--- | :--- | :--- |
 | **Finance Controller** | `controller@acme.com` | `demo123` | Reconciliation, Exception Queue, Vendor Intel, Month Close |
-| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent, Campaigns |
+| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent, Campaigns, A2A Commerce |
 | **Statutory Auditor** | `auditor@acme.com` | `demo123` | Read-only Audit Logs, Vendor Dossiers, Exception History |
 | **Platform Admin** | `admin@razorrecon.ai` | `demo123` | Complete Unrestricted Platform & System Access |
 
@@ -171,6 +182,8 @@ npm run dev -- -p 3001
 
 | Endpoint | Method | Tag | Description |
 | :--- | :--- | :--- | :--- |
+| `/api/v1/agent-commerce/scenarios` | `GET` | A2A Commerce | List preset procurement scenarios |
+| `/api/v1/agent-commerce/simulate` | `POST` | A2A Commerce | Run full 6-phase autonomous simulation |
 | `/api/payments/create-order` | `POST` | Payments | Create order & generate Razorpay checkout session |
 | `/api/payments/verify` | `POST` | Payments | Verify HMAC signature & auto-reconcile transaction |
 | `/api/payments/orders` | `GET` | Payments | List stored orders from SQLite database |

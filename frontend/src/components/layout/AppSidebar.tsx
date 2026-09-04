@@ -25,7 +25,8 @@ import {
   BrainCircuit,
   ShoppingBag,
   Package,
-  Megaphone
+  Megaphone,
+  Bot
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,7 @@ const NAVIGATION_SECTIONS: NavSection[] = [
       { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
       { href: '/growth-agent', label: 'Revenue Growth Agent', icon: TrendingUp, badge: 'Growth AI' },
       { href: '/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'Campaigns' },
+      { href: '/agent-commerce', label: 'A2A Commerce Simulator', icon: Bot, badge: 'A2A Sim' },
       { href: '/review', label: 'Exception Queue', icon: CheckSquare },
       { href: '/month-close', label: 'Month-End Close', icon: Lock },
       { href: '/demo', label: 'Demo Data Suite', icon: Zap },
