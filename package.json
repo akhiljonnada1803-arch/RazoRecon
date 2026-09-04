@@ -1,0 +1,16 @@
+{
+  "name": "razorcommerce-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:customer": "npm run dev --prefix apps/customer-storefront",
+    "dev:merchant": "npm run dev --prefix apps/merchant-portal",
+    "dev:admin": "npm run dev --prefix apps/admin-console",
+    "build:customer": "npm run build --prefix apps/customer-storefront",
+    "build:merchant": "npm run build --prefix apps/merchant-portal",
+    "build:admin": "npm run build --prefix apps/admin-console"
+  }
+}
