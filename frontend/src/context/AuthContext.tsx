@@ -152,7 +152,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
         
         if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/customer/assistant');
+          router.push('/');
+        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
+          router.push('/admin/dashboard');
         } else {
           router.push('/merchant/dashboard');
         }
@@ -174,8 +176,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
         
         if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
-          router.push('/customer/assistant');
-        } else if (pathname.startsWith('/customer')) {
+          router.push('/');
+        } else if (resp.user.role === 'Platform Admin' || resp.user.role_id === 'role_platform_admin') {
+          router.push('/admin/dashboard');
+        } else {
           router.push('/merchant/dashboard');
         }
         return;
@@ -228,18 +232,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return !!user.permissions?.includes(permissionName);
   };
 
-  const PUBLIC_ROUTES = ['/', '/login', '/customer/products', '/customer/assistant', '/shop', '/hero-demo'];
+  const PUBLIC_ROUTES = [
+    '/', 
+    '/login', 
+    '/cart', 
+    '/checkout',
+    '/customer/products', 
+    '/customer/assistant', 
+    '/customer/orders',
+    '/customer/wishlist',
+    '/customer/profile',
+    '/customer/track',
+    '/customer/recommendations',
+    '/categories',
+    '/shop', 
+    '/hero-demo'
+  ];
 
   const canAccessRoute = (routePath: string): boolean => {
     // 1. Unconditionally allow public storefront routes & product details
-    if (PUBLIC_ROUTES.includes(routePath) || routePath.startsWith('/customer/products')) {
+    if (
+      PUBLIC_ROUTES.includes(routePath) || 
+      routePath.startsWith('/customer') || 
+      routePath.startsWith('/product')
+    ) {
       return true;
     }
 
     // 2. If no authenticated user, only public routes allowed
     if (!user) return false;
     
-    // 3. Platform Admin has full access
+    // 3. Platform Admin has full access to admin routes
     if (
       user.role === 'Platform Admin' || 
       user.role_id === 'role_platform_admin' || 
@@ -248,15 +271,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    // 4. Role-specific access guards
+    // 4. Customer role cannot access merchant or admin routes
     const isCust = user.role === 'Customer' || user.role_id === 'role_customer';
     if (isCust) {
-      return routePath.startsWith('/customer') || routePath.startsWith('/shop') || routePath === '/' || routePath === '/hero-demo';
-    } else {
-      // Merchant / Ops cannot see customer-only account routes in their sidebar
-      if (routePath === '/customer/profile' || routePath === '/customer/wishlist') {
-        return false;
-      }
+      return (
+        routePath.startsWith('/customer') || 
+        routePath.startsWith('/shop') || 
+        routePath === '/' || 
+        routePath === '/cart' || 
+        routePath === '/checkout' || 
+        routePath === '/hero-demo'
+      );
+    }
+
+    // 5. Merchant cannot access admin routes
+    if (routePath.startsWith('/admin')) {
+      return false;
     }
 
     const required = ROUTE_PERMISSIONS[routePath];

@@ -3,30 +3,65 @@
 import React, { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { AppSidebar } from '@/components/layout/AppSidebar';
-import { Header } from '@/components/layout/Header';
-import { CustomerHeader } from '@/components/layout/CustomerHeader';
+import { CustomerStorefrontLayout } from '@/components/layout/CustomerStorefrontLayout';
+import { MerchantPortalLayout } from '@/components/layout/MerchantPortalLayout';
+import { AdminConsoleLayout } from '@/components/layout/AdminConsoleLayout';
 import { AccessDenied403 } from '@/components/common/AccessDenied403';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, isLoading, canAccessRoute } = useAuth();
+  const { user, isAuthenticated, isLoading, isCustomer, canAccessRoute } = useAuth();
 
   const isLoginPage = pathname === '/login';
-  const isCustomerStorefront = 
+  
+  // 1. Route Category Identification
+  const isCustomerRoute = 
     pathname === '/' || 
     pathname.startsWith('/customer') || 
-    pathname.startsWith('/shop');
+    pathname.startsWith('/shop') || 
+    pathname.startsWith('/cart') || 
+    pathname.startsWith('/checkout') ||
+    pathname.startsWith('/categories') ||
+    pathname.startsWith('/product');
+
+  const isMerchantRoute = 
+    pathname.startsWith('/merchant') || 
+    pathname.startsWith('/growth') || 
+    pathname.startsWith('/campaigns');
+
+  const isAdminRoute = 
+    pathname.startsWith('/admin') || 
+    pathname === '/reconciliation' || 
+    pathname === '/exceptions' || 
+    pathname === '/vendor-intelligence' ||
+    pathname === '/audit';
+
+  const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';
 
   useEffect(() => {
-    // Only redirect to login if attempting to access restricted merchant/admin/system routes while unauthenticated
-    if (!isLoading && !isAuthenticated && !isLoginPage && !isCustomerStorefront) {
-      router.push('/login');
-    }
-  }, [isLoading, isAuthenticated, isLoginPage, isCustomerStorefront, router]);
+    if (isLoading) return;
 
-  // 1. Unauthenticated Login Screen: Render ONLY the login screen with ZERO dashboard elements
+    // A. Unauthenticated protection for Merchant and Admin routes
+    if (!isAuthenticated && (isMerchantRoute || isAdminRoute)) {
+      router.push('/login');
+      return;
+    }
+
+    // B. Customer role attempting to access Merchant or Admin route -> Redirect to Storefront
+    if (isAuthenticated && isCustomer && (isMerchantRoute || isAdminRoute)) {
+      router.push('/');
+      return;
+    }
+
+    // C. Non-admin attempting to access Admin route -> Redirect to Merchant Dashboard
+    if (isAuthenticated && !isPlatformAdmin && isAdminRoute) {
+      router.push('/merchant/dashboard');
+      return;
+    }
+  }, [isLoading, isAuthenticated, isCustomer, isPlatformAdmin, isMerchantRoute, isAdminRoute, router]);
+
+  // 1. Isolated Login Screen (Zero Dashboard / Zero Shell elements)
   if (isLoginPage) {
     return (
       <div className="min-h-screen w-full bg-[#F8FAFC]">
@@ -35,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 2. Loading State during session hydration
+  // 2. Loading State
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen w-full bg-[#F8FAFC] text-slate-500 text-sm">
@@ -47,30 +82,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // 3. Customer Storefront Layout (Amazon / E-Commerce style with CustomerHeader, No Enterprise Sidebar)
-  if (isCustomerStorefront) {
+  const isAllowed = canAccessRoute(pathname);
+
+  // 3. Customer Storefront Experience (Amazon + Flipkart Theme, No Sidebar)
+  if (isCustomerRoute) {
     return (
-      <div className="min-h-screen w-full bg-[#F8FAFC] flex flex-col antialiased text-foreground">
-        <CustomerHeader />
-        <main className="flex-1 w-full">
-          {children}
-        </main>
-      </div>
+      <CustomerStorefrontLayout>
+        {children}
+      </CustomerStorefrontLayout>
     );
   }
 
-  const isAllowed = canAccessRoute(pathname);
+  // 4. Platform Admin Console Experience (Enterprise SaaS Console)
+  if (isAdminRoute) {
+    return (
+      <AdminConsoleLayout>
+        {isAllowed && isPlatformAdmin ? children : <AccessDenied403 routePath={pathname} />}
+      </AdminConsoleLayout>
+    );
+  }
 
-  // 4. Authenticated Enterprise Workstation Layout (Merchant Portal & Platform Admin)
+  // 5. Merchant Portal Experience (Shopify Seller Dashboard)
+  if (isMerchantRoute) {
+    return (
+      <MerchantPortalLayout>
+        {isAllowed ? children : <AccessDenied403 routePath={pathname} />}
+      </MerchantPortalLayout>
+    );
+  }
+
+  // Default fallback layout based on user persona
+  if (isPlatformAdmin) {
+    return <AdminConsoleLayout>{children}</AdminConsoleLayout>;
+  } else if (!isCustomer && isAuthenticated) {
+    return <MerchantPortalLayout>{children}</MerchantPortalLayout>;
+  }
+
   return (
-    <div className="flex min-h-screen w-full bg-[#F8FAFC] text-foreground antialiased">
-      <AppSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-        <main className="flex-1 p-6 sm:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
-          {isAllowed ? children : <AccessDenied403 routePath={pathname} />}
-        </main>
-      </div>
-    </div>
+    <CustomerStorefrontLayout>
+      {children}
+    </CustomerStorefrontLayout>
   );
 }
