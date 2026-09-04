@@ -25,9 +25,16 @@ from app.api.v1.endpoints import (
     agent_commerce,
     checkout,
     hero_demo,
+    merchant,
+    audit,
+    admin,
 )
 
 api_router = APIRouter()
+api_router.include_router(merchant.router, prefix="/merchant", tags=["Merchant Hub"])
+api_router.include_router(growth.router, prefix="/growth", tags=["Revenue Growth Engine"])
+api_router.include_router(audit.router, prefix="/audit", tags=["Audit & Compliance"])
+api_router.include_router(admin.router, prefix="/admin", tags=["Administration & RBAC"])
 api_router.include_router(hero_demo.router, prefix="/hero-demo", tags=["Hero Demo - Razorpay Track 01"])
 api_router.include_router(checkout.router, prefix="/checkout", tags=["AI Checkout Engine"])
 api_router.include_router(agent_commerce.router, prefix="/agent-commerce", tags=["Agent-to-Agent Commerce"])

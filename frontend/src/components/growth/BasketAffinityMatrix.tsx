@@ -63,7 +63,7 @@ export function BasketAffinityMatrix({ rules }: BasketAffinityMatrixProps) {
                     <span className="font-bold text-slate-900">{r.consequent_product_name}</span>
                   </div>
                   <span className="text-[10px] text-slate-400 block ml-5">
-                    {r.synergy_type} • ₹{r.consequent_price.toLocaleString('en-IN')}
+                    {r.synergy_type} • ₹{(r.consequent_price || 0).toLocaleString('en-IN')}
                   </span>
                 </td>
                 <td className="p-3.5 text-center font-mono text-slate-600">
@@ -74,7 +74,7 @@ export function BasketAffinityMatrix({ rules }: BasketAffinityMatrixProps) {
                 </td>
                 <td className="p-3.5 text-center">
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold font-mono text-[10px] border">
-                    {r.lift_score.toFixed(2)}x Lift
+                    {(r.lift_score ?? r.lift_multiplier ?? 1.5).toFixed(2)}x Lift
                   </Badge>
                 </td>
                 <td className="p-3.5 pr-5 text-right font-mono font-bold text-indigo-700">

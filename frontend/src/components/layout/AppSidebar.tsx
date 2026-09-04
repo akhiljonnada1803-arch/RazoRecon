@@ -26,7 +26,14 @@ import {
   ShoppingBag,
   Package,
   Megaphone,
-  Bot
+  Bot,
+  Store,
+  Users,
+  Clock,
+  Shield,
+  FileText,
+  Sliders,
+  Award
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -44,38 +51,59 @@ interface NavSection {
 
 const NAVIGATION_SECTIONS: NavSection[] = [
   {
-    title: 'CORE OPERATIONS',
+    title: 'FLAGSHIP HERO DEMO',
     items: [
-      { href: '/hero-demo', label: 'Hero Demo (Track 01)', icon: Sparkles, badge: 'Hero Track 01' },
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/catalog', label: 'Product Catalog', icon: Package, badge: '50 SKUs' },
-      { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
-      { href: '/checkout', label: 'AI Checkout Engine', icon: CreditCard, badge: 'Cart & Pay' },
-      { href: '/growth-agent', label: 'Revenue Growth Agent', icon: TrendingUp, badge: 'Growth AI' },
-
-      { href: '/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'Campaigns' },
-      { href: '/agent-commerce', label: 'A2A Commerce Simulator', icon: Bot, badge: 'A2A Sim' },
-      { href: '/review', label: 'Exception Queue', icon: CheckSquare },
-      { href: '/month-close', label: 'Month-End Close', icon: Lock },
-      { href: '/demo', label: 'Demo Data Suite', icon: Zap },
+      { href: '/hero-demo', label: 'Hero Demo (Track 01)', icon: Sparkles, badge: 'Track 01' },
     ],
   },
   {
-    title: 'RECONCILIATION & LEDGER',
+    title: 'DASHBOARD',
     items: [
-      { href: '/reconciliation', label: 'Reconciliation Engine', icon: GitCompare },
-      { href: '/categorization', label: 'Categorization Ledger', icon: Layers },
-      { href: '/income-statement', label: 'P&L Statement', icon: BarChart3 },
+      { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard },
     ],
   },
   {
-    title: 'RISK & TREASURY',
+    title: 'COMMERCE',
     items: [
-      { href: '/vendor-intelligence', label: 'Vendor Intelligence', icon: ShieldAlert, badge: 'Live Intel' },
-      { href: '/forecast', label: 'Cash Forecasting', icon: TrendingUp },
-      { href: '/fraud', label: 'Fraud Detection', icon: Radio },
-      { href: '/exceptions', label: 'Exception Intelligence', icon: ShieldAlert },
-      { href: '/copilot', label: 'CFO AI Copilot', icon: Sparkles },
+      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
+      { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: 'Orders' },
+      { href: '/merchant/customers', label: 'Customer LTV & Memory', icon: Users, badge: 'Insights' },
+      { href: '/commerce-agent', label: 'Commerce Agent', icon: Bot, badge: 'AI Chat' },
+      { href: '/shop', label: 'Live Storefront', icon: Store, badge: 'Shop' },
+    ],
+  },
+  {
+    title: 'GROWTH ENGINE',
+    items: [
+      { href: '/growth', label: 'Revenue Overview', icon: TrendingUp, badge: '+28.9%' },
+      { href: '/growth/upsell', label: 'Upsell & Cross-Sell', icon: Sparkles, badge: 'Engine' },
+      { href: '/growth/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'AI Gen' },
+      { href: '/growth/segments', label: 'RFM Segments', icon: Layers, badge: 'Clusters' },
+    ],
+  },
+  {
+    title: 'FINANCE INTELLIGENCE',
+    items: [
+      { href: '/finance/reconciliation', label: 'Reconciliation Engine', icon: GitCompare },
+      { href: '/finance/exceptions', label: 'Exception Queue', icon: CheckSquare },
+      { href: '/finance/vendors', label: 'Vendor Intelligence', icon: ShieldAlert, badge: 'Risk' },
+      { href: '/finance/copilot', label: 'CFO AI Copilot', icon: BrainCircuit, badge: 'ReAct' },
+    ],
+  },
+  {
+    title: 'AUDIT & COMPLIANCE',
+    items: [
+      { href: '/audit/logs', label: 'Audit Logs', icon: FileText },
+      { href: '/audit/timeline', label: 'Visual Timeline', icon: Clock },
+      { href: '/audit/compliance', label: 'Compliance & GST', icon: ShieldCheck, badge: '100%' },
+    ],
+  },
+  {
+    title: 'ADMINISTRATION',
+    items: [
+      { href: '/admin/users', label: 'User Directory', icon: Users },
+      { href: '/admin/roles', label: 'RBAC Roles', icon: Shield },
+      { href: '/admin/integrations', label: 'Integrations & ERP', icon: Sliders },
     ],
   },
 ];
@@ -84,31 +112,23 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user, canAccessRoute } = useAuth();
 
-  const { data: dashData } = useQuery<{ has_data?: boolean; kpis?: { open_exceptions: number }; cash_trend?: any[] }>({
-    queryKey: ['dashboard', 'executive'],
-    queryFn: () => apiClient.get('/dashboard/executive'),
-  });
-
-  const hasData = dashData?.has_data !== false && (dashData?.cash_trend && dashData.cash_trend.length > 0);
-  const openExceptions = dashData?.kpis?.open_exceptions || 0;
-
   return (
     <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 h-screen sticky top-0 z-30 shadow-[1px_0_3px_rgba(0,0,0,0.02)]">
       <div className="flex flex-col h-full overflow-hidden">
-        {/* Razorpay Brand Header */}
+        {/* RazorCommerce Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Link href="/merchant/dashboard" className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-[#0B72E7] flex items-center justify-center text-white font-bold shadow-sm shadow-blue-500/30">
               <CreditCard className="h-4.5 w-4.5" />
             </div>
             <div>
-              <span className="font-bold text-sm tracking-tight text-[#072654] block">Razorpay<span className="text-[#0B72E7]">Recon</span></span>
-              <span className="text-[10px] font-medium text-slate-500 block -mt-0.5">Finance Operations</span>
+              <span className="font-bold text-sm tracking-tight text-[#072654] block">Razor<span className="text-[#0B72E7]">Commerce</span> AI</span>
+              <span className="text-[10px] font-medium text-slate-500 block -mt-0.5">Commerce Operating System</span>
             </div>
           </Link>
 
-          <Badge variant="outline" className="text-[10px] font-mono bg-blue-50 text-[#0B72E7] border-blue-200">
-            PROD
+          <Badge variant="outline" className="text-[9px] font-mono bg-blue-50 text-[#0B72E7] border-blue-200">
+            TRACK 01
           </Badge>
         </div>
 
@@ -130,28 +150,20 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Dynamic RBAC Filtered Navigation Sections */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-5">
+        {/* Navigation Sections */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
           {NAVIGATION_SECTIONS.map((section) => {
             const allowedItems = section.items.filter((item) => canAccessRoute(item.href));
             if (allowedItems.length === 0) return null;
 
             return (
               <div key={section.title} className="space-y-0.5">
-                <span className="px-3 text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block mb-1">
+                <span className="px-3 text-[9px] font-bold tracking-wider text-slate-400 font-mono uppercase block mb-1">
                   {section.title}
                 </span>
                 {allowedItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-
-                  // Dynamic badge computation
-                  let badgeText = item.badge;
-                  if (item.href === '/review' && hasData && openExceptions > 0) {
-                    badgeText = `${openExceptions} Pending`;
-                  } else if (item.href === '/review' && !hasData) {
-                    badgeText = undefined;
-                  }
+                  const isActive = pathname === item.href || (item.href !== '/merchant/dashboard' && pathname.startsWith(item.href));
 
                   return (
                     <Link
@@ -169,7 +181,7 @@ export function AppSidebar() {
                         <span>{item.label}</span>
                       </div>
 
-                      {badgeText && (
+                      {item.badge && (
                         <Badge
                           variant="outline"
                           className={cn(
@@ -179,7 +191,7 @@ export function AppSidebar() {
                               : "bg-slate-100 text-slate-500 border-slate-200"
                           )}
                         >
-                          {badgeText}
+                          {item.badge}
                         </Badge>
                       )}
                     </Link>
@@ -196,16 +208,14 @@ export function AppSidebar() {
             <div className="flex items-center justify-between text-slate-800 font-semibold text-[11px]">
               <span className="flex items-center gap-1.5 truncate">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#0B72E7]" />
-                <span className="truncate">{user?.role || 'Finance Controller'}</span>
+                <span className="truncate">{user?.role || 'Platform Admin'}</span>
               </span>
               <span className="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
                 Active RBAC
               </span>
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              {hasData 
-                ? `500 records processed • ${openExceptions} exceptions` 
-                : '0 records processed • Awaiting Ingestion Feed'}
+              AI Commerce OS • Razorpay Track 01
             </p>
           </div>
         </div>

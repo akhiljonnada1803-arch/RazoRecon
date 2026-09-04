@@ -37,9 +37,21 @@ const DEMO_ROLES = [
     icon: '💼',
   },
   {
+    name: 'Revenue Growth Manager',
+    email: 'growth@razorcommerce.ai',
+    badge: 'Catalog, Orders, Upsell & Campaigns',
+    icon: '📈',
+  },
+  {
+    name: 'Operations Manager',
+    email: 'ops@razorcommerce.ai',
+    badge: 'Catalog Inventory & Fulfillment',
+    icon: '📦',
+  },
+  {
     name: 'Auditor',
     email: 'auditor@acme.com',
-    badge: 'Audit Logs & Dossiers',
+    badge: 'Audit Logs & Compliance',
     icon: '🔍',
   },
   {

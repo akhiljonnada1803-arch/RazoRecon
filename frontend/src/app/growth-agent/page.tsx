@@ -121,18 +121,18 @@ export default function RevenueGrowthAgentPage() {
         return [
           ...filtered,
           {
-            product_id: rec.target_product_id,
-            name: rec.target_product_name,
-            brand: rec.target_brand,
-            category: rec.target_category,
-            price: rec.target_price,
-            cost_price: rec.target_cost_price,
+            product_id: rec.target_product_id || 'prod_upsell',
+            name: rec.target_product_name || 'Upgraded Product',
+            brand: rec.target_brand || 'Razorpay Enterprise',
+            category: rec.target_category || 'Hardware',
+            price: rec.target_price || 0,
+            cost_price: rec.target_cost_price || 0,
             quantity: qty,
             image_url: rec.target_image_url
           }
         ];
       });
-      showToast(`Upgraded to ${rec.target_product_name}!`);
+      showToast(`Upgraded to ${rec.target_product_name || 'Upgraded Product'}!`);
     } else {
       // Cross-sell: Add new complementary item to cart
       setBasketItems((prev) => {
@@ -143,18 +143,18 @@ export default function RevenueGrowthAgentPage() {
         return [
           ...prev,
           {
-            product_id: rec.target_product_id,
-            name: rec.target_product_name,
-            brand: rec.target_brand,
-            category: rec.target_category,
-            price: rec.target_price,
-            cost_price: rec.target_cost_price,
+            product_id: rec.target_product_id || 'prod_cross_sell',
+            name: rec.target_product_name || 'Complementary Add-on',
+            brand: rec.target_brand || 'Razorpay Enterprise',
+            category: rec.target_category || 'Accessories',
+            price: rec.target_price || 0,
+            cost_price: rec.target_cost_price || 0,
             quantity: 1,
             image_url: rec.target_image_url
           }
         ];
       });
-      showToast(`Added ${rec.target_product_name} to cart!`);
+      showToast(`Added ${rec.target_product_name || 'Complementary Add-on'} to cart!`);
     }
   };
 

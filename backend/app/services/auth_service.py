@@ -24,6 +24,10 @@ SECRET_KEY = "razorrecon-ai-fintech-jwt-secret-key-2026"
 
 PERMISSIONS_DEFINITIONS: List[Dict[str, str]] = [
     {"id": "perm_view_dashboard", "name": "VIEW_DASHBOARD", "description": "Access executive operations dashboard and core KPIs"},
+    {"id": "perm_manage_catalog", "name": "MANAGE_CATALOG", "description": "Manage products, categories, stock, and pricing"},
+    {"id": "perm_manage_orders", "name": "MANAGE_ORDERS", "description": "View and manage merchant orders and fulfillment"},
+    {"id": "perm_view_customers", "name": "VIEW_CUSTOMERS", "description": "Access customer profiles, LTV, and AI purchase patterns"},
+    {"id": "perm_manage_growth", "name": "MANAGE_GROWTH", "description": "Configure upsell engine, campaigns, and customer segments"},
     {"id": "perm_run_recon", "name": "RUN_RECONCILIATION", "description": "Execute deterministic multi-channel reconciliation ingestion"},
     {"id": "perm_view_exceptions", "name": "VIEW_EXCEPTIONS", "description": "View active ledger exceptions and pending review queues"},
     {"id": "perm_resolve_exceptions", "name": "RESOLVE_EXCEPTIONS", "description": "Approve, reclassify, or resolve accounting exception items"},
@@ -46,6 +50,7 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "VIEW_VENDOR_INTELLIGENCE",
         "VIEW_CASH_FORECAST",
         "CLOSE_BOOKS",
+        "VIEW_AUDIT_LOGS",
     ],
     "role_cfo": [
         "VIEW_DASHBOARD",
@@ -53,6 +58,7 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "VIEW_CFO_COPILOT",
         "VIEW_CASH_FORECAST",
         "VIEW_AUDIT_LOGS",
+        "MANAGE_GROWTH",
     ],
     "role_auditor": [
         "VIEW_DASHBOARD",
@@ -60,8 +66,27 @@ ROLE_PERMISSIONS_MAP: Dict[str, List[str]] = {
         "VIEW_VENDOR_INTELLIGENCE",
         "VIEW_AUDIT_LOGS",
     ],
+    "role_revenue_manager": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
+        "VIEW_AUDIT_LOGS",
+    ],
+    "role_ops_manager": [
+        "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "VIEW_AUDIT_LOGS",
+    ],
     "role_admin": [
         "VIEW_DASHBOARD",
+        "MANAGE_CATALOG",
+        "MANAGE_ORDERS",
+        "VIEW_CUSTOMERS",
+        "MANAGE_GROWTH",
         "RUN_RECONCILIATION",
         "VIEW_EXCEPTIONS",
         "RESOLVE_EXCEPTIONS",
@@ -198,6 +223,16 @@ class AuthService:
                     "description": "Read-only user responsible for compliance, audit trails, and investigations."
                 },
                 {
+                    "id": "role_revenue_manager",
+                    "name": "Revenue Manager",
+                    "description": "Oversees commerce catalog, orders, upsell engine, campaigns, and customer segmentation."
+                },
+                {
+                    "id": "role_ops_manager",
+                    "name": "Operations Manager",
+                    "description": "Manages catalog inventory, order fulfillment, refund operations, and integrations."
+                },
+                {
                     "id": "role_admin",
                     "name": "Platform Admin",
                     "description": "Full system administrator with unrestricted security policy access."
@@ -255,6 +290,22 @@ class AuthService:
                     "email": "auditor@acme.com",
                     "password": "demo123",
                     "role_id": "role_auditor",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_rev_mgr_05",
+                    "name": "Revenue Growth Manager",
+                    "email": "growth@razorcommerce.ai",
+                    "password": "demo123",
+                    "role_id": "role_revenue_manager",
+                    "org_id": "org_acme_corp"
+                },
+                {
+                    "id": "usr_ops_mgr_06",
+                    "name": "Operations Manager",
+                    "email": "ops@razorcommerce.ai",
+                    "password": "demo123",
+                    "role_id": "role_ops_manager",
                     "org_id": "org_acme_corp"
                 },
                 {
@@ -418,6 +469,19 @@ class AuthService:
             """)
             fallback = cursor.fetchone()
             return self.get_user_dto(fallback)
+
+    def list_users(self) -> List[UserDTO]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                FROM users u
+                JOIN roles r ON u.role_id = r.id
+                JOIN organizations o ON u.organization_id = o.id
+                ORDER BY u.created_at ASC
+            """)
+            rows = cursor.fetchall()
+            return [self.get_user_dto(r) for r in rows]
 
     def list_roles(self) -> List[RoleDTO]:
         with self._get_connection() as conn:

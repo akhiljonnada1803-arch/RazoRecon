@@ -39,7 +39,11 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-from app.api.v1.endpoints import payments, webhooks, catalog, checkout, hero_demo
+from app.api.v1.endpoints import payments, webhooks, catalog, checkout, hero_demo, merchant, growth, audit, admin
+app.include_router(merchant.router, prefix="/api/merchant", tags=["Direct Merchant API"])
+app.include_router(growth.router, prefix="/api/growth", tags=["Direct Growth API"])
+app.include_router(audit.router, prefix="/api/audit", tags=["Direct Audit API"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Direct Admin API"])
 app.include_router(payments.router, prefix="/payments", tags=["Direct Payments Root API"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Direct Payments API"])
 

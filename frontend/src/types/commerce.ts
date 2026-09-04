@@ -5,22 +5,46 @@ export interface ProductSpec {
 
 export interface Product {
   id: string;
+  sku?: string;
   name: string;
-  brand: string;
+  brand?: string;
   category: string;
   price: number;
   original_price?: number;
-  currency: string;
-  rating: number;
-  reviews_count: number;
+  currency?: string;
+  rating?: number;
+  reviews_count?: number;
   image_url: string;
-  tagline: string;
+  tagline?: string;
   description: string;
-  features: string[];
-  specs: ProductSpec[];
-  in_stock: boolean;
-  delivery_time: string;
-  gst_rate_pct: number;
+  features?: string[];
+  key_features?: string[];
+  specs?: ProductSpec[];
+  stock?: number;
+  in_stock?: boolean;
+  active_offer?: string;
+  delivery_time?: string;
+  gst_rate_pct?: number;
+}
+
+export interface ProductCategoryStats {
+  name: string;
+  count: number;
+}
+
+export interface ProductStats {
+  total_products: number;
+  total_valuation_inr: number;
+  in_stock_rate_pct: number;
+  active_offers_count: number;
+  categories: ProductCategoryStats[];
+}
+
+export interface ProductListResponse {
+  items: Product[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CartItem {

@@ -1,4 +1,4 @@
-# RazorRecon AI — Autonomous FinOps & Multi-Channel Financial Reconciliation Platform
+# RazorCommerce AI — Autonomous AI Commerce Operating System
 
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI_0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js_14_App_Router-black.svg?logo=next.js&logoColor=white)](https://nextjs.org)
@@ -7,20 +7,26 @@
 [![Python](https://img.shields.io/badge/Language-Python_3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **"The LLM proposes; deterministic code disposes."**  
-> RazorRecon AI is an enterprise financial operations platform that unites multi-channel settlement reconciliation, behavioral vendor memory, autonomous month-end close acceleration, an executive ReAct CFO Copilot, and a conversational **Commerce Agent** with instant Razorpay checkout links.
+> **RazorCommerce AI**: *An AI Commerce Operating System that enables merchants to become AI-buyable while autonomously growing revenue through conversational commerce, intelligent recommendations, and agent-driven checkout.*
 
 ---
 
-## 🌟 Key Platform Modules
+## 🌟 Top-Level Product Architecture (Razorpay Track 01)
 
 ```
 +---------------------------------------------------------------------------------------------------+
-|                                       RAZORRECON AI PLATFORM                                      |
+|                                      RAZORCOMMERCE AI OPERATING SYSTEM                            |
 +---------------------------------------------------------------------------------------------------+
-|  1. Enterprise RBAC & Auth       2. Zero-Data & Demo Suite     3. 3-Way Reconciliation Ingestion  |
-|  4. Behavioral Vendor Memory     5. ReAct CFO AI Copilot       6. Autonomous Month-End Close      |
-|  7. Cash Flow & Treasury         8. Fraud Sentinel             9. Conversational Commerce Agent   |
+|  1. Merchant Hub       2. AI Commerce        3. Revenue Growth    4. Finance Intelligence         |
+|  - /merchant/dashboard - /commerce-agent     - /growth            - /finance/reconciliation       |
+|  - /merchant/catalog   - /shop               - /growth/upsell     - /finance/exceptions           |
+|  - /merchant/orders    - /shop/product/[id]  - /growth/campaigns  - /finance/vendors              |
+|  - /merchant/customers - /shop/cart          - /growth/segments   - /finance/copilot              |
+|                        - /shop/checkout                                                           |
+|                                              5. Audit & Compliance 6. Administration              |
+|  ⭐ Flagship Track 01 Demo: /hero-demo       - /audit/logs         - /admin/users & roles         |
+|                                              - /audit/timeline     - /admin/integrations          |
+|                                              - /audit/compliance                                  |
 +---------------------------------------------------------------------------------------------------+
 ```
 
