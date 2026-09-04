@@ -93,7 +93,6 @@ RAW_SEED_PRODUCTS = [
     {"sku": "SONY-WH1000XM5-NOISE", "name": "Sony WH-1000XM5 Wireless Noise Cancelling Headphones", "brand": "Sony", "category": "Retail Peripherals", "price": 29990.0, "cost_price": 21000.0, "original_price": 34990.0, "stock": 40, "reorder": 8, "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600", "tagline": "Industry-leading active noise cancellation for high-focus finance floors.", "desc": "Dual processor ANC with 8 microphones, LDAC Hi-Res audio, and 30-hour battery life.", "features": ["Dual Processor V1 & QN1 ANC", "8-Mic Precise Voice Pickup", "30-Hour Battery with Fast Charge"], "specs": [("Battery", "30h with ANC on"), ("Weight", "250g Lightweight")], "offer_text": "10% Off with RAZOR2026", "offer_badge": "NOISE CANCEL", "offer_discount_pct": 10.0}
 ]
 
-# 5 Promo Offers for the Offer Engine
 SEED_OFFERS = [
     {"id": "off_razor2026", "code": "RAZOR2026", "title": "10% Instant Enterprise Discount", "discount_type": "percentage", "discount_value": 10.0, "min_order_value": 2000.0, "badge_label": "ALL PRODUCTS", "category_restriction": None, "active": 1},
     {"id": "off_festive15", "code": "FESTIVE15", "title": "15% Seasonal Hardware Discount", "discount_type": "percentage", "discount_value": 15.0, "min_order_value": 5000.0, "badge_label": "FESTIVE SALE", "category_restriction": "Payment Audio Alerts", "active": 1},
@@ -115,7 +114,6 @@ class CatalogService:
     def _init_db(self):
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            # 1. Products Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS products (
                     id TEXT PRIMARY KEY,
@@ -150,7 +148,6 @@ class CatalogService:
                 )
             """)
 
-            # 2. Offers Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS offers (
                     id TEXT PRIMARY KEY,
@@ -166,7 +163,6 @@ class CatalogService:
                 )
             """)
 
-            # 3. Check if products exist, otherwise seed
             cursor.execute("SELECT COUNT(*) as cnt FROM products")
             row = cursor.fetchone()
             if row["cnt"] == 0:
@@ -176,10 +172,9 @@ class CatalogService:
     def _seed_data(self, cursor: sqlite3.Cursor):
         now_str = datetime.datetime.now().isoformat()
         
-        # Seed Offers
         for off in SEED_OFFERS:
             cursor.execute("""
-                INSERT OR IGNORE INTO offers (
+                INSERT OR REPLACE INTO offers (
                     id, code, title, discount_type, discount_value,
                     min_order_value, badge_label, category_restriction, active, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -188,14 +183,13 @@ class CatalogService:
                 off["min_order_value"], off["badge_label"], off["category_restriction"], off["active"], now_str
             ))
 
-        # Seed Products
         for p in RAW_SEED_PRODUCTS:
             pid = f"prod_{uuid.uuid4().hex[:10]}"
             stock_status = "In Stock" if p["stock"] > p["reorder"] else ("Low Stock" if p["stock"] > 0 else "Out of Stock")
             in_stock = 1 if p["stock"] > 0 else 0
             
             cursor.execute("""
-                INSERT OR IGNORE INTO products (
+                INSERT OR REPLACE INTO products (
                     id, sku, name, brand, category, price, cost_price, original_price,
                     currency, stock_quantity, reorder_threshold, stock_status,
                     rating, reviews_count, image_url, tagline, description,
@@ -229,14 +223,17 @@ class CatalogService:
             original_price=float(r["original_price"]) if r["original_price"] is not None else None,
             currency=r["currency"],
             stock_quantity=int(r["stock_quantity"]),
+            stock=int(r["stock_quantity"]),
             reorder_threshold=int(r["reorder_threshold"]),
             stock_status=r["stock_status"],
             rating=float(r["rating"]),
             reviews_count=int(r["reviews_count"]),
             image_url=r["image_url"],
+            images=[r["image_url"]],
             tagline=r["tagline"] or "",
             description=r["description"] or "",
             features=features,
+            key_features=features,
             specs=specs,
             in_stock=bool(r["in_stock"]),
             delivery_time=r["delivery_time"] or "2-3 business days",
@@ -244,6 +241,7 @@ class CatalogService:
             hsn_sac_code=r["hsn_sac_code"] or "8470",
             offer_id=r["offer_id"],
             offer_text=r["offer_text"],
+            active_offer=r["offer_badge"] or r["offer_text"],
             offer_discount_pct=float(r["offer_discount_pct"]) if r["offer_discount_pct"] is not None else None,
             offer_badge=r["offer_badge"],
             created_at=r["created_at"],
@@ -293,11 +291,9 @@ class CatalogService:
 
             where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
-            # Count total
             cursor.execute(f"SELECT COUNT(*) as total FROM products {where_str}", tuple(params))
             total_count = cursor.fetchone()["total"]
 
-            # Sort mapping
             sort_map = {
                 "newest": ("created_at", "DESC"),
                 "price_asc": ("price", "ASC"),
@@ -322,21 +318,33 @@ class CatalogService:
             rows = cursor.fetchall()
             products = [self._row_to_dto(r) for r in rows]
 
-            # Get distinct categories
-            cursor.execute("SELECT DISTINCT category FROM products ORDER BY category")
-            categories = [r["category"] for r in cursor.fetchall()]
+            # Category breakdowns
+            cursor.execute("""
+                SELECT category, COUNT(*) as cnt, SUM(stock_quantity) as units
+                FROM products
+                GROUP BY category
+                ORDER BY cnt DESC
+            """)
+            category_dtos = [
+                CategoryCountDTO(
+                    name=r["category"],
+                    count=r["cnt"],
+                    total_units=r["units"] or 0
+                ) for r in cursor.fetchall()
+            ]
 
             total_pages = max(1, (total_count + limit - 1) // limit)
 
             return ProductListResponseDTO(
+                items=products,
                 products=products,
+                total=total_count,
                 total_count=total_count,
                 page=page,
                 limit=limit,
                 total_pages=total_pages,
-                categories=categories
+                categories=category_dtos
             )
-
 
     def get_product_by_id(self, product_id: str) -> Optional[ProductDetailDTO]:
         with self._get_conn() as conn:
@@ -351,12 +359,15 @@ class CatalogService:
         pid = f"prod_{uuid.uuid4().hex[:10]}"
         sku = data.sku or f"RZP-{uuid.uuid4().hex[:6].upper()}"
         cost_price = data.cost_price if data.cost_price is not None else round(data.price * 0.65, 2)
-        stock_status = "In Stock" if data.stock_quantity > data.reorder_threshold else ("Low Stock" if data.stock_quantity > 0 else "Out of Stock")
-        in_stock = 1 if data.stock_quantity > 0 else 0
+        stock_qty = data.stock if data.stock is not None else (data.stock_quantity or 50)
+        reorder_th = data.reorder_threshold or 10
+        stock_status = "In Stock" if stock_qty > reorder_th else ("Low Stock" if stock_qty > 0 else "Out of Stock")
+        in_stock = 1 if stock_qty > 0 else 0
         now_str = datetime.datetime.now().isoformat()
-        image_url = data.image_url or "https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600"
+        image_url = data.image_url or (data.images[0] if data.images else "https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=600")
 
-        features_json = json.dumps(data.features or [])
+        features_list = data.features or data.key_features or ["High Quality", "Instant Dispatch", "Warranty Included"]
+        features_json = json.dumps(features_list)
         specs_json = json.dumps([s.model_dump() for s in (data.specs or [])])
 
         with self._get_conn() as conn:
@@ -371,13 +382,13 @@ class CatalogService:
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                pid, sku, data.name, data.brand, data.category, data.price, cost_price, data.original_price,
-                "INR", data.stock_quantity, data.reorder_threshold, stock_status,
-                4.8, 1, image_url, data.tagline, data.description,
+                pid, sku, data.name, data.brand or "Acme Direct", data.category, data.price, cost_price, data.original_price,
+                "INR", stock_qty, reorder_th, stock_status,
+                4.8, 1, image_url, data.tagline or "", data.description,
                 features_json, specs_json, in_stock, data.delivery_time or "2-3 business days",
-                data.gst_rate_pct, data.hsn_sac_code or "8470",
+                data.gst_rate_pct or 18.0, data.hsn_sac_code or "8470",
                 data.offer_id or "off_razor2026", data.offer_text or "10% Off with RAZOR2026",
-                data.offer_discount_pct or 10.0, data.offer_badge or "SPECIAL OFFER",
+                data.offer_discount_pct or 10.0, data.active_offer or data.offer_badge or "SPECIAL OFFER",
                 now_str, now_str
             ))
             conn.commit()
@@ -411,15 +422,17 @@ class CatalogService:
         if data.original_price is not None:
             update_fields.append("original_price = ?")
             params.append(data.original_price)
-        if data.stock_quantity is not None:
+        
+        target_stock = data.stock if data.stock is not None else data.stock_quantity
+        if target_stock is not None:
             update_fields.append("stock_quantity = ?")
-            params.append(data.stock_quantity)
+            params.append(target_stock)
             reorder = data.reorder_threshold if data.reorder_threshold is not None else existing.reorder_threshold
-            stock_status = "In Stock" if data.stock_quantity > reorder else ("Low Stock" if data.stock_quantity > 0 else "Out of Stock")
+            stock_status = "In Stock" if target_stock > reorder else ("Low Stock" if target_stock > 0 else "Out of Stock")
             update_fields.append("stock_status = ?")
             params.append(stock_status)
             update_fields.append("in_stock = ?")
-            params.append(1 if data.stock_quantity > 0 else 0)
+            params.append(1 if target_stock > 0 else 0)
         if data.reorder_threshold is not None:
             update_fields.append("reorder_threshold = ?")
             params.append(data.reorder_threshold)
@@ -432,18 +445,22 @@ class CatalogService:
         if data.description is not None:
             update_fields.append("description = ?")
             params.append(data.description)
-        if data.features is not None:
+        
+        feats = data.features or data.key_features
+        if feats is not None:
             update_fields.append("features = ?")
-            params.append(json.dumps(data.features))
+            params.append(json.dumps(feats))
         if data.specs is not None:
             update_fields.append("specs = ?")
             params.append(json.dumps([s.model_dump() for s in data.specs]))
         if data.offer_text is not None:
             update_fields.append("offer_text = ?")
             params.append(data.offer_text)
-        if data.offer_badge is not None:
+        
+        badge = data.active_offer or data.offer_badge
+        if badge is not None:
             update_fields.append("offer_badge = ?")
-            params.append(data.offer_badge)
+            params.append(badge)
         if data.offer_discount_pct is not None:
             update_fields.append("offer_discount_pct = ?")
             params.append(data.offer_discount_pct)
@@ -468,7 +485,7 @@ class CatalogService:
             new_qty = existing.stock_quantity + adj.quantity
         elif adj.adjustment_type == "decrement":
             new_qty = max(0, existing.stock_quantity - adj.quantity)
-        else: # "set"
+        else:
             new_qty = max(0, adj.quantity)
 
         stock_status = "In Stock" if new_qty > existing.reorder_threshold else ("Low Stock" if new_qty > 0 else "Out of Stock")
@@ -517,6 +534,17 @@ class CatalogService:
             out_stock = r["out_of_stock"] or 0
             in_stock_rate = round(((total_prods - out_stock) / max(1, total_prods)) * 100, 1)
 
+            cursor.execute("""
+                SELECT category, COUNT(*) as cnt, SUM(stock_quantity) as units
+                FROM products
+                GROUP BY category
+                ORDER BY cnt DESC
+            """)
+            categories_list = [
+                {"name": cat_row["category"], "count": cat_row["cnt"], "total_units": cat_row["units"] or 0}
+                for cat_row in cursor.fetchall()
+            ]
+
             return CatalogStatsDTO(
                 total_products=total_prods,
                 total_inventory_units=total_units,
@@ -524,7 +552,9 @@ class CatalogService:
                 low_stock_count=low_stock,
                 out_of_stock_count=out_stock,
                 in_stock_rate_pct=in_stock_rate,
-                categories_count=r["cat_count"] or 7
+                categories_count=r["cat_count"] or 7,
+                active_offers_count=5,
+                categories=categories_list
             )
 
     def get_category_counts(self) -> List[CategoryCountDTO]:
@@ -539,7 +569,7 @@ class CatalogService:
             rows = cursor.fetchall()
             return [
                 CategoryCountDTO(
-                    category=r["category"],
+                    name=r["category"],
                     count=r["cnt"],
                     total_units=r["units"] or 0
                 )
@@ -575,33 +605,35 @@ class CatalogService:
 
         ai_items = [
             AICatalogProductItemDTO(
-                id=p.id,
+                product_id=p.id,
                 sku=p.sku,
                 name=p.name,
                 brand=p.brand,
                 category=p.category,
-                price_inr=p.price,
-                stock_status=p.stock_status,
-                available_units=p.stock_quantity,
-                key_features=p.features[:3],
-                specs_summary={s.key: s.value for s in p.specs[:3]},
-                gst_input_credit_pct=p.gst_rate_pct,
-                active_offer=p.offer_text
+                price=p.price,
+                stock=p.stock_quantity,
+                description=p.description or p.tagline or p.name,
+                availability=p.in_stock,
+                specs={s.key: s.value for s in p.specs[:4]},
+                active_offer=p.offer_text,
+                gst_rate_pct=p.gst_rate_pct
             )
             for p in res.products
         ]
 
+        cat_names = [c.name for c in res.categories]
+
         return AICatalogContextDTO(
             schema_version="2026.1",
-            platform="RazorRecon Commerce & Inventory System",
+            platform="RazorCommerce AI Agentic Catalog (Track 01)",
             currency="INR",
             last_synced=now_str,
             total_items=len(ai_items),
-            categories=res.categories,
+            categories=cat_names,
             products=ai_items,
-            instructions_for_llm=(
-                "Use this structured catalog schema to recommend products, calculate B2B volume pricing, "
-                "quote GST input credit, compare technical specifications, and generate 1-click Razorpay payment links."
+            instructions_for_ai_agent=(
+                "Use this structured JSON catalog to autonomously discover products, compare specifications, "
+                "calculate discount pricing, check real-time stock availability, and initiate Razorpay checkout flows."
             )
         )
 
@@ -609,4 +641,3 @@ class CatalogService:
         return self.get_ai_context()
 
 catalog_service = CatalogService()
-

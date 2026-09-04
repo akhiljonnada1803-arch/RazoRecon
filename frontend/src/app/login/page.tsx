@@ -13,17 +13,11 @@ import {
   Sparkles, 
   ChevronDown, 
   ChevronUp, 
-  User, 
-  TrendingUp, 
-  GitCompare,
-  Zap,
   Store,
   Package,
-  Megaphone,
-  CreditCard,
-  ShieldAlert,
-  BrainCircuit,
-  FileText
+  Truck,
+  Bot,
+  UserCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,71 +31,49 @@ interface DemoUserAccount {
   badge: string;
   badgeColor: string;
   icon: string;
+  description: string;
 }
 
 const DEMO_ACCOUNTS: DemoUserAccount[] = [
-  {
-    role: 'Platform Admin',
-    title: 'Super Admin',
-    name: 'Platform Administrator',
-    email: 'admin@razorcommerce.ai',
-    badge: 'Full System & RBAC Access',
-    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-    icon: '👑',
-  },
   {
     role: 'Merchant Owner',
     title: 'Merchant Owner',
     name: 'Rajesh Sharma',
     email: 'owner@acme.com',
-    badge: 'Revenue, Catalog & AI Insights',
+    badge: 'Catalog, Orders & Revenue Growth',
     badgeColor: 'bg-blue-50 text-[#0B72E7] border-blue-200',
     icon: '🏬',
+    description: 'Publish AI-readable products, manage inventory & accept orders.',
+  },
+  {
+    role: 'Customer',
+    title: 'AI Shopper / Customer',
+    name: 'Ananya Roy',
+    email: 'customer@acme.com',
+    badge: 'AI Shopping Assistant & Track Orders',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    icon: '🛍️',
+    description: 'Conversational buying, AI product comparisons & live tracking.',
   },
   {
     role: 'Operations Manager',
-    title: 'Ops Manager',
+    title: 'Operations Manager',
     name: 'Pooja Verma',
     email: 'ops@acme.com',
-    badge: 'Inventory, Orders & Fulfillment',
+    badge: 'Fulfillment & Courier Logistics',
     badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     icon: '📦',
+    description: 'Pack orders, assign couriers (Delhivery/Blue Dart) & update shipments.',
   },
   {
-    role: 'Revenue Manager',
-    title: 'Revenue Manager',
-    name: 'Vikram Malhotra',
-    email: 'growth@acme.com',
-    badge: 'Campaigns, Segments & Upsell',
-    badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    icon: '📈',
-  },
-  {
-    role: 'Finance Controller',
-    title: 'Controller',
-    name: 'Anita Desai',
-    email: 'controller@acme.com',
-    badge: '3-Way Recon & Month-End Close',
-    badgeColor: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    icon: '📊',
-  },
-  {
-    role: 'Chief Financial Officer (CFO)',
-    title: 'CFO',
-    name: 'Siddharth Rao',
-    email: 'cfo@acme.com',
-    badge: 'Liquidity Runway & Copilot',
-    badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
-    icon: '💼',
-  },
-  {
-    role: 'Auditor',
-    title: 'Auditor',
-    name: 'Meera Nambiar',
-    email: 'auditor@acme.com',
-    badge: 'Audit Logs & SOC2 Compliance',
-    badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
-    icon: '🔍',
+    role: 'Platform Admin',
+    title: 'Platform Admin',
+    name: 'Platform Administrator',
+    email: 'admin@razorcommerce.ai',
+    badge: 'Platform Config & Delivery Partners',
+    badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
+    icon: '👑',
+    description: 'Manage merchants, delivery fleets, platform settings & Agent APIs.',
   },
 ];
 
@@ -136,9 +108,8 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col lg:flex-row">
-      {/* 1. LEFT SIDE: Value Proposition & AI Commerce Branding */}
+      {/* 1. LEFT SIDE: Value Proposition & Razorpay Track 01 */}
       <div className="lg:w-[46%] bg-gradient-to-br from-[#072654] via-[#0B254E] to-[#041530] text-white p-8 sm:p-14 flex flex-col justify-between relative overflow-hidden">
-        {/* Background glow & subtle grid */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -153,7 +124,7 @@ export default function LoginPage() {
                 RazorCommerce <span className="text-[#38BDF8]">AI</span>
               </span>
               <span className="text-[10px] font-mono text-blue-200/70 block tracking-widest uppercase font-semibold">
-                AI Commerce Operating System
+                AI-Native Commerce Operating System
               </span>
             </div>
           </div>
@@ -167,24 +138,24 @@ export default function LoginPage() {
             </Badge>
 
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white leading-[1.15]">
-              Autonomous Commerce.<br />
+              Publish Products.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-sky-200 to-indigo-200">
-                Intelligent Finance.
+                AI Buyers Discover & Buy.
               </span>
             </h1>
 
             <p className="text-sm sm:text-base text-blue-100/80 max-w-md leading-relaxed">
-              Enabling merchants to become AI-buyable while autonomously growing revenue through conversational commerce, intelligent recommendations, and agent-driven checkout.
+              Enabling merchants to become AI-buyable while customers discover, buy, and track orders end-to-end through autonomous shopping agents.
             </p>
           </div>
 
           {/* 4 Feature Value Checks */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 max-w-lg">
             {[
-              { title: 'AI Catalog & Buyable API', desc: 'Natural language SKU discovery' },
-              { title: 'Revenue Growth Engine', desc: 'Autonomous upsells & campaigns' },
-              { title: 'Agent-to-Agent Checkout', desc: 'Instant Razorpay test settlements' },
-              { title: 'Finance Intelligence', desc: 'Continuous 3-way reconciliation' },
+              { title: 'Agent-Readable Catalog', desc: 'Structured JSON APIs for AI discovery' },
+              { title: 'Customer AI Assistant', desc: 'Conversational buying & comparison' },
+              { title: '7-Stage Order Workflow', desc: 'Accept, Pack, Ship & Deliver' },
+              { title: 'Courier Integrations', desc: 'Delhivery, Blue Dart, Shiprocket, Ekart' },
             ].map((item, idx) => (
               <div key={idx} className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-start gap-2.5 backdrop-blur-xs">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -201,13 +172,13 @@ export default function LoginPage() {
         <div className="relative z-10 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-blue-200/70">
           <span className="flex items-center gap-1.5 font-medium">
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            7 Enterprise Roles • RBAC Guarded
+            Merchant & Customer Roles Segregated
           </span>
           <span className="font-mono text-[11px]">Razorpay Track 01</span>
         </div>
       </div>
 
-      {/* 2. RIGHT SIDE: Clean Login Card & 7 Quick Demo Personas */}
+      {/* 2. RIGHT SIDE: Clean Login Card & 4 Core Personas */}
       <div className="lg:w-[54%] flex flex-col justify-center p-6 sm:p-10 lg:p-12 overflow-y-auto">
         <div className="max-w-xl w-full mx-auto space-y-6">
           
@@ -217,11 +188,11 @@ export default function LoginPage() {
               Sign in to RazorCommerce AI
             </h2>
             <p className="text-xs text-slate-500">
-              Select any role below for instant 1-click test credential population.
+              Select a persona below to explore the Merchant Hub or Customer Experience.
             </p>
           </div>
 
-          {/* Collapsible Demo Accounts Section (7 Roles) */}
+          {/* Quick Demo Accounts (4 Roles) */}
           <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
             <button
               type="button"
@@ -231,39 +202,44 @@ export default function LoginPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[#0B72E7]" />
                 <span className="text-xs font-bold text-[#072654]">
-                  Quick Demo Accounts (7 Roles • Password: <code className="font-mono text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">demo123</code>)
+                  Track 01 Demo Personas (Password: <code className="font-mono text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">demo123</code>)
                 </span>
               </div>
               {isDemoOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
             </button>
 
             {isDemoOpen && (
-              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white max-h-[340px] overflow-y-auto custom-scrollbar">
+              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-white">
                 {DEMO_ACCOUNTS.map((acc) => (
                   <button
                     key={acc.email}
                     type="button"
                     onClick={() => handleSelectDemoUser(acc.email)}
-                    className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
                       email === acc.email
-                        ? 'border-[#0B72E7] bg-blue-50/60 shadow-2xs ring-1 ring-[#0B72E7]'
+                        ? 'border-[#0B72E7] bg-blue-50/60 shadow-xs ring-1 ring-[#0B72E7]'
                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <span className="text-sm">{acc.icon}</span>
-                        <span className="text-xs font-bold text-slate-900 truncate">{acc.title}</span>
+                    <div>
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-base">{acc.icon}</span>
+                          <span className="text-xs font-bold text-slate-900 truncate">{acc.title}</span>
+                        </div>
+                        <Badge className={`text-[9px] font-mono px-1.5 py-0 ${acc.badgeColor}`}>
+                          {acc.role.split(' ')[0]}
+                        </Badge>
                       </div>
-                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${acc.badgeColor}`}>
-                        {acc.role.split(' ')[0]}
-                      </span>
+
+                      <span className="text-[11px] text-slate-800 font-semibold block mt-1">{acc.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono block">{acc.email}</span>
+                      <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{acc.description}</p>
                     </div>
 
-                    <div className="mt-1">
-                      <span className="text-[11px] text-slate-700 font-medium block truncate">{acc.name}</span>
-                      <span className="text-[10px] text-slate-400 font-mono block truncate">{acc.email}</span>
-                      <span className="text-[10px] text-blue-600 font-medium block truncate mt-0.5">{acc.badge}</span>
+                    <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[9px] font-mono font-semibold text-[#0B72E7]">
+                      <span>1-Click Load</span>
+                      <ArrowRight className="h-3 w-3" />
                     </div>
                   </button>
                 ))}
@@ -281,7 +257,7 @@ export default function LoginPage() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700 block">
-                Work Email
+                Work / Customer Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -290,7 +266,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="owner@acme.com"
+                  placeholder="owner@acme.com or customer@acme.com"
                   className="h-10 pl-9 text-xs border-slate-200 rounded-xl bg-white focus:border-[#0B72E7]"
                 />
               </div>
@@ -343,7 +319,7 @@ export default function LoginPage() {
           {/* Footer Metadata */}
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
             <span>Enterprise 256-Bit SSL • SOC2 Type II</span>
-            <span>RazorCommerce AI v2.5</span>
+            <span>RazorCommerce AI v3.0 (Track 01)</span>
           </div>
 
         </div>

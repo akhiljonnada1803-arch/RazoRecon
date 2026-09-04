@@ -106,14 +106,14 @@ export function ProductComparisonModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.attributes.map((attr, idx) => (
+                {(data.attributes || []).map((attr, idx) => (
                   <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                     <td className="p-3.5 font-semibold text-slate-700 bg-slate-50/30">
                       {attr.attribute}
                     </td>
                     {data.products.map((prod) => (
                       <td key={prod.id} className="p-3.5 text-slate-600 border-l border-slate-200">
-                        {attr.values[prod.name] || 'N/A'}
+                        {attr.values[prod.name] || attr.values[prod.id] || 'N/A'}
                       </td>
                     ))}
                   </tr>

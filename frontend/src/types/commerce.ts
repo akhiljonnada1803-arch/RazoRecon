@@ -21,7 +21,9 @@ export interface Product {
   key_features?: string[];
   specs?: ProductSpec[];
   stock?: number;
+  stock_quantity?: number;
   in_stock?: boolean;
+  offer?: string;
   active_offer?: string;
   delivery_time?: string;
   gst_rate_pct?: number;
@@ -34,10 +36,14 @@ export interface ProductCategoryStats {
 
 export interface ProductStats {
   total_products: number;
-  total_valuation_inr: number;
-  in_stock_rate_pct: number;
+  total_valuation_inr?: number;
+  total_inventory_value?: number;
+  in_stock_rate_pct?: number;
+  in_stock_count?: number;
+  out_of_stock_count?: number;
   active_offers_count: number;
-  categories: ProductCategoryStats[];
+  total_categories?: number;
+  categories?: ProductCategoryStats[];
 }
 
 export interface ProductListResponse {
@@ -54,6 +60,7 @@ export interface CartItem {
   quantity: number;
   image_url: string;
   category?: string;
+  product?: Product;
 }
 
 export interface CartState {
@@ -73,9 +80,11 @@ export interface ComparisonAttribute {
 }
 
 export interface ComparisonData {
-  product_ids: string[];
+  product_ids?: string[];
   products: Product[];
-  attributes: ComparisonAttribute[];
+  attributes?: ComparisonAttribute[];
+  features?: any[];
+  title?: string;
   verdict: string;
 }
 

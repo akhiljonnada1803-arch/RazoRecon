@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import sys
 import os
@@ -12,6 +13,9 @@ if SRC_DIR not in sys.path:
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.services.categorization_service import CategorizationService
+
+UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +41,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static uploads directory
+app.mount("/static/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 from app.api.v1.endpoints import payments, webhooks, catalog, checkout, hero_demo, merchant, growth, audit, admin
@@ -57,8 +64,6 @@ app.include_router(checkout.router, prefix="/api/checkout", tags=["Direct API Ch
 app.include_router(hero_demo.router, prefix="/hero-demo", tags=["Direct Hero Demo API"])
 app.include_router(hero_demo.router, prefix="/api/hero-demo", tags=["Direct API Hero Demo"])
 
-
-
 @app.get("/api/forecast")
 async def direct_forecast_redirect():
     from app.services.forecast_service import ForecastService
@@ -70,11 +75,10 @@ async def direct_run_razorpay_alias():
     from app.services.reconciliation_service import reconciliation_service
     return await reconciliation_service.run_razorpay_reconciliation()
 
-
 @app.get("/")
 async def root():
     return {
-        "message": "AI Reconciliation & Categorization Platform API is online.",
+        "message": "RazorCommerce AI Platform API is online.",
         "docs_url": "/docs",
         "api_v1": settings.API_V1_STR,
     }

@@ -17,6 +17,7 @@ interface AuthContextType {
   switchOrganization: (orgName: string) => Promise<void>;
   hasPermission: (permissionName: string) => boolean;
   canAccessRoute: (routePath: string) => boolean;
+  isCustomer: boolean;
 }
 
 const DEFAULT_USER: UserDTO = {
@@ -29,65 +30,68 @@ const DEFAULT_USER: UserDTO = {
   role_id: 'role_merchant_owner',
   merchant_id: 'rzp_live_acme_8842',
   permissions: [
-    'VIEW_DASHBOARD',
     'MANAGE_CATALOG',
     'MANAGE_INVENTORY',
+    'MANAGE_PRICING',
+    'MANAGE_PROMOTIONS',
     'MANAGE_ORDERS',
-    'VIEW_CUSTOMERS',
-    'MANAGE_GROWTH',
+    'ASSIGN_DELIVERY_PARTNERS',
+    'VIEW_MERCHANT_ANALYTICS',
+    'MANAGE_MERCHANT_SETTINGS',
+    'UPDATE_SHIPMENT_STATUS',
+    'MANAGE_LOGISTICS',
     'VIEW_AUDIT_LOGS',
   ],
 };
 
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  // Flagship Hero Demo & Agent Commerce
-  '/hero-demo': ['VIEW_DASHBOARD'],
-  '/agent-commerce': ['VIEW_DASHBOARD', 'MANAGE_GROWTH', 'MANAGE_CATALOG'],
+  // Flagship Hero Demo & Simulator
+  '/hero-demo': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG', 'BROWSE_CATALOG'],
+  '/agent-commerce': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG'],
   
   // Merchant Hub
-  '/dashboard': ['VIEW_DASHBOARD'],
-  '/merchant/dashboard': ['VIEW_DASHBOARD'],
-  '/merchant/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY', 'MANAGE_GROWTH'],
-  '/merchant/orders': ['MANAGE_ORDERS', 'RUN_RECONCILIATION', 'VIEW_AUDIT_LOGS'],
-  '/merchant/customers': ['VIEW_CUSTOMERS', 'MANAGE_GROWTH', 'MANAGE_ORDERS'],
-  
-  // AI Commerce Storefront
-  '/shop': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
-  '/shop/cart': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
-  '/shop/checkout': ['VIEW_DASHBOARD', 'MANAGE_CATALOG'],
-  '/commerce-agent': ['VIEW_DASHBOARD', 'MANAGE_CATALOG', 'MANAGE_GROWTH'],
-  '/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY'],
+  '/dashboard': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG'],
+  '/merchant/dashboard': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_CATALOG', 'MANAGE_ORDERS'],
+  '/merchant/catalog': ['MANAGE_CATALOG', 'MANAGE_INVENTORY'],
+  '/merchant/inventory': ['MANAGE_INVENTORY', 'MANAGE_CATALOG'],
+  '/merchant/orders': ['MANAGE_ORDERS', 'VIEW_ALL_ORDERS'],
+  '/merchant/shipping': ['ASSIGN_DELIVERY_PARTNERS', 'MANAGE_LOGISTICS', 'UPDATE_SHIPMENT_STATUS'],
+  '/merchant/customers': ['VIEW_MERCHANT_ANALYTICS', 'MANAGE_ORDERS'],
+  '/merchant/agent-api': ['MANAGE_CATALOG', 'MANAGE_AGENT_CONFIG', 'VIEW_MERCHANT_ANALYTICS'],
 
-  // Revenue Growth Engine
-  '/growth': ['MANAGE_GROWTH', 'VIEW_DASHBOARD'],
-  '/growth/upsell': ['MANAGE_GROWTH'],
-  '/growth/campaigns': ['MANAGE_GROWTH'],
-  '/growth/segments': ['MANAGE_GROWTH', 'VIEW_CUSTOMERS'],
-  '/growth-agent': ['MANAGE_GROWTH'],
-  '/campaigns': ['MANAGE_GROWTH'],
+  // Customer Experience
+  '/customer/assistant': ['USE_AI_SHOPPING_ASSISTANT', 'BROWSE_CATALOG'],
+  '/customer/products': ['BROWSE_CATALOG'],
+  '/customer/orders': ['PLACE_ORDERS', 'TRACK_ORDERS'],
+  '/customer/track': ['TRACK_ORDERS', 'PLACE_ORDERS'],
+  '/customer/wishlist': ['MANAGE_WISHLIST', 'BROWSE_CATALOG'],
+  '/customer/recommendations': ['VIEW_RECOMMENDATIONS', 'BROWSE_CATALOG'],
+  '/customer/profile': ['MANAGE_PROFILE'],
 
-  // Finance Intelligence Layer
-  '/finance/reconciliation': ['RUN_RECONCILIATION', 'CLOSE_BOOKS'],
-  '/finance/exceptions': ['VIEW_EXCEPTIONS', 'RESOLVE_EXCEPTIONS'],
-  '/finance/vendors': ['VIEW_VENDOR_INTELLIGENCE'],
-  '/finance/copilot': ['VIEW_CFO_COPILOT'],
-  '/reconciliation': ['RUN_RECONCILIATION'],
-  '/review': ['VIEW_EXCEPTIONS'],
-  '/month-close': ['CLOSE_BOOKS'],
-  '/vendor-intelligence': ['VIEW_VENDOR_INTELLIGENCE'],
-  '/copilot': ['VIEW_CFO_COPILOT'],
-  '/forecast': ['VIEW_CASH_FORECAST'],
+  // Consumer Storefront / Cart
+  '/shop': ['BROWSE_CATALOG', 'MANAGE_CATALOG'],
+  '/shop/cart': ['BROWSE_CATALOG', 'PLACE_ORDERS'],
+  '/shop/checkout': ['PLACE_ORDERS', 'BROWSE_CATALOG'],
 
-  // Audit & Compliance
+  // Growth Engine
+  '/growth': ['MANAGE_PROMOTIONS', 'VIEW_MERCHANT_ANALYTICS'],
+  '/growth/upsell': ['MANAGE_PROMOTIONS'],
+  '/growth/campaigns': ['MANAGE_PROMOTIONS'],
+  '/growth/segments': ['MANAGE_PROMOTIONS', 'VIEW_MERCHANT_ANALYTICS'],
+
+  // Finance & Audit
+  '/finance/reconciliation': ['RUN_RECONCILIATION', 'MANAGE_MERCHANT_SETTINGS'],
+  '/finance/exceptions': ['RUN_RECONCILIATION'],
+  '/finance/vendors': ['RUN_RECONCILIATION', 'VIEW_MERCHANT_ANALYTICS'],
+  '/finance/copilot': ['RUN_RECONCILIATION', 'VIEW_MERCHANT_ANALYTICS'],
   '/audit/logs': ['VIEW_AUDIT_LOGS'],
-  '/audit/timeline': ['VIEW_AUDIT_LOGS', 'VIEW_COMPLIANCE'],
-  '/audit/compliance': ['VIEW_COMPLIANCE', 'VIEW_AUDIT_LOGS'],
+  '/audit/timeline': ['VIEW_AUDIT_LOGS'],
+  '/audit/compliance': ['VIEW_AUDIT_LOGS'],
 
   // Administration
-  '/admin/users': ['MANAGE_USERS', 'MANAGE_SYSTEM'],
-  '/admin/roles': ['MANAGE_ROLES', 'MANAGE_SYSTEM'],
-  '/admin/integrations': ['MANAGE_SYSTEM'],
-  '/admin/merchants': ['MANAGE_SYSTEM'],
+  '/admin/users': ['MANAGE_USERS', 'MANAGE_PLATFORM_SETTINGS'],
+  '/admin/roles': ['MANAGE_USERS', 'MANAGE_PLATFORM_SETTINGS'],
+  '/admin/integrations': ['MANAGE_PLATFORM_SETTINGS', 'MANAGE_DELIVERY_PARTNERS'],
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -115,10 +119,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       is_active: false,
     },
     {
-      id: 'org_startup_fin',
-      name: 'Startup Finance Team',
-      merchant_id: 'rzp_test_start_3310',
-      industry: 'B2B SaaS Subscriptions',
+      id: 'org_consumer_hub',
+      name: 'Consumer Commerce Network',
+      merchant_id: 'rzp_live_cust_1010',
+      industry: 'Retail & Consumer Goods',
       is_active: false,
     },
   ]);
@@ -153,7 +157,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(resp.user);
         localStorage.setItem('razorcommerce_token', resp.access_token);
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
-        router.push('/merchant/dashboard');
+        
+        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
+          router.push('/customer/assistant');
+        } else {
+          router.push('/merchant/dashboard');
+        }
         return true;
       }
     } catch (err) {
@@ -170,6 +179,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(resp.user);
         localStorage.setItem('razorcommerce_token', resp.access_token);
         localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
+        
+        if (resp.user.role === 'Customer' || resp.user.role_id === 'role_customer') {
+          router.push('/customer/assistant');
+        } else if (pathname.startsWith('/customer')) {
+          router.push('/merchant/dashboard');
+        }
         return;
       }
     } catch (e) {
@@ -213,8 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (
       user.role === 'Platform Admin' || 
       user.role_id === 'role_platform_admin' || 
-      user.role_id === 'role_admin' || 
-      user.permissions?.includes('MANAGE_SYSTEM')
+      user.permissions?.includes('MANAGE_PLATFORM_SETTINGS')
     ) {
       return true;
     }
@@ -224,31 +238,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canAccessRoute = (routePath: string): boolean => {
     if (!user) return false;
     
-    // Platform Admin has complete access to every route
     if (
       user.role === 'Platform Admin' || 
       user.role_id === 'role_platform_admin' || 
-      user.role_id === 'role_admin' || 
-      user.permissions?.includes('MANAGE_SYSTEM')
+      user.permissions?.includes('MANAGE_PLATFORM_SETTINGS')
     ) {
       return true;
     }
 
-    // Direct route matching
+    // Role-specific quick guards
+    const isCust = user.role === 'Customer' || user.role_id === 'role_customer';
+    if (isCust) {
+      return routePath.startsWith('/customer') || routePath.startsWith('/shop') || routePath === '/hero-demo';
+    } else {
+      // Merchant / Ops cannot see /customer shopping routes in their sidebar
+      if (routePath.startsWith('/customer')) {
+        return false;
+      }
+    }
+
     const required = ROUTE_PERMISSIONS[routePath];
     if (!required) {
-      // Check prefix matching for nested paths e.g. /shop/product/123
       const matchingPrefix = Object.keys(ROUTE_PERMISSIONS).find(
         (prefix) => routePath.startsWith(prefix) && prefix !== '/'
       );
       if (matchingPrefix) {
         return ROUTE_PERMISSIONS[matchingPrefix].some((req) => user.permissions?.includes(req));
       }
-      return true; // Default allow if not explicitly gated
+      return true;
     }
 
     return required.some((req) => user.permissions?.includes(req));
   };
+
+  const isCustomer = user?.role === 'Customer' || user?.role_id === 'role_customer';
 
   return (
     <AuthContext.Provider
@@ -264,6 +287,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchOrganization,
         hasPermission,
         canAccessRoute,
+        isCustomer,
       }}
     >
       {children}

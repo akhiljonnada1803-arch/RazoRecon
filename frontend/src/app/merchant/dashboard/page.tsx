@@ -125,10 +125,10 @@ export default function MerchantDashboardPage() {
                     Manage Catalog
                   </Button>
                 </Link>
-                <Link href="/commerce-agent">
+                <Link href="/merchant/agent-api">
                   <Button size="sm" className="bg-white hover:bg-blue-50 text-[#072654] font-bold rounded-xl text-xs shadow-md">
                     <Sparkles className="w-3.5 h-3.5 mr-1.5 text-[#0B72E7]" />
-                    Launch Commerce Agent
+                    Agent API Center
                   </Button>
                 </Link>
               </div>

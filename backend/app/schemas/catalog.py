@@ -23,18 +23,21 @@ class ProductDetailDTO(BaseModel):
     brand: str
     category: str
     price: float
-    cost_price: float
+    cost_price: float = 0.0
     original_price: Optional[float] = None
     currency: str = "INR"
     stock_quantity: int = 50
+    stock: int = 50
     reorder_threshold: int = 10
     stock_status: str = "In Stock" # "In Stock" | "Low Stock" | "Out of Stock"
     rating: float = 4.8
     reviews_count: int = 120
     image_url: str
-    tagline: str
+    images: List[str] = []
+    tagline: str = ""
     description: str
     features: List[str] = []
+    key_features: List[str] = []
     specs: List[ProductSpecDTO] = []
     in_stock: bool = True
     delivery_time: str = "2-3 business days"
@@ -42,6 +45,7 @@ class ProductDetailDTO(BaseModel):
     hsn_sac_code: str = "8470"
     offer_id: Optional[str] = None
     offer_text: Optional[str] = None
+    active_offer: Optional[str] = None
     offer_discount_pct: Optional[float] = None
     offer_badge: Optional[str] = None
     created_at: str
@@ -50,21 +54,25 @@ class ProductDetailDTO(BaseModel):
 class ProductCreateDTO(BaseModel):
     sku: Optional[str] = None
     name: str
-    brand: str
+    brand: Optional[str] = "Acme Hardware"
     category: str
     price: float
     cost_price: Optional[float] = None
     original_price: Optional[float] = None
-    stock_quantity: int = 50
-    reorder_threshold: int = 10
+    stock_quantity: Optional[int] = 50
+    stock: Optional[int] = None
+    reorder_threshold: Optional[int] = 10
     image_url: Optional[str] = None
-    tagline: str
+    images: Optional[List[str]] = None
+    tagline: Optional[str] = ""
     description: str
-    features: List[str] = []
-    specs: List[ProductSpecDTO] = []
+    features: Optional[List[str]] = []
+    key_features: Optional[List[str]] = None
+    specs: Optional[List[ProductSpecDTO]] = []
     delivery_time: Optional[str] = "2-3 business days"
-    gst_rate_pct: float = 18.0
+    gst_rate_pct: Optional[float] = 18.0
     hsn_sac_code: Optional[str] = "8470"
+    active_offer: Optional[str] = None
     offer_id: Optional[str] = None
     offer_text: Optional[str] = None
     offer_discount_pct: Optional[float] = None
@@ -79,15 +87,19 @@ class ProductUpdateDTO(BaseModel):
     cost_price: Optional[float] = None
     original_price: Optional[float] = None
     stock_quantity: Optional[int] = None
+    stock: Optional[int] = None
     reorder_threshold: Optional[int] = None
     image_url: Optional[str] = None
+    images: Optional[List[str]] = None
     tagline: Optional[str] = None
     description: Optional[str] = None
     features: Optional[List[str]] = None
+    key_features: Optional[List[str]] = None
     specs: Optional[List[ProductSpecDTO]] = None
     delivery_time: Optional[str] = None
     gst_rate_pct: Optional[float] = None
     hsn_sac_code: Optional[str] = None
+    active_offer: Optional[str] = None
     offer_id: Optional[str] = None
     offer_text: Optional[str] = None
     offer_discount_pct: Optional[float] = None
@@ -96,7 +108,7 @@ class ProductUpdateDTO(BaseModel):
 class StockAdjustmentDTO(BaseModel):
     adjustment_type: str = "set" # "set" | "increment" | "decrement"
     quantity: int
-    reason: Optional[str] = "Manual inventory reconciliation"
+    reason: Optional[str] = "Manual inventory replenishment"
 
 class CatalogStatsDTO(BaseModel):
     total_products: int
@@ -106,40 +118,50 @@ class CatalogStatsDTO(BaseModel):
     out_of_stock_count: int
     in_stock_rate_pct: float
     categories_count: int
+    active_offers_count: int = 5
+    categories: List[Dict[str, Any]] = []
 
 class CategoryCountDTO(BaseModel):
-    category: str
+    name: str
     count: int
-    total_units: int
+    total_units: int = 0
 
 class ProductListResponseDTO(BaseModel):
+    items: List[ProductDetailDTO]
     products: List[ProductDetailDTO]
+    total: int
     total_count: int
     page: int
     limit: int
     total_pages: int
-    categories: List[str]
+    categories: List[CategoryCountDTO] = []
+
+class ImageUploadResponseDTO(BaseModel):
+    url: str
+    filename: str
+    size_bytes: int
+    mime_type: str
 
 class AICatalogProductItemDTO(BaseModel):
-    id: str
-    sku: str
+    product_id: str
     name: str
-    brand: str
+    price: float
     category: str
-    price_inr: float
-    stock_status: str
-    available_units: int
-    key_features: List[str]
-    specs_summary: Dict[str, str]
-    gst_input_credit_pct: float
+    stock: int
+    description: str
+    availability: bool
+    sku: str
+    brand: str
+    specs: Dict[str, str] = {}
     active_offer: Optional[str] = None
+    gst_rate_pct: float = 18.0
 
 class AICatalogContextDTO(BaseModel):
     schema_version: str = "2026.1"
-    platform: str = "RazorRecon Commerce & Inventory System"
+    platform: str = "RazorCommerce AI Agentic Catalog"
     currency: str = "INR"
     last_synced: str
     total_items: int
     categories: List[str]
     products: List[AICatalogProductItemDTO]
-    instructions_for_llm: str
+    instructions_for_ai_agent: str

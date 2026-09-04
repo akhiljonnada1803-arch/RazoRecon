@@ -3,24 +3,18 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, 
   CheckSquare, 
   GitCompare, 
   Layers, 
-  BarChart3, 
   TrendingUp, 
   Radio, 
   ShieldAlert, 
   Sparkles, 
-  Lock, 
   CreditCard,
   Zap,
-  ChevronRight,
-  Calendar,
   ShieldCheck,
   BrainCircuit,
   ShoppingBag,
@@ -33,7 +27,11 @@ import {
   Shield,
   FileText,
   Sliders,
-  Award
+  Heart,
+  Truck,
+  Code2,
+  Compass,
+  UserCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -49,7 +47,33 @@ interface NavSection {
   }>;
 }
 
-const NAVIGATION_SECTIONS: NavSection[] = [
+const CUSTOMER_SECTIONS: NavSection[] = [
+  {
+    title: 'AI SHOPPING HUB',
+    items: [
+      { href: '/customer/assistant', label: 'AI Shopping Assistant', icon: Bot, badge: 'Live AI' },
+      { href: '/customer/products', label: 'Browse Products', icon: Store, badge: '50 SKUs' },
+      { href: '/customer/recommendations', label: 'AI Recommendations', icon: Sparkles, badge: 'For You' },
+    ],
+  },
+  {
+    title: 'MY ORDERS & TRACKING',
+    items: [
+      { href: '/customer/orders', label: 'My Orders', icon: ShoppingBag },
+      { href: '/customer/track', label: 'Track Order', icon: Truck, badge: '7 Stages' },
+      { href: '/customer/wishlist', label: 'My Wishlist', icon: Heart },
+    ],
+  },
+  {
+    title: 'ACCOUNT & PREFERENCES',
+    items: [
+      { href: '/customer/profile', label: 'Customer Profile', icon: Users },
+      { href: '/hero-demo', label: 'Interactive Demo Flow', icon: Sparkles, badge: 'Track 01' },
+    ],
+  },
+];
+
+const MERCHANT_SECTIONS: NavSection[] = [
   {
     title: 'FLAGSHIP HERO DEMO',
     items: [
@@ -57,19 +81,15 @@ const NAVIGATION_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'DASHBOARD',
+    title: 'MERCHANT OPERATIONS',
     items: [
       { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard },
-    ],
-  },
-  {
-    title: 'COMMERCE',
-    items: [
       { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
-      { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: 'Orders' },
+      { href: '/merchant/inventory', label: 'Inventory Control', icon: Layers, badge: 'Stock' },
+      { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
+      { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
       { href: '/merchant/customers', label: 'Customer LTV & Memory', icon: Users, badge: 'Insights' },
-      { href: '/commerce-agent', label: 'Commerce Agent', icon: Bot, badge: 'AI Chat' },
-      { href: '/shop', label: 'Live Storefront', icon: Store, badge: 'Shop' },
+      { href: '/merchant/agent-api', label: 'Agent API Center', icon: Code2, badge: 'Track 01' },
     ],
   },
   {
@@ -110,20 +130,24 @@ const NAVIGATION_SECTIONS: NavSection[] = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user, canAccessRoute } = useAuth();
+  const { user, isCustomer, canAccessRoute } = useAuth();
+
+  const sections = isCustomer ? CUSTOMER_SECTIONS : MERCHANT_SECTIONS;
 
   return (
     <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 h-screen sticky top-0 z-30 shadow-[1px_0_3px_rgba(0,0,0,0.02)]">
       <div className="flex flex-col h-full overflow-hidden">
         {/* RazorCommerce Brand Header */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 shrink-0">
-          <Link href="/merchant/dashboard" className="flex items-center gap-2.5">
+          <Link href={isCustomer ? "/customer/assistant" : "/merchant/dashboard"} className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-[#0B72E7] flex items-center justify-center text-white font-bold shadow-sm shadow-blue-500/30">
               <CreditCard className="h-4.5 w-4.5" />
             </div>
             <div>
               <span className="font-bold text-sm tracking-tight text-[#072654] block">Razor<span className="text-[#0B72E7]">Commerce</span> AI</span>
-              <span className="text-[10px] font-medium text-slate-500 block -mt-0.5">Commerce Operating System</span>
+              <span className="text-[10px] font-medium text-slate-500 block -mt-0.5">
+                {isCustomer ? 'AI Shopping Experience' : 'Commerce Operating System'}
+              </span>
             </div>
           </Link>
 
@@ -132,27 +156,39 @@ export function AppSidebar() {
           </Badge>
         </div>
 
-        {/* Merchant Account Pill */}
+        {/* Account / Persona Pill */}
         <div className="px-3 pt-3">
           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs shadow-2xs">
             <div className="flex items-center gap-2 overflow-hidden">
-              <div className="h-6 w-6 rounded-lg bg-[#072654] flex items-center justify-center text-white font-bold text-[10px] shrink-0">
-                {user?.company.slice(0, 2).toUpperCase() || 'AC'}
+              <div className={cn(
+                "h-6 w-6 rounded-lg flex items-center justify-center text-white font-bold text-[10px] shrink-0",
+                isCustomer ? "bg-purple-600" : "bg-[#072654]"
+              )}>
+                {isCustomer ? 'CU' : (user?.company.slice(0, 2).toUpperCase() || 'AC')}
               </div>
               <div className="truncate">
-                <span className="font-semibold text-slate-800 block truncate text-[11px]">{user?.company || 'Acme Direct Corp'}</span>
-                <span className="text-[10px] text-slate-400 font-mono block truncate">{user?.merchant_id || 'rzp_live_9482'}</span>
+                <span className="font-semibold text-slate-800 block truncate text-[11px]">
+                  {isCustomer ? (user?.name || 'Customer Account') : (user?.company || 'Acme Direct Corp')}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono block truncate">
+                  {user?.email || 'user@razorcommerce.ai'}
+                </span>
               </div>
             </div>
-            <span className="text-[9px] font-mono text-[#0B72E7] font-bold bg-blue-50 px-1 py-0.5 rounded border border-blue-200">
-              {user?.role.split(' ')[0] || 'Admin'}
+            <span className={cn(
+              "text-[9px] font-mono font-bold px-1 py-0.5 rounded border",
+              isCustomer 
+                ? "text-purple-700 bg-purple-50 border-purple-200" 
+                : "text-[#0B72E7] bg-blue-50 border-blue-200"
+            )}>
+              {user?.role.split(' ')[0] || 'User'}
             </span>
           </div>
         </div>
 
         {/* Navigation Sections */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
-          {NAVIGATION_SECTIONS.map((section) => {
+          {sections.map((section) => {
             const allowedItems = section.items.filter((item) => canAccessRoute(item.href));
             if (allowedItems.length === 0) return null;
 
@@ -163,7 +199,7 @@ export function AppSidebar() {
                 </span>
                 {allowedItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || (item.href !== '/merchant/dashboard' && pathname.startsWith(item.href));
+                  const isActive = pathname === item.href || (item.href !== '/merchant/dashboard' && item.href !== '/customer/assistant' && pathname.startsWith(item.href));
 
                   return (
                     <Link
@@ -208,14 +244,14 @@ export function AppSidebar() {
             <div className="flex items-center justify-between text-slate-800 font-semibold text-[11px]">
               <span className="flex items-center gap-1.5 truncate">
                 <ShieldCheck className="h-3.5 w-3.5 text-[#0B72E7]" />
-                <span className="truncate">{user?.role || 'Platform Admin'}</span>
+                <span className="truncate">{user?.role || 'Customer'}</span>
               </span>
               <span className="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
-                Active RBAC
+                Active
               </span>
             </div>
             <p className="text-[10px] text-slate-500 leading-tight">
-              AI Commerce OS • Razorpay Track 01
+              {isCustomer ? 'Autonomous AI Buyer Experience' : 'Merchant AI Commerce Operating System'}
             </p>
           </div>
         </div>
