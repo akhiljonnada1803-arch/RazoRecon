@@ -17,6 +17,7 @@ from app.services.exception_intelligence_service import exception_intelligence_s
 from app.services.vendor_risk_service import vendor_risk_service
 from app.services.reconciliation_service import reconciliation_service
 from app.services.catalog_service import catalog_service
+from app.services.demand_intelligence_service import demand_intelligence_service
 
 class CommerceCopilotService:
     def __init__(self):
@@ -24,7 +25,13 @@ class CommerceCopilotService:
         self.fraud_service = FraudService()
 
     async def execute_tools(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        if tool_name == "analyze_sales_and_revenue":
+        if tool_name == "get_demand_intelligence":
+            return demand_intelligence_service.get_demand_intelligence()
+
+        elif tool_name == "get_inventory_optimization":
+            return demand_intelligence_service.get_inventory_optimization()
+
+        elif tool_name == "analyze_sales_and_revenue":
             comm_summary = reconciliation_service.get_commerce_transaction_summary()
             merchant_intel = vendor_risk_service.get_merchant_intelligence()
             return {
@@ -171,8 +178,108 @@ class CommerceCopilotService:
         trace = []
         citations = []
 
-        # 1. Sales & Revenue Analysis (Merchant)
-        if "sales" in q or "revenue" in q or "gmv" in q or "growth" in q or "performance" in q:
+        # 1. AI Discount Recommendations & Declining/Dead Inventory
+        if "discount" in q or "markdown" in q or "price drop" in q or "declining" in q or "dead inventory" in q or "need discounts" in q:
+            res = await self.execute_tools("get_demand_intelligence", {})
+            trace.append({"tool": "get_demand_intelligence", "args": {}, "result": res["summary"]})
+            declining = res.get("declining_products", [])
+            dead = res.get("dead_inventory", [])
+
+            answer = (
+                f"### 🤖 AI Discount & Markdown Recommendations\n\n"
+                f"Based on real-time **Demand Scoring (0–100)** across views, searches, cart additions, and inventory velocity:\n\n"
+            )
+
+            if declining:
+                p = declining[0]
+                rec = p.get("ai_recommendation", {})
+                answer += (
+                    f"#### 📉 Declining Demand SKU: **{p['name']}**\n"
+                    f"- **Current Demand Score**: **{p['demand_score']}/100** ({p['status_tier']['badge']})\n"
+                    f"- **Current Price**: ₹{p['price']:,.2f} • **Stock**: {p['stock']} units\n"
+                    f"- **🎯 AI Recommendation**: Apply **{rec.get('discount_pct', 10)}% Dynamic Discount** (New Price: ₹{rec.get('target_price', p['price'] * 0.9):,.2f})\n"
+                    f"- **📈 Expected Impact**: **+{rec.get('expected_uplift_pct', 22)}% conversion lift** (Est. +₹{rec.get('expected_revenue_lift_inr', 18500):,.2f} revenue)\n"
+                    f"- **Confidence**: **{rec.get('confidence_pct', 88)}%**\n\n"
+                )
+
+            if dead:
+                d = dead[0]
+                drec = d.get("ai_recommendation", {})
+                answer += (
+                    f"#### 💀 Dead Inventory Liquidation: **{d['name']}**\n"
+                    f"- **Demand Score**: **{d['demand_score']}/100** • **Trapped Capital**: ₹{d.get('tied_capital_inr', 42000):,.2f}\n"
+                    f"- **🎯 AI Action**: **{drec.get('title', '15% Markdown & Companion Bundle')}** with *{drec.get('bundle_with', 'Smart POS Terminal Pro')}*\n"
+                    f"- **Expected Revenue Lift**: **+₹{drec.get('expected_revenue_lift_inr', 24000):,.2f}** ({drec.get('confidence_pct', 92)}% confidence)\n\n"
+                )
+
+            answer += "> **Actionable**: You can execute these recommendations directly on the **[Demand Intelligence Hub](/merchant/demand-intelligence)** with 1-click."
+            citations.append({"doc_id": "kb-0118", "title": "AI Demand Scoring & Dynamic Discount Optimization Model"})
+
+        # 2. Trending & High-Demand Products
+        elif "trending" in q or "growing" in q or "popular" in q or "top product" in q or "what products are trending" in q:
+            res = await self.execute_tools("get_demand_intelligence", {})
+            trace.append({"tool": "get_demand_intelligence", "args": {}, "result": res["summary"]})
+            trending = res.get("trending_products", [])
+            growing = res.get("growing_products", [])
+
+            answer = (
+                f"### 🔥 High Demand & Trending Products\n\n"
+                f"Current high-velocity SKUs identified by the **Demand Scoring Engine**:\n\n"
+            )
+            for p in (trending + growing)[:3]:
+                answer += (
+                    f"- **{p['name']}** ({p['category']}): **Score {p['demand_score']}/100** ({p['status_tier']['badge']})\n"
+                    f"  - **Velocity**: {p['inventory_velocity']} units/day • **Conversion Rate**: {p['conversion_rate']}%\n"
+                    f"  - **Traffic**: {p['views']} views, {p['cart_adds']} cart adds, {p['purchases']} purchases\n"
+                )
+            answer += (
+                f"\n> **Strategic Advice**: Protect margins by maintaining full price on trending hardware and ensure warehouse replenishment before stockouts occur."
+            )
+            citations.append({"doc_id": "kb-0119", "title": "Real-time Demand Telemetry & SKU Velocity Analysis"})
+
+        # 3. Inventory Risks & Stockout Forecasting
+        elif "risk" in q or "stockout" in q or "run out" in q or "inventory is at risk" in q or "understocked" in q:
+            res = await self.execute_tools("get_inventory_optimization", {})
+            trace.append({"tool": "get_inventory_optimization", "args": {}, "result": res["overview"]})
+            restock = res.get("restock_queue", [])
+            overstocked = res.get("overstocked", [])
+
+            answer = (
+                f"### ⚠️ Inventory Risk & Stockout Prediction\n\n"
+                f"- **Critical Understocked SKUs**: **{len(restock)} items** at imminent risk of stockout.\n"
+                f"- **Tied-up Overstock Capital**: **₹{res['overview']['tied_up_overstock_capital_inr']:,.2f}** across {len(overstocked)} slow-moving items.\n\n"
+                f"**Imminent Stockouts**:\n"
+            )
+            for item in restock[:2]:
+                answer += (
+                    f"- **{item['product_name']}**: Current stock **{item['current_stock']} units** $\\rightarrow$ **Runs out in {item['days_to_stockout']} days**.\n"
+                    f"  - **Recommendation**: **Restock {item['recommended_restock_units']} units** (Est. Cost: ₹{item['estimated_reorder_cost_inr']:,.2f})\n"
+                )
+            answer += "\n> **Action**: View complete replenishment queue in **[Inventory Optimization](/merchant/inventory-optimization)**."
+            citations.append({"doc_id": "kb-0120", "title": "Predictive Stockout & Warehouse Working Capital Intelligence"})
+
+        # 4. Increase Revenue & Growth Campaigns
+        elif "increase revenue" in q or "boost revenue" in q or "revenue this month" in q or "suggest a campaign" in q or "campaign" in q:
+            res = await self.execute_tools("get_demand_intelligence", {})
+            trace.append({"tool": "get_demand_intelligence", "args": {}, "result": res["summary"]})
+            camps = res.get("autonomous_campaigns", [])
+
+            answer = (
+                f"### 🚀 AI Growth Engine: Strategy to Increase Revenue This Month\n\n"
+                f"AI Demand Intelligence projects **+₹{res['summary']['projected_revenue_lift_inr']:,.2f} in incremental revenue** via 3 autonomous actions:\n\n"
+            )
+            for c in camps[:2]:
+                answer += (
+                    f"#### 🎯 Campaign: **{c['name']}**\n"
+                    f"- **Target Audience**: {c['target_audience']}\n"
+                    f"- **Offer**: {c['recommended_discount_pct']}% off for {c['duration_days']} days\n"
+                    f"- **Expected Revenue Lift**: **₹{c['expected_revenue_lift_inr']:,.2f}** ({c['confidence_score']}% AI confidence)\n\n"
+                )
+            answer += "> **Launch Ready**: You can preview and activate these campaigns with 1 click in **[Campaign Manager](/merchant/campaigns)**."
+            citations.append({"doc_id": "kb-0121", "title": "Autonomous Merchant Campaign Generation & Revenue Uplift Forecast"})
+
+        # 5. General Sales & Revenue Analysis (Merchant)
+        elif "sales" in q or "revenue" in q or "gmv" in q or "growth" in q or "performance" in q:
             res = await self.execute_tools("analyze_sales_and_revenue", {})
             trace.append({"tool": "analyze_sales_and_revenue", "args": {}, "result": res})
             answer = (

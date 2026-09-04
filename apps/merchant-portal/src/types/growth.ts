@@ -148,3 +148,153 @@ export interface GrowthOverview {
     margin_contribution: string;
   }>;
 }
+
+// ============================================
+// Demand Intelligence & Scoring Engine Types
+// ============================================
+
+export interface TrendPoint {
+  date: string;
+  score: number;
+}
+
+export interface StatusTier {
+  key: 'TRENDING' | 'GROWING' | 'STABLE' | 'DECLINING' | 'DEAD_INVENTORY';
+  label: string;
+  badge: string;
+  color: string;
+}
+
+export interface DiscountRecommendation {
+  type: 'DYNAMIC_DISCOUNT' | 'LIQUIDATION_BUNDLE';
+  title: string;
+  discount_pct: number;
+  target_price?: number;
+  bundle_with?: string;
+  expected_uplift_pct: number;
+  expected_revenue_lift_inr: number;
+  confidence_pct: number;
+  reasoning: string;
+}
+
+export interface RestockAlert {
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  days_left: number;
+  recommended_units: number;
+  expected_stockout_date: string;
+  message: string;
+}
+
+export interface ProductDemandItem {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  cost_price: number;
+  stock: number;
+  views: number;
+  searches: number;
+  cart_adds: number;
+  purchases: number;
+  conversion_rate: number;
+  inventory_velocity: number;
+  supplier_lead_time_days: number;
+  demand_score: number;
+  status_tier: StatusTier;
+  days_to_stockout: number;
+  trend_history: {
+    '7d': TrendPoint[];
+    '30d': TrendPoint[];
+    '90d': TrendPoint[];
+  };
+  ai_recommendation?: DiscountRecommendation;
+  restock_alert?: RestockAlert;
+  tied_capital_inr?: number;
+  discount_applied?: number;
+  discounted_price?: number;
+}
+
+export interface AutonomousCampaignProposal {
+  id: string;
+  name: string;
+  target_audience: string;
+  recommended_discount_pct: number;
+  duration_days: number;
+  featured_products: string[];
+  expected_revenue_lift_inr: number;
+  projected_orders: number;
+  status: string;
+  strategy_type: string;
+  confidence_score: number;
+}
+
+export interface GrowthInsightAlert {
+  id: string;
+  icon: string;
+  type: string;
+  title: string;
+  description: string;
+  badge: string;
+  color: string;
+  action_route: string;
+}
+
+export interface CategoryHeatmapItem {
+  category: string;
+  avg_score: number;
+  trend: string;
+  active_skus: number;
+  status: string;
+}
+
+export interface DemandIntelligenceOverview {
+  summary: {
+    average_demand_score: number;
+    total_products_tracked: number;
+    trending_count: number;
+    growing_count: number;
+    stable_count: number;
+    declining_count: number;
+    dead_inventory_count: number;
+    dead_inventory_tied_capital_inr: number;
+    projected_revenue_lift_inr: number;
+    active_campaign_recommendations_count: number;
+  };
+  products: ProductDemandItem[];
+  trending_products: ProductDemandItem[];
+  growing_products: ProductDemandItem[];
+  declining_products: ProductDemandItem[];
+  dead_inventory: ProductDemandItem[];
+  autonomous_campaigns: AutonomousCampaignProposal[];
+  growth_insights: GrowthInsightAlert[];
+  category_heatmap: CategoryHeatmapItem[];
+}
+
+export interface RestockQueueItem {
+  product_id: string;
+  product_name: string;
+  category: string;
+  current_stock: number;
+  daily_velocity: number;
+  days_to_stockout: number;
+  recommended_restock_units: number;
+  estimated_reorder_cost_inr: number;
+  supplier_lead_time_days: number;
+  urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+}
+
+export interface InventoryOptimizationResponse {
+  overview: {
+    fast_movers_count: number;
+    slow_movers_count: number;
+    understocked_count: number;
+    overstocked_count: number;
+    tied_up_overstock_capital_inr: number;
+    total_skus: number;
+  };
+  fast_movers: ProductDemandItem[];
+  slow_movers: ProductDemandItem[];
+  understocked: ProductDemandItem[];
+  overstocked: ProductDemandItem[];
+  restock_queue: RestockQueueItem[];
+}

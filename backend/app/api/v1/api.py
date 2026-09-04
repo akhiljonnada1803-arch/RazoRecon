@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     merchant,
     audit,
     admin,
+    demand_intelligence,
 )
 
 api_router = APIRouter()
@@ -36,6 +37,8 @@ api_router.include_router(merchant.router, prefix="/merchant-orders", tags=["Mer
 api_router.include_router(merchant.router, prefix="/orders", tags=["Merchant Hub"])
 api_router.include_router(merchant.router, prefix="/order", tags=["Merchant Hub"])
 api_router.include_router(growth.router, prefix="/growth", tags=["Revenue Growth Engine"])
+api_router.include_router(demand_intelligence.router, prefix="/growth", tags=["AI Demand Intelligence"])
+api_router.include_router(demand_intelligence.router, prefix="/demand", tags=["AI Demand Intelligence"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit & Compliance"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Administration & RBAC"])
 api_router.include_router(hero_demo.router, prefix="/hero-demo", tags=["Hero Demo - Razorpay Track 01"])

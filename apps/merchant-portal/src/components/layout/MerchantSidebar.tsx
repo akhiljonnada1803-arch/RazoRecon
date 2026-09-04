@@ -19,12 +19,17 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Flame,
+  Boxes,
+  Activity,
+  Zap,
+  LineChart
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-const MERCHANT_NAV = [
+export const MERCHANT_NAV = [
   {
     title: 'STORE OPERATIONS',
     items: [
@@ -35,15 +40,17 @@ const MERCHANT_NAV = [
     ],
   },
   {
-    title: 'GROWTH & REVENUE',
+    title: 'MERCHANT INTELLIGENCE',
     items: [
-      { href: '/merchant/campaigns', label: 'Campaign Manager', icon: Megaphone, badge: 'Auto' },
-      { href: '/merchant/revenue', label: 'Revenue Dashboard', icon: TrendingUp, badge: '+28.9%' },
+      { href: '/merchant/demand-intelligence', label: 'Demand Intelligence', icon: Flame, badge: 'AI Engine' },
+      { href: '/merchant/revenue', label: 'Revenue Forecasting', icon: LineChart, badge: '+28.9%' },
+      { href: '/merchant/inventory-optimization', label: 'Inventory Optimization', icon: Boxes, badge: 'Risk Alert' },
+      { href: '/merchant/campaigns', label: 'Campaign Recommendations', icon: Megaphone, badge: 'Auto Lift' },
       { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
     ],
   },
   {
-    title: 'INTELLIGENCE & SETTINGS',
+    title: 'AI COPILOT & SETTINGS',
     items: [
       { href: '/merchant/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'AI Copilot' },
       { href: '/merchant/settings', label: 'Store Settings', icon: Settings },
@@ -84,7 +91,7 @@ export function MerchantSidebar() {
 
           {!isCollapsed && (
             <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-mono px-1.5 py-0.5">
-              SHOPIFY STYLE
+              GROWTH OS
             </Badge>
           )}
         </div>
@@ -168,13 +175,13 @@ export function MerchantSidebar() {
       <div className="p-3 border-t border-slate-800 bg-[#0B1120] shrink-0 space-y-2">
         {!isCollapsed && (
           <Link
-            href="/"
+            href="http://localhost:3000"
             target="_blank"
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700/80 text-slate-200 text-xs font-semibold transition-colors"
           >
             <div className="flex items-center gap-2">
               <Store className="h-3.5 w-3.5 text-emerald-400" />
-              <span>View Online Store</span>
+              <span>Customer Storefront</span>
             </div>
             <ExternalLink className="h-3 w-3 text-slate-400" />
           </Link>

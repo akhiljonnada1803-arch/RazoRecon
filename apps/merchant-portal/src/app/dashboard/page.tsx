@@ -30,7 +30,8 @@ import {
   RefreshCw,
   Sliders,
   ShieldAlert,
-  Server
+  Server,
+  Flame
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,11 @@ export default function MerchantDashboardPage() {
   const { data: metrics, isLoading } = useQuery<MerchantDashboardMetrics>({
     queryKey: ['merchant', 'dashboard'],
     queryFn: () => apiClient.get('/merchant/dashboard'),
+  });
+
+  const { data: growthData } = useQuery<any>({
+    queryKey: ['growth', 'insights-widget'],
+    queryFn: () => apiClient.get('/growth/insights-widget'),
   });
 
   const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';
@@ -213,6 +219,78 @@ export default function MerchantDashboardPage() {
               <div className="flex items-center gap-1 text-[11px] font-semibold text-teal-600">
                 <span>5 Enterprise B2B Buyers</span>
               </div>
+            </div>
+          </div>
+
+          {/* AI Growth Engine Proactive Alerts Widget */}
+          <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Flame className="h-4 w-4 text-emerald-400" />
+                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-200 font-mono">
+                  AI Merchant Growth Engine • Demand Intelligence Signals
+                </h3>
+              </div>
+              <Link href="/merchant/demand-intelligence" className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+                <span>Open Intelligence Hub</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {(growthData?.insights || [
+                {
+                  id: "ins_01",
+                  title: "Demand Surge in POS Core",
+                  description: "Demand for POS devices increased 34% this week across tier-1 merchant hubs.",
+                  badge: "+34% Demand",
+                  color: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+                  action_route: "/merchant/demand-intelligence"
+                },
+                {
+                  id: "ins_02",
+                  title: "Barcode Scanner Stockout Risk",
+                  description: "Barcode Scanner inventory (8 units) may run out in 6 days. Restock 50 units recommended.",
+                  badge: "6 Days Left",
+                  color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+                  action_route: "/merchant/inventory-optimization"
+                },
+                {
+                  id: "ins_03",
+                  title: "Thermal Printer Discount Opportunity",
+                  description: "Thermal Printer demand dropped 18%. AI recommends 10% discount for +22% conversions.",
+                  badge: "+22% Lift",
+                  color: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+                  action_route: "/merchant/demand-intelligence"
+                },
+                {
+                  id: "ins_04",
+                  title: "Autonomous Campaign Lift",
+                  description: "AI predicts ₹2.3L additional gross revenue through 3 targeted campaign optimizations.",
+                  badge: "₹2.3L Projected",
+                  color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                  action_route: "/merchant/campaigns"
+                }
+              ]).map((ins: any) => (
+                <Link
+                  key={ins.id}
+                  href={ins.action_route}
+                  className="bg-slate-800/80 hover:bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 transition-all group space-y-2 block"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge className={`text-[9px] font-bold font-mono border ${ins.color}`}>
+                      {ins.badge}
+                    </Badge>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+                  </div>
+                  <h4 className="font-bold text-xs text-white group-hover:text-emerald-300 transition-colors line-clamp-1">
+                    {ins.title}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-snug line-clamp-2">
+                    {ins.description}
+                  </p>
+                </Link>
+              ))}
             </div>
           </div>
 
