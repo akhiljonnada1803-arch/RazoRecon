@@ -73,6 +73,12 @@
 * **Slide-Over Shopping Cart Drawer**: Quantity steppers, coupon validation (`RAZOR2026` for 10% instant discount), and 18% GST tax breakdown.
 * **1-Click Razorpay Payment Link Generator**: Generates dynamic checkout links (`https://rzp.io/l/...`), BharatQR codes, and simulated payment reconciliation.
 
+### 9. 📈 Revenue Growth Agent (`/growth-agent`)
+* **Upsell & Tier-Upgrade Engine**: Recommends high-value upgrades (e.g., mPOS to Android V3 Pro with thermal printers, Quarterly to Annual Enterprise FinOps licenses, Countertop to Self-Checkout Kiosks) with real-time price delta, gross margin delta %, and conversion probability.
+* **Cross-Sell & Basket Affinity Mining**: Analyzes 500+ historical merchant co-purchases to recommend synergistic complements with statistical metrics (Support %, Confidence %, and Lift Score > 2.0x).
+* **Real-Time Revenue Uplift & Margin Expansion Prediction**: Computes **Current Cart Value**, **Predicted Cart Value**, **Expected Uplift %**, and **Margin Expansion %** with probability-weighted impact forecasting.
+* **1-Click Cart Mutation & Preset Switcher**: 4 pre-configured merchant baskets (Retail Starter, FinOps Growth, Developer Workstation, Storage Server) and 1-click upgrade/add-to-cart actions.
+
 ---
 
 ## 🏗️ Architecture & Technology Stack
@@ -87,7 +93,7 @@
 |                               FASTAPI BACKEND                                 |
 |  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
 +-------------------------------------------------------------------------------+
-|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Catalog CRUD |
+|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Growth Agent |
 +-----------------+---------------+-------------+----------------+--------------+
                                         |
 +---------------------------------------v---------------------------------------+
@@ -100,7 +106,7 @@
 * **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons, Recharts, TanStack Query v5.
 * **Backend**: FastAPI, Uvicorn, Pydantic v2, Python 3.11+.
 * **Database**: SQLite 3 with parameterized queries and transactional consistency.
-* **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, OpenAI GPT-4o-mini / Heuristic Fallback.
+* **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, Association Rule Mining, OpenAI GPT-4o-mini / Heuristic Fallback.
 
 ---
 
@@ -143,7 +149,7 @@ npm run dev -- -p 3001
 | Role | Email | Password | Allowed Capabilities |
 | :--- | :--- | :--- | :--- |
 | **Finance Controller** | `controller@acme.com` | `demo123` | Reconciliation, Exception Queue, Vendor Intel, Month Close |
-| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Audit Logs |
+| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent |
 | **Statutory Auditor** | `auditor@acme.com` | `demo123` | Read-only Audit Logs, Vendor Dossiers, Exception History |
 | **Platform Admin** | `admin@razorrecon.ai` | `demo123` | Complete Unrestricted Platform & System Access |
 
@@ -171,6 +177,9 @@ npm run dev -- -p 3001
 | `/api/v1/catalog` | `POST` | Catalog | Create new product SKU with specs & stock |
 | `/api/v1/catalog/{id}/stock` | `PATCH` | Catalog | Quick inventory stock level adjustment |
 | `/api/v1/catalog/ai-context` | `GET` | Catalog | AI-readable JSON schema for LLMs & RAG |
+| `/api/v1/growth/analyze` | `POST` | Growth | Upsell/cross-sell recommendations & uplift prediction |
+| `/api/v1/growth/sample-baskets` | `GET` | Growth | Predefined merchant industry sample baskets |
+| `/api/v1/growth/affinity-matrix` | `GET` | Growth | Market basket association rules & lift scores |
 | `/api/v1/demo/connect-razorpay` | `POST` | Demo | 1-click full dataset demo generator |
 | `/api/v1/demo/reset` | `POST` | Demo | Reset platform to clean zero-data state |
 

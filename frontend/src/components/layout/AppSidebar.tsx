@@ -46,7 +46,8 @@ const NAVIGATION_SECTIONS: NavSection[] = [
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/catalog', label: 'Product Catalog', icon: Package, badge: '50 SKUs' },
-      { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'New AI' },
+      { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
+      { href: '/growth-agent', label: 'Revenue Growth Agent', icon: TrendingUp, badge: 'Growth AI' },
       { href: '/review', label: 'Exception Queue', icon: CheckSquare },
       { href: '/month-close', label: 'Month-End Close', icon: Lock },
       { href: '/demo', label: 'Demo Data Suite', icon: Zap },
