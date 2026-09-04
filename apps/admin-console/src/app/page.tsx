@@ -22,12 +22,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import { AdminLandingPage } from '@/components/landing/AdminLandingPage';
 
 export default function AdminDashboardPage() {
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
   const { data: monitoring, isLoading } = useQuery<ProtocolMonitoringData>({
     queryKey: ['admin', 'protocol-monitoring'],
     queryFn: () => apiClient.get('/admin/protocol-monitoring'),
+    enabled: !!isAuthenticated && user?.role === 'Platform Admin',
   });
+
+  if (!isAuthLoading && (!isAuthenticated || user?.role !== 'Platform Admin')) {
+    return <AdminLandingPage />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-6 space-y-6">

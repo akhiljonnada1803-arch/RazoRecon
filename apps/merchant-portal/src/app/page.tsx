@@ -35,9 +35,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { MerchantLandingPage } from '@/components/landing/MerchantLandingPage';
 
 export default function MerchantDashboardPage() {
-  const { user, hasPermission } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, hasPermission } = useAuth();
   const [adminSimulatedRole, setAdminSimulatedRole] = useState<string | null>(null);
 
   const activeRole = adminSimulatedRole || user?.role || 'Merchant Owner';
@@ -45,7 +46,12 @@ export default function MerchantDashboardPage() {
   const { data: metrics, isLoading } = useQuery<MerchantDashboardMetrics>({
     queryKey: ['merchant', 'dashboard'],
     queryFn: () => apiClient.get('/merchant/dashboard'),
+    enabled: !!isAuthenticated,
   });
+
+  if (!isAuthLoading && !isAuthenticated) {
+    return <MerchantLandingPage />;
+  }
 
   const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';
   const isMerchantOwner = activeRole.includes('Merchant Owner');

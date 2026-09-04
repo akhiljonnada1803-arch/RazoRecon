@@ -19,11 +19,10 @@ import {
   Flame, 
   Search, 
   Cpu, 
-  Shirt, 
-  Home as HomeIcon, 
-  BookOpen, 
-  Smile, 
-  Apple, 
+  Sliders, 
+  Briefcase, 
+  Terminal, 
+  Headphones, 
   Zap, 
   CheckCircle2,
   ChevronRight,
@@ -33,7 +32,12 @@ import {
   Eye,
   CreditCard,
   Building2,
-  Lock
+  Lock,
+  Store,
+  MessageSquare,
+  Award,
+  ThumbsUp,
+  PackageCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,13 +70,12 @@ export default function PublicHomePage() {
   const { data: catalogData, isLoading } = useQuery({
     queryKey: ['public-home-products'],
     queryFn: async () => {
-      const res = await apiClient.get<any>('/catalog/products?limit=12');
+      const res = await apiClient.get<any>('/catalog/products?limit=16');
       return res?.products || res?.items || [];
     },
   });
 
   const products: Product[] = Array.isArray(catalogData) ? catalogData : [];
-
   const round2 = (num: number) => Math.round((num + Number.EPSILON) * 100) / 100;
 
   const handleAddToCart = (product: Product) => {
@@ -113,7 +116,6 @@ export default function PublicHomePage() {
   };
 
   const handleBuyNow = async (product: Product) => {
-    // 1-Click Buy Now
     const singleCart: CartState = {
       items: [{
         product_id: product.id,
@@ -142,8 +144,6 @@ export default function PublicHomePage() {
       setCheckoutResult(res);
       setIsCheckoutModalOpen(true);
     } catch (e) {
-      console.error('Buy Now Checkout failed:', e);
-      // Fallback
       handleAddToCart(product);
     }
   };
@@ -151,86 +151,149 @@ export default function PublicHomePage() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchPrompt.trim()) {
-      router.push('/customer/products');
+      router.push('/products');
       return;
     }
-    router.push(`/customer/products?search=${encodeURIComponent(searchPrompt.trim())}`);
+    router.push(`/products?search=${encodeURIComponent(searchPrompt.trim())}`);
   };
 
   const suggestedSearches = [
-    'Best POS machine',
-    'Payment terminal',
-    'Smart speaker',
-    'Wireless headphones'
+    'Smart POS Machine',
+    '4G Soundbox',
+    'Developer Kit',
+    'ERP Billing Software',
+    'Barcode Scanner'
   ];
 
+  // Specific 5 Required Categories
   const categories = [
     { 
       name: 'Electronics', 
       icon: Cpu, 
-      desc: 'POS, Soundboxes & Terminals', 
-      query: 'Fintech Hardware', 
-      count: '120+ Products', 
+      desc: 'Smart Terminals, Displays & Audio', 
+      query: 'Electronics', 
+      count: '140+ Items', 
       bg: 'from-blue-600 to-indigo-700',
-      tag: 'Bestsellers'
+      tag: 'Bestseller'
     },
     { 
-      name: 'Fashion', 
-      icon: Shirt, 
-      desc: 'Executive & Casual Apparel', 
-      query: 'Fashion', 
-      count: '85+ Products', 
-      bg: 'from-purple-600 to-pink-600',
-      tag: 'Trending'
+      name: 'Fintech Hardware', 
+      icon: CreditCard, 
+      desc: 'POS Terminals & 4G Soundboxes', 
+      query: 'Fintech Hardware', 
+      count: '95+ Items', 
+      bg: 'from-sky-500 to-blue-600',
+      tag: 'Verified GST'
     },
     { 
-      name: 'Home', 
-      icon: HomeIcon, 
-      desc: 'Office Furniture & Smart Living', 
-      query: 'Home', 
-      count: '64+ Products', 
-      bg: 'from-amber-600 to-orange-600',
-      tag: 'New'
+      name: 'Software', 
+      icon: Terminal, 
+      desc: 'ERP, Inventory & Accounting Licenses', 
+      query: 'Software', 
+      count: '60+ Items', 
+      bg: 'from-indigo-600 to-purple-700',
+      tag: 'Instant License'
     },
     { 
-      name: 'Beauty', 
-      icon: Smile, 
-      desc: 'Wellness, Skincare & Grooming', 
-      query: 'Beauty', 
-      count: '42+ Products', 
-      bg: 'from-rose-500 to-pink-600',
-      tag: 'Top Rated'
-    },
-    { 
-      name: 'Books', 
-      icon: BookOpen, 
-      desc: 'Finance, GST & Tech Guides', 
-      query: 'Books', 
-      count: '58+ Products', 
+      name: 'Business Tools', 
+      icon: Briefcase, 
+      desc: 'Thermal Printers, Scanners & Scales', 
+      query: 'Business Tools', 
+      count: '80+ Items', 
       bg: 'from-emerald-600 to-teal-700',
-      tag: 'Essential'
+      tag: 'Express Ship'
     },
     { 
-      name: 'Grocery', 
-      icon: Apple, 
-      desc: 'Pantry, Gourmet Coffee & Snacks', 
-      query: 'Grocery', 
-      count: '90+ Products', 
-      bg: 'from-lime-600 to-emerald-700',
-      tag: 'Fast Delivery'
+      name: 'Accessories', 
+      icon: Headphones, 
+      desc: 'Cables, Docks, Paper Rolls & Cases', 
+      query: 'Accessories', 
+      count: '110+ Items', 
+      bg: 'from-amber-500 to-orange-600',
+      tag: 'Value Packs'
     }
   ];
 
-  // Divide products into Featured and Recommendations
   const featuredProducts = products.slice(0, 4);
-  const recommendedProducts = products.slice(4, 8);
+  const trendingProducts = products.slice(4, 8).length > 0 ? products.slice(4, 8) : products.slice(0, 4);
+
+  // Verified Merchant Spotlight Data
+  const merchantSpotlights = [
+    {
+      name: 'Acme Direct Corp',
+      tagline: 'Leading Provider of Certified Fintech Hardware',
+      rating: 4.9,
+      reviews: 4820,
+      badge: 'Platinum Merchant',
+      badgeColor: 'bg-blue-50 text-[#0B72E7] border-blue-200',
+      ordersCount: '28,400+ Orders',
+      deliverySpeed: '99.4% On-time',
+      image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=500&auto=format&fit=crop&q=60'
+    },
+    {
+      name: 'FinTech Hub India',
+      tagline: 'Smart POS Terminals & Dynamic QR Speakers',
+      rating: 4.8,
+      reviews: 3150,
+      badge: 'Certified Seller',
+      badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      ordersCount: '19,200+ Orders',
+      deliverySpeed: '98.9% On-time',
+      image: 'https://images.unsplash.com/photo-1543512214-318c7553f230?w=500&auto=format&fit=crop&q=60'
+    },
+    {
+      name: 'Apex Commerce Solutions',
+      tagline: 'Enterprise Billing & Thermal Receipt Systems',
+      rating: 4.9,
+      reviews: 2480,
+      badge: 'Top Rated',
+      badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
+      ordersCount: '14,800+ Orders',
+      deliverySpeed: '99.8% On-time',
+      image: 'https://images.unsplash.com/photo-1556740758-90de374c12ad?w=500&auto=format&fit=crop&q=60'
+    }
+  ];
+
+  // Customer Reviews Data
+  const customerReviews = [
+    {
+      id: 1,
+      author: 'Rohit Khandelwal',
+      role: 'Retail Store Owner, Bengaluru',
+      rating: 5,
+      date: '2 days ago',
+      title: 'Flawless 1-Click Razorpay Checkout & Fast Dispatch',
+      content: 'Ordered two Smart POS terminals. The AI assistant recommended the exact bundle compatible with our GST billing system. Received tracking updates via Delhivery within 3 hours.',
+      verified: true
+    },
+    {
+      id: 2,
+      author: 'Pooja Deshmukh',
+      role: 'Operations Head, TechMart Pune',
+      rating: 5,
+      date: '1 week ago',
+      title: 'Completely Transparent GST Invoicing',
+      content: 'No hidden taxes added at the final step! The price shown on the product card was the exact amount billed on our corporate invoice with input tax credit eligibility.',
+      verified: true
+    },
+    {
+      id: 3,
+      author: 'Vikas Swaminathan',
+      role: 'Managing Director, SouthCo Logistics',
+      rating: 5,
+      date: '2 weeks ago',
+      title: 'AI Shopping Assistant Saved Hours of Research',
+      content: 'We needed thermal printers that support 80mm high-speed rolls. The AI shopper accurately filtered compliant models with verified merchant warranties.',
+      verified: true
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between antialiased">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-10 w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-12 w-full">
         
         {/* ======================================================== */}
-        {/* 1. HERO SECTION (Compact - Reduced Height by 40%)        */}
+        {/* SECTION 1: HERO BANNER                                   */}
         {/* ======================================================== */}
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#072654] via-[#0A3875] to-[#0B72E7] text-white p-6 sm:p-10 shadow-xl border border-blue-900/30">
           <div className="absolute top-0 right-0 w-80 h-80 bg-blue-400/15 rounded-full blur-3xl pointer-events-none" />
@@ -240,20 +303,23 @@ export default function PublicHomePage() {
             {/* Pill */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[11px] font-semibold text-blue-200">
               <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-              <span>Intelligent AI Commerce Marketplace</span>
+              <span>AI Commerce Marketplace</span>
             </div>
 
             {/* Headline */}
             <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight">
-              Shop Smarter with <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-blue-100 to-white">AI Commerce</span>
+              AI Commerce Marketplace.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-blue-100 to-white">
+                Discover, Compare & Buy with AI.
+              </span>
             </h1>
 
             {/* Subheadline */}
             <p className="text-xs sm:text-sm md:text-base text-blue-100/90 leading-relaxed max-w-2xl font-normal">
-              Discover, compare and purchase products through intelligent AI-powered shopping.
+              Explore thousands of verified POS hardware, soundboxes, business tools, and enterprise software with instant Razorpay checkout.
             </p>
 
-            {/* Compact Search Bar */}
+            {/* Search Bar */}
             <form onSubmit={handleSearchSubmit} className="pt-1 max-w-2xl">
               <div className="flex items-center rounded-2xl bg-white p-1 shadow-2xl border border-white/50 focus-within:ring-2 focus-within:ring-amber-300 transition-all">
                 <Search className="w-4 h-4 text-slate-400 ml-3 shrink-0" />
@@ -261,7 +327,7 @@ export default function PublicHomePage() {
                   type="text"
                   value={searchPrompt}
                   onChange={(e) => setSearchPrompt(e.target.value)}
-                  placeholder="Find me a gaming laptop under ₹80,000"
+                  placeholder="Search products, POS terminals, soundboxes, or ask AI..."
                   className="w-full px-3 py-2 text-xs sm:text-sm text-slate-800 bg-transparent focus:outline-hidden placeholder:text-slate-400"
                 />
                 <Button 
@@ -273,13 +339,13 @@ export default function PublicHomePage() {
               </div>
             </form>
 
-            {/* Suggested Searches Chips */}
+            {/* Featured Offers & Popular Searches */}
             <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-              <span className="text-blue-200/80 text-[11px] font-medium">Popular:</span>
+              <span className="text-blue-200/80 text-[11px] font-medium">Trending Searches:</span>
               {suggestedSearches.map((chip, idx) => (
                 <button
                   key={idx}
-                  onClick={() => router.push(`/customer/products?search=${encodeURIComponent(chip)}`)}
+                  onClick={() => router.push(`/products?search=${encodeURIComponent(chip)}`)}
                   className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-blue-100 hover:text-white text-[11px] font-medium transition-all cursor-pointer"
                 >
                   {chip}
@@ -287,56 +353,108 @@ export default function PublicHomePage() {
               ))}
             </div>
 
-            {/* CTA Buttons */}
+            {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <a href="#featured-products">
+              <Link href="/products">
                 <Button 
                   size="sm" 
                   className="h-10 px-5 rounded-xl bg-white text-[#072654] hover:bg-slate-100 font-bold text-xs shadow-md gap-2 cursor-pointer"
                 >
                   <ShoppingBag className="w-4 h-4 text-[#0B72E7]" />
-                  <span>Start Shopping</span>
+                  <span>Browse All Products</span>
                 </Button>
-              </a>
+              </Link>
 
-              <Link href="/customer/assistant">
+              <Link href="/assistant">
                 <Button 
                   size="sm" 
                   variant="outline" 
                   className="h-10 px-5 rounded-xl border-white/30 text-white hover:bg-white/10 font-bold text-xs backdrop-blur-xs gap-2"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Talk to AI</span>
+                  <Bot className="w-4 h-4 text-amber-300" />
+                  <span>Ask AI Shopping Assistant</span>
                 </Button>
               </Link>
+
+              <a 
+                href="http://localhost:3001" 
+                className="text-xs font-semibold text-blue-200 hover:text-white underline underline-offset-4 flex items-center gap-1 ml-2"
+              >
+                <span>Become a Seller</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </a>
             </div>
           </div>
         </section>
 
         {/* ======================================================== */}
-        {/* 2. SHOW PRODUCTS ABOVE THE FOLD (FEATURED PRODUCTS)      */}
+        {/* SECTION 2: CATEGORIES (5 SPECIFIC CATEGORIES)             */}
         {/* ======================================================== */}
-        <section id="featured-products" className="space-y-4 pt-2">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
+                Shop by Category
+              </h2>
+              <p className="text-xs text-slate-500">
+                Explore verified collections curated for commercial reliability and instant tax invoicing
+              </p>
+            </div>
+            <Link href="/products" className="text-xs font-bold text-[#0B72E7] hover:underline flex items-center gap-1">
+              <span>View All Categories</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {categories.map((cat, idx) => (
+              <Link
+                key={idx}
+                href={`/products?category=${encodeURIComponent(cat.query)}`}
+                className="group bg-white p-5 rounded-3xl border border-slate-200 hover:border-blue-400 hover:shadow-lg transition-all text-center flex flex-col items-center justify-between space-y-3 cursor-pointer"
+              >
+                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${cat.bg} text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
+                  <cat.icon className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <span className="font-extrabold text-sm text-slate-900 block group-hover:text-[#0B72E7] transition-colors">
+                    {cat.name}
+                  </span>
+                  <p className="text-[11px] text-slate-500 line-clamp-1">{cat.desc}</p>
+                  <Badge variant="outline" className="text-[10px] font-mono text-slate-500 mt-1">
+                    {cat.count}
+                  </Badge>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* SECTION 3: TRENDING PRODUCTS                             */}
+        {/* ======================================================== */}
+        <section id="trending-products" className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500 fill-amber-500" />
                 <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
-                  Featured Products
+                  Trending Products
                 </h2>
-                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
-                  Verified Merchants
+                <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
+                  High Demand
                 </Badge>
               </div>
               <p className="text-xs text-slate-500">
-                Top rated products with GST-inclusive pricing & express delivery
+                Top rated fintech devices and tools with GST-inclusive pricing & express delivery
               </p>
             </div>
 
             <Link 
-              href="/customer/products" 
+              href="/products?deals=true" 
               className="text-xs font-bold text-[#0B72E7] hover:underline flex items-center gap-1"
             >
-              <span>View All 50+ SKUs</span>
+              <span>Explore Deals</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -345,27 +463,25 @@ export default function PublicHomePage() {
             <ProductGridSkeleton count={4} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {featuredProducts.map((product) => {
+              {trendingProducts.map((product) => {
                 const discountPct = 20;
                 const originalPrice = round2(product.price * 1.25);
-                const rating = 4.8;
-                const reviewsCount = 1240;
+                const rating = 4.9;
+                const reviewsCount = 1420;
 
                 return (
                   <div
                     key={product.id}
-                    className="group bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-xl hover:border-blue-300 transition-all duration-200 flex flex-col justify-between overflow-hidden relative"
+                    className="group bg-white rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xl hover:border-blue-300 transition-all duration-200 flex flex-col justify-between overflow-hidden relative"
                   >
-                    {/* Badge */}
                     <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
                       <span className="bg-rose-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
                         {discountPct}% OFF
                       </span>
                     </div>
 
-                    {/* Image Container */}
                     <Link 
-                      href={`/customer/products/${product.id}`}
+                      href={`/products/${product.id}`}
                       className="h-48 w-full bg-slate-50 overflow-hidden flex items-center justify-center relative p-4"
                     >
                       <img
@@ -376,14 +492,13 @@ export default function PublicHomePage() {
                       />
                     </Link>
 
-                    {/* Content */}
                     <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                       <div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                           {product.category}
                         </span>
                         <Link 
-                          href={`/customer/products/${product.id}`}
+                          href={`/products/${product.id}`}
                           className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#0B72E7] transition-colors line-clamp-2 block leading-snug mt-1"
                           title={product.name}
                         >
@@ -391,7 +506,6 @@ export default function PublicHomePage() {
                         </Link>
                       </div>
 
-                      {/* Rating & Reviews */}
                       <div className="flex items-center gap-1.5 text-xs">
                         <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold text-[11px]">
                           <span>{rating}</span>
@@ -402,7 +516,6 @@ export default function PublicHomePage() {
                         </span>
                       </div>
 
-                      {/* Pricing Section (GST Inclusive) */}
                       <div className="space-y-0.5 border-t border-slate-100 pt-2">
                         <div className="flex items-baseline gap-2">
                           <span className="text-base sm:text-lg font-black text-[#072654]">
@@ -418,12 +531,11 @@ export default function PublicHomePage() {
                           </span>
                           <span className="text-slate-500 flex items-center gap-0.5">
                             <Truck className="w-3 h-3 text-emerald-600" />
-                            <span>FREE Delivery by Tomorrow</span>
+                            <span>FREE Delivery</span>
                           </span>
                         </div>
                       </div>
 
-                      {/* Dual Action CTA: Add to Cart & Buy Now */}
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <Button
                           variant="outline"
@@ -451,148 +563,124 @@ export default function PublicHomePage() {
         </section>
 
         {/* ======================================================== */}
-        {/* 3. CATEGORY SECTION                                      */}
+        {/* SECTION 4: AI SHOPPING ASSISTANT BANNER & INTERACTIVE WIDGET */}
+        {/* ======================================================== */}
+        <section className="bg-gradient-to-r from-blue-900 via-[#072654] to-indigo-950 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden border border-blue-800/40 shadow-xl space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-3 max-w-xl">
+              <Badge className="bg-blue-500/20 text-blue-200 border-blue-400/30 text-[11px] font-semibold px-3 py-1">
+                AUTONOMOUS SHOPPING COPILOT
+              </Badge>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                AI Shopping Assistant
+              </h2>
+              <p className="text-xs sm:text-sm text-blue-100/80 leading-relaxed">
+                Need help picking the best soundbox or POS machine for your store? Ask our AI assistant to compare specifications, calculate bulk GST discounts, and generate 1-click Razorpay bundles.
+              </p>
+              
+              <div className="flex flex-wrap gap-2 pt-2">
+                {[
+                  'Recommend best 4G Soundbox for high-noise shop',
+                  'Compare Smart POS V3 Pro vs Android Terminal',
+                  'Find billing software with GST e-invoicing'
+                ].map((q, idx) => (
+                  <Link key={idx} href={`/assistant?q=${encodeURIComponent(q)}`}>
+                    <button className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-blue-100 hover:text-white text-xs font-medium transition-all text-left">
+                      💡 {q}
+                    </button>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/15 max-w-md w-full space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#0B72E7] flex items-center justify-center text-white font-bold shadow-md">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-white">Ask AI Shopper</h4>
+                  <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Online & Ready
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-black/20 rounded-2xl border border-white/10 text-xs text-blue-100 leading-relaxed">
+                "Hello! I can match your store transaction volume with the most cost-efficient POS terminal, verify input tax credit, and create an instant checkout link."
+              </div>
+
+              <Link href="/assistant" className="block w-full">
+                <Button className="w-full bg-[#0B72E7] hover:bg-blue-500 text-white font-bold rounded-xl text-xs h-10 shadow-lg">
+                  Launch Full AI Shopping Assistant
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* SECTION 5: MERCHANT SPOTLIGHT                            */}
         {/* ======================================================== */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
-                Shop by Category
-              </h2>
-              <p className="text-xs text-slate-500">
-                Explore popular consumer electronics, fashion, home essentials and more
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map((cat, idx) => (
-              <Link
-                key={idx}
-                href={`/customer/products?category=${encodeURIComponent(cat.query)}`}
-                className="group bg-white p-4 rounded-2xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-center flex flex-col items-center justify-between space-y-3 cursor-pointer"
-              >
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${cat.bg} text-white flex items-center justify-center shadow-xs group-hover:scale-110 transition-transform`}>
-                  <cat.icon className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="font-bold text-xs text-slate-900 block group-hover:text-[#0B72E7] transition-colors">
-                    {cat.name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5 font-semibold">
-                    {cat.count}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        {/* ======================================================== */}
-        {/* 4. AI RECOMMENDATION SECTION                             */}
-        {/* ======================================================== */}
-        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#0B72E7]" />
+                <Award className="w-5 h-5 text-[#0B72E7]" />
                 <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
-                  Recommended For You
+                  Merchant Spotlight
                 </h2>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                AI curated selections based on your browsing patterns and marketplace demand
+              <p className="text-xs text-slate-500">
+                Verified high-volume sellers operating on the RazorCommerce OS platform
               </p>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs font-bold text-slate-600">
-              <button
-                onClick={() => setActiveRecommendationTab('personalized')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  activeRecommendationTab === 'personalized'
-                    ? 'bg-white text-[#0B72E7] shadow-2xs'
-                    : 'hover:text-slate-900'
-                }`}
-              >
-                Personalized
-              </button>
-              <button
-                onClick={() => setActiveRecommendationTab('trending')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  activeRecommendationTab === 'trending'
-                    ? 'bg-white text-[#0B72E7] shadow-2xs'
-                    : 'hover:text-slate-900'
-                }`}
-              >
-                Trending
-              </button>
-              <button
-                onClick={() => setActiveRecommendationTab('recent')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  activeRecommendationTab === 'recent'
-                    ? 'bg-white text-[#0B72E7] shadow-2xs'
-                    : 'hover:text-slate-900'
-                }`}
-              >
-                Recently Viewed
-              </button>
-            </div>
+            <a 
+              href="http://localhost:3001" 
+              className="text-xs font-bold text-[#0B72E7] hover:underline flex items-center gap-1"
+            >
+              <span>Join as a Merchant</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </a>
           </div>
 
-          {/* Recommended Product Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {(recommendedProducts.length > 0 ? recommendedProducts : featuredProducts).map((product, idx) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {merchantSpotlights.map((merchant, idx) => (
               <div
-                key={product.id || idx}
-                className="group bg-slate-50/70 rounded-2xl border border-slate-200 p-4 flex flex-col justify-between hover:bg-white hover:border-blue-300 hover:shadow-lg transition-all"
+                key={idx}
+                className="bg-white rounded-3xl p-6 border border-slate-200 shadow-2xs hover:shadow-md transition-all space-y-4 flex flex-col justify-between"
               >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="bg-purple-100 text-purple-800 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5" />
-                      {idx === 0 ? '98% Match' : idx === 1 ? 'Trending #1' : idx === 2 ? 'AI Pick' : 'Best Value'}
-                    </span>
-                    <Heart className="w-4 h-4 text-slate-300 hover:text-rose-500 cursor-pointer transition-colors" />
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                        <img src={merchant.image} alt={merchant.name} className="w-full h-full object-contain" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{merchant.name}</h4>
+                        <div className="flex items-center gap-1 text-xs text-amber-600 font-bold">
+                          <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                          <span>{merchant.rating}</span>
+                          <span className="text-[11px] text-slate-400 font-normal">({merchant.reviews} ratings)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Badge className={`text-[10px] font-semibold ${merchant.badgeColor}`}>
+                      {merchant.badge}
+                    </Badge>
                   </div>
 
-                  <Link 
-                    href={`/customer/products/${product.id}`}
-                    className="h-36 w-full bg-white rounded-xl overflow-hidden flex items-center justify-center p-2 mb-3 border border-slate-200/60"
-                  >
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="h-full w-full object-contain group-hover:scale-105 transition-transform"
-                      loading="lazy"
-                    />
-                  </Link>
-
-                  <Link 
-                    href={`/customer/products/${product.id}`}
-                    className="font-bold text-xs text-slate-900 line-clamp-2 group-hover:text-[#0B72E7] transition-colors"
-                  >
-                    {product.name}
-                  </Link>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {merchant.tagline}
+                  </p>
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-sm text-[#072654]">
-                      ₹{product.price.toLocaleString('en-IN')}
-                    </span>
-                    <span className="text-[10px] text-emerald-600 font-bold">
-                      GST Included
-                    </span>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    onClick={() => handleAddToCart(product)}
-                    className="w-full text-xs font-bold bg-[#072654] hover:bg-[#0B72E7] text-white rounded-xl h-8 shadow-xs"
-                  >
-                    Add to Cart
-                  </Button>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-mono text-slate-500">
+                  <span className="font-semibold text-slate-800">{merchant.ordersCount}</span>
+                  <span className="text-emerald-600 font-semibold">{merchant.deliverySpeed}</span>
                 </div>
               </div>
             ))}
@@ -600,7 +688,67 @@ export default function PublicHomePage() {
         </section>
 
         {/* ======================================================== */}
-        {/* 5. TRUST SECTION                                         */}
+        {/* SECTION 6: CUSTOMER REVIEWS                              */}
+        {/* ======================================================== */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <ThumbsUp className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
+                  Customer Reviews & Trust
+                </h2>
+              </div>
+              <p className="text-xs text-slate-500">
+                Real feedback from businesses and buyers across India powered by RazorCommerce
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {customerReviews.map((rev) => (
+              <div 
+                key={rev.id} 
+                className="bg-white p-6 rounded-3xl border border-slate-200 shadow-2xs space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex text-amber-500">
+                      {[...Array(rev.rating)].map((_, i) => (
+                        <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">{rev.date}</span>
+                  </div>
+
+                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug">
+                    "{rev.title}"
+                  </h4>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {rev.content}
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 block">{rev.author}</span>
+                    <span className="text-[10px] text-slate-400 block">{rev.role}</span>
+                  </div>
+                  {rev.verified && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <ShieldCheck className="w-3 h-3" />
+                      Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ======================================================== */}
+        {/* TRUST SIGNALS STRIP                                      */}
         {/* ======================================================== */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -647,7 +795,7 @@ export default function PublicHomePage() {
       </div>
 
       {/* ======================================================== */}
-      {/* 6. FOOTER                                                */}
+      {/* SECTION 7: FOOTER                                        */}
       {/* ======================================================== */}
       <footer className="border-t border-slate-200 bg-white text-slate-600 text-xs mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -676,35 +824,41 @@ export default function PublicHomePage() {
                 Marketplace
               </h5>
               <ul className="space-y-1.5 text-slate-500">
-                <li><Link href="/customer/products" className="hover:text-[#0B72E7]">All Products</Link></li>
-                <li><Link href="/customer/products?deals=true" className="hover:text-[#0B72E7]">Trending Deals</Link></li>
-                <li><Link href="/customer/assistant" className="hover:text-[#0B72E7]">AI Shopping Copilot</Link></li>
-                <li><Link href="/customer/track" className="hover:text-[#0B72E7]">Track Order</Link></li>
+                <li><Link href="/products" className="hover:text-[#0B72E7]">All Products</Link></li>
+                <li><Link href="/products?deals=true" className="hover:text-[#0B72E7]">Trending Deals</Link></li>
+                <li><Link href="/assistant" className="hover:text-[#0B72E7]">AI Shopping Assistant</Link></li>
+                <li><Link href="/orders" className="hover:text-[#0B72E7]">My Orders & Tracking</Link></li>
               </ul>
             </div>
 
-            {/* Col 3: Company */}
+            {/* Col 3: Categories */}
             <div className="space-y-2">
               <h5 className="font-bold text-slate-900 uppercase tracking-wider text-[10px]">
-                Company
+                Categories
               </h5>
               <ul className="space-y-1.5 text-slate-500">
-                <li><Link href="/about" className="hover:text-[#0B72E7]">About Us</Link></li>
-                <li><Link href="/contact" className="hover:text-[#0B72E7]">Contact Support</Link></li>
-                <li><Link href="/privacy" className="hover:text-[#0B72E7]">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="hover:text-[#0B72E7]">Terms of Service</Link></li>
+                <li><Link href="/products?category=Electronics" className="hover:text-[#0B72E7]">Electronics</Link></li>
+                <li><Link href="/products?category=Fintech%20Hardware" className="hover:text-[#0B72E7]">Fintech Hardware</Link></li>
+                <li><Link href="/products?category=Software" className="hover:text-[#0B72E7]">Software</Link></li>
+                <li><Link href="/products?category=Business%20Tools" className="hover:text-[#0B72E7]">Business Tools</Link></li>
+                <li><Link href="/products?category=Accessories" className="hover:text-[#0B72E7]">Accessories</Link></li>
               </ul>
             </div>
 
-            {/* Col 4: Merchants */}
+            {/* Col 4: For Merchants */}
             <div className="space-y-2">
               <h5 className="font-bold text-slate-900 uppercase tracking-wider text-[10px]">
-                For Business
+                For Merchants
               </h5>
               <ul className="space-y-1.5 text-slate-500">
-                <li><Link href="/login" className="hover:text-[#0B72E7] font-semibold text-[#0B72E7]">Become a Merchant</Link></li>
-                <li><Link href="/merchant/dashboard" className="hover:text-[#0B72E7]">Merchant Portal</Link></li>
-                <li><Link href="/hero-demo" className="hover:text-[#0B72E7]">Live Demo Flow</Link></li>
+                <li>
+                  <a href="http://localhost:3001" className="hover:text-[#0B72E7] font-bold text-[#0B72E7] flex items-center gap-1">
+                    <span>Become a Merchant</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </a>
+                </li>
+                <li><a href="http://localhost:3001/login" className="hover:text-[#0B72E7]">Merchant Sign In</a></li>
+                <li><a href="http://localhost:3002" className="hover:text-[#0B72E7]">Platform Admin</a></li>
               </ul>
             </div>
           </div>

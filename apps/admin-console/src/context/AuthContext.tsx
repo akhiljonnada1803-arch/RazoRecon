@@ -191,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('razorcommerce_user');
     localStorage.removeItem('razorrecon_token');
     localStorage.removeItem('razorrecon_user');
-    router.push('/login');
+    window.location.href = 'http://localhost:3002';
   };
 
   const switchOrganization = async (orgName: string) => {

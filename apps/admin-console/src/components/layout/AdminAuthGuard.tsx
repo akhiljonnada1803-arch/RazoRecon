@@ -12,12 +12,13 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   const isLoginPage = pathname === '/login';
+  const isLandingPage = pathname === '/';
 
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || user?.role !== 'Platform Admin') && !isLoginPage) {
+    if (!isLoading && (!isAuthenticated || user?.role !== 'Platform Admin') && !isLoginPage && !isLandingPage) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, user, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, user, isLoginPage, isLandingPage, router]);
 
   if (isLoginPage) {
     return <div className="min-h-screen bg-[#F8FAFC]">{children}</div>;
@@ -32,6 +33,10 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if ((!isAuthenticated || user?.role !== 'Platform Admin') && isLandingPage) {
+    return <div className="min-h-screen bg-[#071328]">{children}</div>;
   }
 
   if (!isAuthenticated || user?.role !== 'Platform Admin') {

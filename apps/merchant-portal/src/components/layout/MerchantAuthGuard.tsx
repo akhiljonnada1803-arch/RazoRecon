@@ -11,15 +11,16 @@ export function MerchantAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
 
-  const isLoginPage = pathname === '/login';
+  const isPublicAuthPage = pathname === '/login' || pathname === '/register';
+  const isLandingPage = pathname === '/';
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isPublicAuthPage && !isLandingPage) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isPublicAuthPage, isLandingPage, router]);
 
-  if (isLoginPage) {
+  if (isPublicAuthPage) {
     return <div className="min-h-screen bg-[#F8FAFC]">{children}</div>;
   }
 
@@ -32,6 +33,10 @@ export function MerchantAuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if (!isAuthenticated && isLandingPage) {
+    return <div className="min-h-screen bg-[#F8FAFC]">{children}</div>;
   }
 
   if (!isAuthenticated) {

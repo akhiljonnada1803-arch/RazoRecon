@@ -99,6 +99,16 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
             </Link>
 
             <Link 
+              href="/orders" 
+              className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
+                pathname === '/orders' ? 'text-[#0B72E7] font-bold' : ''
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" />
+              <span>Orders</span>
+            </Link>
+
+            <Link 
               href="/assistant" 
               className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50/80 text-[#0B72E7] font-bold border border-blue-200/80 shadow-2xs hover:bg-blue-100 ${
                 pathname.startsWith('/assistant') ? 'bg-[#0B72E7] text-white border-transparent' : ''
@@ -108,13 +118,13 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               <span>AI Shopping</span>
             </Link>
 
-            <Link 
-              href="/login" 
+            <a 
+              href="http://localhost:3001" 
               className="transition-colors hover:text-slate-900 text-slate-500 flex items-center gap-1 font-medium"
             >
               <Store className="w-3.5 h-3.5 text-slate-400" />
-              <span>Become a Merchant</span>
-            </Link>
+              <span>Become a Seller</span>
+            </a>
           </nav>
 
           {/* 3. Right Side: Auth / Account + Cart Icon */}
