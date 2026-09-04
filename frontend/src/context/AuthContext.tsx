@@ -44,6 +44,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   '/catalog': ['VIEW_DASHBOARD'],
   '/commerce-agent': ['VIEW_DASHBOARD'],
   '/growth-agent': ['VIEW_DASHBOARD'],
+  '/campaigns': ['VIEW_DASHBOARD'],
   '/reconciliation': ['RUN_RECONCILIATION'],
   '/review': ['VIEW_EXCEPTIONS'],
   '/month-close': ['CLOSE_BOOKS'],

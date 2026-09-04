@@ -24,7 +24,8 @@ import {
   ShieldCheck,
   BrainCircuit,
   ShoppingBag,
-  Package
+  Package,
+  Megaphone
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,7 @@ const NAVIGATION_SECTIONS: NavSection[] = [
       { href: '/catalog', label: 'Product Catalog', icon: Package, badge: '50 SKUs' },
       { href: '/commerce-agent', label: 'Commerce Agent', icon: ShoppingBag, badge: 'Commerce' },
       { href: '/growth-agent', label: 'Revenue Growth Agent', icon: TrendingUp, badge: 'Growth AI' },
+      { href: '/campaigns', label: 'Campaigns', icon: Megaphone, badge: 'Campaigns' },
       { href: '/review', label: 'Exception Queue', icon: CheckSquare },
       { href: '/month-close', label: 'Month-End Close', icon: Lock },
       { href: '/demo', label: 'Demo Data Suite', icon: Zap },

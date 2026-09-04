@@ -77,7 +77,12 @@
 * **Upsell & Tier-Upgrade Engine**: Recommends high-value upgrades (e.g., mPOS to Android V3 Pro with thermal printers, Quarterly to Annual Enterprise FinOps licenses, Countertop to Self-Checkout Kiosks) with real-time price delta, gross margin delta %, and conversion probability.
 * **Cross-Sell & Basket Affinity Mining**: Analyzes 500+ historical merchant co-purchases to recommend synergistic complements with statistical metrics (Support %, Confidence %, and Lift Score > 2.0x).
 * **Real-Time Revenue Uplift & Margin Expansion Prediction**: Computes **Current Cart Value**, **Predicted Cart Value**, **Expected Uplift %**, and **Margin Expansion %** with probability-weighted impact forecasting.
-* **1-Click Cart Mutation & Preset Switcher**: 4 pre-configured merchant baskets (Retail Starter, FinOps Growth, Developer Workstation, Storage Server) and 1-click upgrade/add-to-cart actions.
+### 10. 📣 Campaign Orchestrator (`/campaigns`)
+* **AI-Generated Campaigns**: Strategic goal-driven campaign formulation (*Revenue Surge, Winback, Hardware Launch, Clearance*) with dynamic copywriting and multi-channel targeting (WhatsApp Business, Email, SMS, In-App Push).
+* **Price Elasticity & Discount Simulation**: Microeconomic simulation model calculating volume expansion vs margin dilution, price elasticity factor ($E$), conversion lift %, gross campaign revenue, discount costs, and campaign ROI %.
+* **RFM Customer Segmentation**: 5 behavioral clusters (*High-Volume Enterprise, Fast-Growing D2C Retailers, At-Risk Inactive Merchants, Seasonal Festive Sellers, New Onboarding*) with merchant reach, AOV, churn risk %, and GMV.
+* **Time-Series Revenue Forecasting**: Day-by-day projected revenue trajectory comparing baseline organic sales against campaign revenue lift.
+* **Core Metrics**: Displays **Campaign Name**, **Target Segment**, **Expected Revenue Lift (₹ / %)**, and **Projected Orders**.
 
 ---
 
@@ -93,7 +98,7 @@
 |                               FASTAPI BACKEND                                 |
 |  api/v1/endpoints/  -->  Core RBAC Sentinel (Depends)  -->  Service Layer     |
 +-------------------------------------------------------------------------------+
-|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Growth Agent |
+|  Reconciliation | Vendor Memory | CFO Copilot | Commerce Agent | Campaigns    |
 +-----------------+---------------+-------------+----------------+--------------+
                                         |
 +---------------------------------------v---------------------------------------+
@@ -106,7 +111,7 @@
 * **Frontend**: Next.js 14 (App Router), React 18, Tailwind CSS, Lucide Icons, Recharts, TanStack Query v5.
 * **Backend**: FastAPI, Uvicorn, Pydantic v2, Python 3.11+.
 * **Database**: SQLite 3 with parameterized queries and transactional consistency.
-* **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, Association Rule Mining, OpenAI GPT-4o-mini / Heuristic Fallback.
+* **AI & Retrieval**: ReAct Tool Execution, TF-IDF Cosine Semantic Search, Price Elasticity Modeling, OpenAI GPT-4o-mini / Heuristic Fallback.
 
 ---
 
@@ -149,7 +154,7 @@ npm run dev -- -p 3001
 | Role | Email | Password | Allowed Capabilities |
 | :--- | :--- | :--- | :--- |
 | **Finance Controller** | `controller@acme.com` | `demo123` | Reconciliation, Exception Queue, Vendor Intel, Month Close |
-| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent |
+| **Chief Financial Officer** | `cfo@acme.com` | `demo123` | Dashboard, CFO Copilot, Cash Forecasting, Growth Agent, Campaigns |
 | **Statutory Auditor** | `auditor@acme.com` | `demo123` | Read-only Audit Logs, Vendor Dossiers, Exception History |
 | **Platform Admin** | `admin@razorrecon.ai` | `demo123` | Complete Unrestricted Platform & System Access |
 
@@ -180,6 +185,12 @@ npm run dev -- -p 3001
 | `/api/v1/growth/analyze` | `POST` | Growth | Upsell/cross-sell recommendations & uplift prediction |
 | `/api/v1/growth/sample-baskets` | `GET` | Growth | Predefined merchant industry sample baskets |
 | `/api/v1/growth/affinity-matrix` | `GET` | Growth | Market basket association rules & lift scores |
+| `/api/v1/campaigns` | `GET` | Campaigns | Full campaign orchestrator overview & KPIs |
+| `/api/v1/campaigns/segments` | `GET` | Campaigns | List RFM customer segments |
+| `/api/v1/campaigns/simulate` | `POST` | Campaigns | Price elasticity & discount simulation |
+| `/api/v1/campaigns/generate` | `POST` | Campaigns | AI-generated campaign formulation |
+| `/api/v1/campaigns/{id}/status` | `PATCH` | Campaigns | Toggle campaign active/draft status |
+| `/api/v1/campaigns/{id}` | `DELETE` | Campaigns | Delete campaign |
 | `/api/v1/demo/connect-razorpay` | `POST` | Demo | 1-click full dataset demo generator |
 | `/api/v1/demo/reset` | `POST` | Demo | Reset platform to clean zero-data state |
 
