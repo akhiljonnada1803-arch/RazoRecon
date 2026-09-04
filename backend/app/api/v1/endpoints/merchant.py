@@ -25,67 +25,107 @@ def get_order(order_id: str):
         raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
     return order
 
+# Status Update Routes (Supports PUT, PATCH, POST with query param or body)
+@router.put("/orders/{order_id}/status")
+@router.patch("/orders/{order_id}/status")
+@router.post("/orders/{order_id}/status")
+@router.put("/orders/{order_id}/update-status")
+@router.patch("/orders/{order_id}/update-status")
+@router.post("/orders/{order_id}/update-status")
+def update_order_status_endpoint(
+    order_id: str = Path(..., description="Order ID or Order Number"),
+    status: Optional[str] = Query(None, description="New status in 7-stage pipeline"),
+    notes: Optional[str] = Query(None, description="Optional checkpoint notes"),
+    payload: Optional[Dict[str, Any]] = Body(None)
+):
+    """Update order status in 7-stage workflow (ACCEPTED, PROCESSING, PACKED, COURIER_ASSIGNED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, REJECTED)."""
+    target_status = status
+    target_notes = notes
+
+    if payload:
+        if not target_status and "status" in payload:
+            target_status = payload["status"]
+        if not target_notes and "notes" in payload:
+            target_notes = payload["notes"]
+
+    if not target_status:
+        target_status = "PROCESSING"
+
+    updated = merchant_service.update_order_status(order_id, new_status=target_status, notes=target_notes)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
+    return {"status": "success", "message": f"Status updated to {target_status}", "order": updated}
+
+# Courier Assignment Routes (Supports PUT, PATCH, POST)
+@router.put("/orders/{order_id}/courier")
+@router.patch("/orders/{order_id}/courier")
+@router.post("/orders/{order_id}/courier")
+@router.put("/orders/{order_id}/assign-courier")
+@router.patch("/orders/{order_id}/assign-courier")
+@router.post("/orders/{order_id}/assign-courier")
+def assign_courier_endpoint(
+    order_id: str = Path(..., description="Order ID or Order Number"),
+    courier_name: Optional[str] = Query(None, description="Courier name (Delhivery Express, Blue Dart, Shiprocket, Ekart)"),
+    courier: Optional[str] = Query(None, description="Alias for courier_name"),
+    payload: Optional[Dict[str, Any]] = Body(None)
+):
+    """Assign delivery partner courier and generate AWB tracking ID."""
+    selected_courier = courier_name or courier
+
+    if payload:
+        if not selected_courier and "courier_name" in payload:
+            selected_courier = payload["courier_name"]
+        if not selected_courier and "courier" in payload:
+            selected_courier = payload["courier"]
+
+    if not selected_courier:
+        selected_courier = "Delhivery Express"
+
+    updated = merchant_service.assign_courier(order_id, courier_name=selected_courier)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
+    return {"status": "success", "message": f"Assigned to {selected_courier}", "order": updated}
+
 @router.post("/orders/{order_id}/accept")
+@router.put("/orders/{order_id}/accept")
 def accept_order(order_id: str = Path(...)):
     """Merchant accepts the incoming customer order."""
     updated = merchant_service.accept_order(order_id)
     if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
     return {"status": "success", "message": "Order accepted successfully", "order": updated}
 
 @router.post("/orders/{order_id}/reject")
+@router.put("/orders/{order_id}/reject")
 def reject_order(order_id: str = Path(...), payload: Optional[Dict[str, Any]] = Body(None)):
     """Merchant rejects the incoming customer order."""
     reason = payload.get("reason", "Out of stock / Operational constraint") if payload else "Out of stock"
     updated = merchant_service.reject_order(order_id, reason=reason)
     if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
     return {"status": "success", "message": "Order rejected", "order": updated}
 
 @router.post("/orders/{order_id}/pack")
+@router.put("/orders/{order_id}/pack")
 def pack_order(order_id: str = Path(...)):
     """Mark order as packed and ready for delivery partner pickup."""
     updated = merchant_service.pack_order(order_id)
     if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
     return {"status": "success", "message": "Order packed", "order": updated}
 
-@router.post("/orders/{order_id}/assign-courier")
-def assign_courier(
-    order_id: str = Path(...),
-    payload: Dict[str, Any] = Body(..., example={"courier": "Delhivery"})
-):
-    """Assign delivery partner courier (Delhivery, Blue Dart, Shiprocket, Ekart) and generate AWB tracking ID."""
-    courier = payload.get("courier", "Delhivery")
-    updated = merchant_service.assign_courier(order_id, courier_name=courier)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return {"status": "success", "message": f"Assigned to {courier}", "order": updated}
-
 @router.post("/orders/{order_id}/ship")
+@router.put("/orders/{order_id}/ship")
 def ship_order(
     order_id: str = Path(...),
     payload: Optional[Dict[str, Any]] = Body(None)
 ):
     """Dispatch order with courier partner."""
-    courier = payload.get("courier", "Delhivery") if payload else "Delhivery"
+    courier = payload.get("courier", "Delhivery Express") if payload else "Delhivery Express"
     updated = merchant_service.ship_order(order_id, courier=courier)
     if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
     return {"status": "success", "message": "Order shipped", "order": updated}
-
-@router.post("/orders/{order_id}/update-status")
-def update_order_status(
-    order_id: str = Path(...),
-    payload: Dict[str, Any] = Body(..., example={"status": "DELIVERED", "notes": "Customer signed confirmation"})
-):
-    """Update order status checkpoint in 7-stage workflow."""
-    status = payload.get("status", "DELIVERED")
-    notes = payload.get("notes")
-    updated = merchant_service.update_order_status(order_id, new_status=status, notes=notes)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return {"status": "success", "message": f"Status updated to {status}", "order": updated}
 
 @router.get("/delivery-partners")
 def list_delivery_partners():
@@ -109,8 +149,8 @@ def list_customers():
 
 @router.get("/customers/{customer_id}")
 def get_customer(customer_id: str):
-    """Get single customer profile with preferences and history."""
-    customer = merchant_service.get_customer_by_id(customer_id)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return customer
+    """Get single customer profile details."""
+    cust = merchant_service.get_customer_by_id(customer_id)
+    if not cust:
+        raise HTTPException(status_code=404, detail=f"Customer '{customer_id}' not found")
+    return cust
