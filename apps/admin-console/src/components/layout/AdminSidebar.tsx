@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -28,33 +28,34 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { ADMIN_ROUTES, validateAdminRoute } from '@/routes/admin';
 
-const ADMIN_NAV = [
+export const ADMIN_NAV = [
   {
     title: 'CORE PLATFORM CONSOLE',
     items: [
-      { href: '/admin/dashboard', label: 'Console Overview', icon: LayoutDashboard },
-      { href: '/admin/merchants', label: 'Merchant Approvals', icon: Building2, badge: 'KYC Active' },
-      { href: '/admin/users', label: 'User Directory', icon: Users },
-      { href: '/admin/roles', label: 'RBAC Roles', icon: Shield },
+      { href: ADMIN_ROUTES.DASHBOARD, label: 'Console Overview', icon: LayoutDashboard },
+      { href: ADMIN_ROUTES.MERCHANTS, label: 'Merchant Approvals', icon: Building2, badge: 'KYC Active' },
+      { href: ADMIN_ROUTES.USERS, label: 'User Directory', icon: Users },
+      { href: ADMIN_ROUTES.ROLES, label: 'RBAC Roles', icon: Shield },
     ],
   },
   {
     title: 'TRANSACTIONS & RISK',
     items: [
-      { href: '/admin/payments', label: 'Payment Core', icon: CreditCard, badge: 'Multi-Rail' },
-      { href: '/admin/fraud', label: 'Fraud Monitoring', icon: ShieldAlert, badge: 'AI Guard' },
-      { href: '/admin/disputes', label: 'Disputes & Chargebacks', icon: RotateCcw, badge: '0.02%' },
+      { href: ADMIN_ROUTES.PAYMENTS, label: 'Payment Core', icon: CreditCard, badge: 'Multi-Rail' },
+      { href: ADMIN_ROUTES.FRAUD, label: 'Fraud Monitoring', icon: ShieldAlert, badge: 'AI Guard' },
+      { href: ADMIN_ROUTES.DISPUTES, label: 'Disputes & Chargebacks', icon: RotateCcw, badge: '0.02%' },
     ],
   },
   {
     title: 'INFRASTRUCTURE & APIS',
     items: [
-      { href: '/admin/analytics', label: 'Platform Analytics', icon: Activity, badge: 'Live SLA' },
-      { href: '/admin/protocol-monitoring', label: 'Protocol Monitoring', icon: Server, badge: '99.99%' },
-      { href: '/admin/api-keys', label: 'API Key Management', icon: Key },
-      { href: '/admin/webhooks', label: 'Webhooks & Events', icon: Radio },
-      { href: '/admin/settings', label: 'System Settings', icon: Settings },
+      { href: ADMIN_ROUTES.ANALYTICS, label: 'Platform Analytics', icon: Activity, badge: 'Live SLA' },
+      { href: ADMIN_ROUTES.PROTOCOL_MONITORING, label: 'Protocol Monitoring', icon: Server, badge: '99.99%' },
+      { href: ADMIN_ROUTES.API_KEYS, label: 'API Key Management', icon: Key },
+      { href: ADMIN_ROUTES.WEBHOOKS, label: 'Webhooks & Events', icon: Radio },
+      { href: ADMIN_ROUTES.SETTINGS, label: 'System Settings', icon: Settings },
     ],
   },
 ];
@@ -63,6 +64,15 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Automated Route Validation Audit Check
+  useEffect(() => {
+    ADMIN_NAV.forEach((section) => {
+      section.items.forEach((item) => {
+        validateAdminRoute(item.href);
+      });
+    });
+  }, []);
 
   return (
     <aside 
@@ -74,7 +84,7 @@ export function AdminSidebar() {
       <div className="flex flex-col h-full overflow-hidden">
         {/* 1. Admin Brand Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800 shrink-0 bg-[#050C1B]">
-          <Link href="/admin/dashboard" className="flex items-center gap-2.5 overflow-hidden group">
+          <Link href={ADMIN_ROUTES.DASHBOARD} className="flex items-center gap-2.5 overflow-hidden group">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
               <Server className="h-5 w-5 text-white" />
             </div>
@@ -135,6 +145,7 @@ export function AdminSidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => validateAdminRoute(item.href)}
                     title={isCollapsed ? item.label : undefined}
                     className={cn(
                       'flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group',
