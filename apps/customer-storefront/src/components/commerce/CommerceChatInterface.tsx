@@ -270,6 +270,8 @@ export function CommerceChatInterface({
                     </a>
                   </div>
                 </div>
+              )}
+
               {/* MANDATE REQUIRED / PROCEED TO CHECKOUT ACTION CARD */}
               {msg.flow_step === 'MANDATE_REQUIRED' && (
                 <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl space-y-3 w-full max-w-xl shadow-xs">
