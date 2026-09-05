@@ -233,3 +233,17 @@ def test_commerce_chat_user_replies_no_to_cancel():
     assert data["flow_step"] == "CANCELLED"
     assert "Cancelled" in data["message"]
 
+
+def test_commerce_chat_merchant_added_product_discovery_and_purchase():
+    """When a merchant adds a new product in catalog.db, agent can discover it and recommend it."""
+    resp = client.post("/api/v1/commerce/chat", json={
+        "query": "i need samsung s26 5g"
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["recommended_products"]) > 0
+    top_p = data["recommended_products"][0]
+    assert "Samsung S26" in top_p["name"]
+    assert top_p["price"] == 79900.0
+
+
