@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { apiClient } from '@/lib/api-client';
 import { 
   Store, 
   Mail, 
@@ -20,7 +21,8 @@ import { Input } from '@/components/ui/input';
 
 export default function MerchantRegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const auth = useAuth();
+  const register = auth?.register;
 
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
@@ -64,13 +66,23 @@ export default function MerchantRegisterPage() {
     }
 
     try {
-      await register({
+      const payload = {
         business_name: businessName.trim(),
         email: email.trim().toLowerCase(),
         password,
         gstin: gstin.trim() ? gstin.trim().toUpperCase() : undefined
-      });
-      // AuthContext.register automatically logs in and redirects to /dashboard
+      };
+
+      if (typeof register === 'function') {
+        await register(payload);
+      } else {
+        const resp = await apiClient.post<any>('/auth/register', payload);
+        if (resp && resp.access_token) {
+          localStorage.setItem('razorcommerce_merchant_token', resp.access_token);
+          localStorage.setItem('razorcommerce_merchant_user', JSON.stringify(resp.user));
+          window.location.href = '/dashboard';
+        }
+      }
     } catch (err: any) {
       console.error('Merchant registration failed:', err);
       const rawError = err.message || 'Registration failed. Please check your details.';
