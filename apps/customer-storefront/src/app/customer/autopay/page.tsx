@@ -2,6 +2,47 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { 
+  ShieldCheck, 
+  MapPin, 
+  CreditCard, 
+  ShoppingBag, 
+  CheckCircle2, 
+  Clock, 
+  ArrowRight, 
+  Lock, 
+  Sparkles, 
+  AlertTriangle,
+  ChevronRight,
+  ExternalLink,
+  Info
+} from 'lucide-react';
+
+interface PrerequisiteItem {
+  met: boolean;
+  count: number;
+  label: string;
+  detail: string;
+}
+
+interface OnboardingStatus {
+  is_onboarding_completed: boolean;
+  address_completed: boolean;
+  payment_completed: boolean;
+  payment_skipped: boolean;
+  has_address: boolean;
+  has_payment_method: boolean;
+  has_completed_order: boolean;
+  autopay_eligible: boolean;
+  completed_prerequisites_count: number;
+  total_prerequisites: number;
+  progress_percentage: number;
+  prerequisites: {
+    address: PrerequisiteItem;
+    payment: PrerequisiteItem;
+    order: PrerequisiteItem;
+  };
+}
 
 interface Settings {
   user_id: string;
@@ -113,6 +154,7 @@ export default function CustomerAutoPayPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [activeTab, setActiveTab] = useState<'rules' | 'mandates' | 'recommendations' | 'history'>('rules');
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
 
   // Address picker modal state
   const [showAddressPicker, setShowAddressPicker] = useState(false);
@@ -181,18 +223,38 @@ export default function CustomerAutoPayPage() {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
-      const [dashRes, addrRes] = await Promise.all([
+      const [dashRes, addrRes, onbRes] = await Promise.all([
         fetch('/api/v1/customer/autopay/dashboard', { headers }),
-        fetch('/api/v1/customer/addresses', { headers })
+        fetch('/api/v1/customer/addresses', { headers }),
+        fetch('/api/v1/customer/onboarding/status', { headers })
       ]);
-      if (!dashRes.ok) throw new Error('Failed to load AutoPay data');
-      const data = await dashRes.json();
 
-      setSettings(data.settings);
-      setMandates(data.mandates || []);
-      setRecommendations(data.upcoming_recommendations || []);
-      setLogs(data.execution_history || []);
-      setNotifications(data.notifications || []);
+      if (onbRes.ok) {
+        const onbData = await onbRes.json();
+        setOnboardingStatus(onbData);
+      }
+
+      if (dashRes.ok) {
+        const data = await dashRes.json();
+        setSettings(data.settings);
+        setMandates(data.mandates || []);
+        setRecommendations(data.upcoming_recommendations || []);
+        setLogs(data.execution_history || []);
+        setNotifications(data.notifications || []);
+
+        // Pre-fill form inputs safely
+        if (data.settings) {
+          if (data.settings.monthly_budget !== null && data.settings.monthly_budget !== undefined) {
+            setBudgetInput(data.settings.monthly_budget);
+          }
+          if (data.settings.max_single_purchase_limit !== null && data.settings.max_single_purchase_limit !== undefined) {
+            setSingleLimitInput(data.settings.max_single_purchase_limit);
+          }
+          setSelectedCats(data.settings.allowed_categories || ['HARDWARE', 'SOFTWARE', 'ACCESSORIES', 'SUBSCRIPTIONS']);
+          setMerchantTrust(data.settings.merchant_trust_level || 'VERIFIED_ONLY');
+          setPurchaseMode(data.settings.purchase_mode || 'RECOMMENDATION_ONLY');
+        }
+      }
 
       // Load saved addresses for autopay delivery picker
       if (addrRes.ok) {
@@ -202,19 +264,6 @@ export default function CustomerAutoPayPage() {
         const defaultAddr = addrList.find((a) => a.is_default === 1);
         if (defaultAddr) setSelectedAddressId(defaultAddr.id);
         else if (addrList.length > 0) setSelectedAddressId(addrList[0].id);
-      }
-
-      // Pre-fill form inputs safely
-      if (data.settings) {
-        if (data.settings.monthly_budget !== null && data.settings.monthly_budget !== undefined) {
-          setBudgetInput(data.settings.monthly_budget);
-        }
-        if (data.settings.max_single_purchase_limit !== null && data.settings.max_single_purchase_limit !== undefined) {
-          setSingleLimitInput(data.settings.max_single_purchase_limit);
-        }
-        setSelectedCats(data.settings.allowed_categories || ['HARDWARE', 'SOFTWARE', 'ACCESSORIES', 'SUBSCRIPTIONS']);
-        setMerchantTrust(data.settings.merchant_trust_level || 'VERIFIED_ONLY');
-        setPurchaseMode(data.settings.purchase_mode || 'RECOMMENDATION_ONLY');
       }
     } catch (err: any) {
       console.error(err);
@@ -646,39 +695,297 @@ export default function CustomerAutoPayPage() {
           <span className="text-[#0B72E7] font-semibold">Razorpay AutoPay & Spending Budget</span>
         </div>
 
-        {/* ONBOARDING HERO BANNER: Shown for unconfigured / new customers */}
-        {!isConfigured && (
-          <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-blue-50/90 border-2 border-dashed border-blue-300 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
-            <div className="flex items-start space-x-4">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-3xl flex-shrink-0 shadow-xs">
-                🚀
-              </div>
-              <div>
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[10px] uppercase font-black tracking-wider">
-                    New Account · Unconfigured
-                  </span>
-                  <span className="text-xs text-slate-500 font-medium">AutoPay Disabled · 0 Active Mandates</span>
+        {/* PREREQUISITE PROFILE COMPLETION SCREEN: Shown if any prerequisite is missing */}
+        {onboardingStatus && !onboardingStatus.autopay_eligible ? (
+          <div className="space-y-8 animate-fade-in">
+            {/* Prerequisite Header Card */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center space-x-2.5 mb-2.5">
+                    <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-xs font-bold tracking-wider uppercase flex items-center space-x-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>AutoPay Locked · Prerequisites Required</span>
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">3-Point Customer Verification</span>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-[#072654] tracking-tight">
+                    AI AutoPay Autonomous Restock & Budgeting
+                  </h1>
+                  <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
+                    AI AutoPay lets verified customers automate purchases and refills without manual checkout. To guarantee safety, prevent accidental charges, and confirm shipping coordinates, your account must meet 3 standard prerequisites before AutoPay can be activated.
+                  </p>
                 </div>
-                <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
-                  Complete Your AI AutoPay Setup Wizard
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl leading-relaxed">
-                  Your account starts with zero seeded data and AutoPay disabled. Follow our simple 5-step wizard to authorize a payment method, set spending caps, and activate autonomous restock.
-                </p>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center min-w-[180px] text-center">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completion Status</span>
+                  <div className="text-3xl font-black text-[#072654] mt-1">
+                    {onboardingStatus.completed_prerequisites_count} <span className="text-base font-normal text-slate-400">/ 3</span>
+                  </div>
+                  <span className="text-xs font-bold text-[#0B72E7] mt-0.5">
+                    {onboardingStatus.progress_percentage}% Ready
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-2">
+                  <span>Activation Progress</span>
+                  <span>{onboardingStatus.completed_prerequisites_count} of 3 requirements satisfied</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-[#0B72E7] h-full rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${onboardingStatus.progress_percentage}%` }}
+                  />
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setWizardStep(1);
-                setShowSetupWizard(true);
-              }}
-              className="px-6 py-3.5 bg-[#0B72E7] hover:bg-[#095ec2] text-white font-extrabold text-sm rounded-2xl shadow-md shadow-blue-500/20 transition flex items-center space-x-2 whitespace-nowrap self-start md:self-auto hover:scale-105 active:scale-95"
-            >
-              <span>Launch Setup Wizard (5 Steps) →</span>
-            </button>
+
+            {/* 3 Prerequisite Action Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Prerequisite 1: Delivery Address */}
+              <div className={`bg-white rounded-3xl border p-6 shadow-sm flex flex-col justify-between transition-all ${
+                onboardingStatus.prerequisites.address.met 
+                  ? 'border-emerald-200 ring-1 ring-emerald-100' 
+                  : 'border-slate-200 hover:border-blue-300'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                      onboardingStatus.prerequisites.address.met ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-[#0B72E7]'
+                    }`}>
+                      <MapPin className="w-6 h-6" />
+                    </div>
+                    {onboardingStatus.prerequisites.address.met ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Completed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-base font-bold text-[#072654]">1. Delivery Address</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    A confirmed shipping address is required for dispatching autonomous replenishments to the correct location.
+                  </p>
+
+                  <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                    <span className="font-semibold block mb-0.5 text-slate-500 uppercase text-[10px] tracking-wider">Status</span>
+                    {onboardingStatus.prerequisites.address.detail}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100">
+                  {onboardingStatus.prerequisites.address.met ? (
+                    <div className="flex items-center text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                      <span>Address verified & ready</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href="/onboarding/address?redirect=/customer/autopay"
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0B72E7] hover:bg-[#095ec0] text-white text-xs font-bold rounded-xl shadow-xs transition"
+                    >
+                      <span>+ Add Delivery Address</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Prerequisite 2: Payment Method */}
+              <div className={`bg-white rounded-3xl border p-6 shadow-sm flex flex-col justify-between transition-all ${
+                onboardingStatus.prerequisites.payment.met 
+                  ? 'border-emerald-200 ring-1 ring-emerald-100' 
+                  : 'border-slate-200 hover:border-blue-300'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                      onboardingStatus.prerequisites.payment.met ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-[#0B72E7]'
+                    }`}>
+                      <CreditCard className="w-6 h-6" />
+                    </div>
+                    {onboardingStatus.prerequisites.payment.met ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Authorized
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-base font-bold text-[#072654]">2. Payment Method</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Authorize a UPI AutoPay or Tokenized Card e-Mandate to empower the agent to execute approved buys within budget.
+                  </p>
+
+                  <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                    <span className="font-semibold block mb-0.5 text-slate-500 uppercase text-[10px] tracking-wider">Status</span>
+                    {onboardingStatus.prerequisites.payment.detail}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100">
+                  {onboardingStatus.prerequisites.payment.met ? (
+                    <div className="flex items-center text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                      <span>Payment instrument authorized</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href="/onboarding/payment?redirect=/customer/autopay"
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0B72E7] hover:bg-[#095ec0] text-white text-xs font-bold rounded-xl shadow-xs transition"
+                    >
+                      <span>+ Connect Payment Method</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Prerequisite 3: First Completed Order */}
+              <div className={`bg-white rounded-3xl border p-6 shadow-sm flex flex-col justify-between transition-all ${
+                onboardingStatus.prerequisites.order.met 
+                  ? 'border-emerald-200 ring-1 ring-emerald-100' 
+                  : 'border-slate-200 hover:border-blue-300'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                      onboardingStatus.prerequisites.order.met ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-[#0B72E7]'
+                    }`}>
+                      <ShoppingBag className="w-6 h-6" />
+                    </div>
+                    {onboardingStatus.prerequisites.order.met ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-base font-bold text-[#072654]">3. First Order Completed</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Complete at least 1 verified purchase so our AI models understand your ordering patterns and establish your customer trust score.
+                  </p>
+
+                  <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                    <span className="font-semibold block mb-0.5 text-slate-500 uppercase text-[10px] tracking-wider">Status</span>
+                    {onboardingStatus.prerequisites.order.detail}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-slate-100">
+                  {onboardingStatus.prerequisites.order.met ? (
+                    <div className="flex items-center text-xs font-semibold text-emerald-700">
+                      <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                      <span>Purchase history verified</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href="/products"
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0B72E7] hover:bg-[#095ec0] text-white text-xs font-bold rounded-xl shadow-xs transition"
+                    >
+                      <span>Browse Products & Place Order</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Why Prerequisites Matter Cards */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-3xl p-6 sm:p-8">
+              <h2 className="text-lg font-bold text-[#072654] mb-4 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#0B72E7]" />
+                <span>Why are these prerequisites required?</span>
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0B72E7] flex items-center justify-center mb-3">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 mb-1">Zero Accidental Overspend</h3>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    RBI e-mandate guidelines enforce explicit per-transaction limits. AI cannot initiate charges without strict policy adherence.
+                  </p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 mb-1">Accurate Delivery Routing</h3>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Autonomous restocks dispatch seamlessly to your verified address without requiring repeated coordinate entry.
+                  </p>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs">
+                  <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 mb-1">Tailored Recommendation Cycles</h3>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Order history trains machine learning models on your consumption velocity, preventing premature or duplicate auto-buys.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            {/* ONBOARDING HERO BANNER: Shown for unconfigured / new customers */}
+            {!isConfigured && (
+              <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-blue-50/90 via-indigo-50/40 to-blue-50/90 border-2 border-dashed border-blue-300 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+                <div className="flex items-start space-x-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-3xl flex-shrink-0 shadow-xs">
+                    🚀
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[10px] uppercase font-black tracking-wider">
+                        New Account · Unconfigured
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">AutoPay Disabled · 0 Active Mandates</span>
+                    </div>
+                    <h2 className="text-xl font-extrabold text-[#072654] tracking-tight">
+                      Complete Your AI AutoPay Setup Wizard
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl leading-relaxed">
+                      Your account starts with zero seeded data and AutoPay disabled. Follow our simple 5-step wizard to authorize a payment method, set spending caps, and activate autonomous restock.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setWizardStep(1);
+                    setShowSetupWizard(true);
+                  }}
+                  className="px-6 py-3.5 bg-[#0B72E7] hover:bg-[#095ec2] text-white font-extrabold text-sm rounded-2xl shadow-md shadow-blue-500/20 transition flex items-center space-x-2 whitespace-nowrap self-start md:self-auto hover:scale-105 active:scale-95"
+                >
+                  <span>Launch Setup Wizard (5 Steps) →</span>
+                </button>
+              </div>
+            )}
 
         {/* Hero Header & Live Status Bar */}
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm mb-8">
@@ -1595,12 +1902,14 @@ export default function CustomerAutoPayPage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </main>
 
       {/* ================================================================
           5-STEP SETUP AI AUTOPAY WIZARD MODAL
       ================================================================ */}
-      {showSetupWizard && (
+      {showSetupWizard && onboardingStatus?.autopay_eligible && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}

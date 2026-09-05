@@ -95,6 +95,19 @@ class CustomerOrderService:
                 )
             """)
 
+            # 5. Customer Onboarding Tracking Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS customer_onboarding (
+                    user_id TEXT PRIMARY KEY,
+                    address_completed INTEGER DEFAULT 0,
+                    payment_completed INTEGER DEFAULT 0,
+                    payment_skipped INTEGER DEFAULT 0,
+                    onboarding_completed INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
             conn.commit()
 
             # Seed default addresses if empty
@@ -248,6 +261,140 @@ class CustomerOrderService:
                 cursor.execute("SELECT * FROM customer_addresses WHERE id = ?", (addr_id,))
             row = cursor.fetchone()
             return dict(row) if row else None
+
+    # =========================================================================
+    # CUSTOMER ONBOARDING JOURNEY & PREREQUISITES TRACKING
+    # =========================================================================
+    def get_onboarding_status(self, user_id: str) -> Dict[str, Any]:
+        """
+        Check customer onboarding status and AutoPay prerequisites:
+        Prerequisite 1: At least 1 delivery address exists in customer_addresses.
+        Prerequisite 2: At least 1 payment method / mandate exists.
+        Prerequisite 3: At least 1 completed order exists.
+        AutoPay is strictly locked until all 3 prerequisites are satisfied.
+        """
+        addresses = self.get_addresses(user_id=user_id)
+        orders = self.get_customer_orders(user_id=user_id)
+        
+        # Check mandates / payment methods
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM customer_mandates WHERE user_id = ? AND status = 'ACTIVE'", (user_id,))
+            mandates = [dict(r) for r in cursor.fetchall()]
+
+            cursor.execute("SELECT * FROM customer_onboarding WHERE user_id = ?", (user_id,))
+            ob_row = cursor.fetchone()
+            ob_data = dict(ob_row) if ob_row else None
+
+        has_address = len(addresses) > 0
+        has_payment = len(mandates) > 0
+        has_order = len(orders) > 0
+        payment_skipped = bool(ob_data and ob_data.get("payment_skipped"))
+        is_onboarding_completed = bool(
+            (ob_data and ob_data.get("onboarding_completed")) or 
+            (has_address and (has_payment or payment_skipped))
+        )
+
+        autopay_eligible = bool(has_address and has_payment and has_order)
+
+        prerequisites = {
+            "address": {
+                "met": has_address,
+                "count": len(addresses),
+                "label": "Delivery Address",
+                "detail": f"{len(addresses)} saved address(es)" if has_address else "No delivery address added yet",
+            },
+            "payment": {
+                "met": has_payment,
+                "count": len(mandates),
+                "label": "Payment Method Authorization",
+                "detail": f"{mandates[0]['bank_name']} connected" if has_payment else "No payment method on file",
+            },
+            "order": {
+                "met": has_order,
+                "count": len(orders),
+                "label": "First Completed Order",
+                "detail": f"{len(orders)} order(s) placed" if has_order else "No purchase history available yet",
+            },
+        }
+
+        completed_prereqs = sum(1 for p in prerequisites.values() if p["met"])
+
+        return {
+            "user_id": user_id,
+            "has_address": has_address,
+            "addresses_count": len(addresses),
+            "has_payment_method": has_payment,
+            "payment_methods_count": len(mandates),
+            "payment_skipped": payment_skipped,
+            "has_completed_order": has_order,
+            "orders_count": len(orders),
+            "is_onboarding_completed": is_onboarding_completed,
+            "autopay_eligible": autopay_eligible,
+            "prerequisites": prerequisites,
+            "completed_prerequisites_count": completed_prereqs,
+            "total_prerequisites": 3,
+            "progress_percentage": round((completed_prereqs / 3.0) * 100)
+        }
+
+    def complete_onboarding_address(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Save address as default and advance onboarding step."""
+        data["is_default"] = 1
+        addr = self.add_address(user_id=user_id, data=data)
+        now_str = utcnow_iso()
+
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO customer_onboarding (user_id, address_completed, payment_completed, payment_skipped, onboarding_completed, created_at, updated_at)
+                VALUES (?, 1, 0, 0, 0, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET address_completed = 1, updated_at = ?
+            """, (user_id, now_str, now_str, now_str))
+            conn.commit()
+
+        status = self.get_onboarding_status(user_id)
+        return {
+            "success": True,
+            "address": addr,
+            "onboarding_status": status,
+            "next_step": "/onboarding/payment"
+        }
+
+    def complete_onboarding_payment(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Save payment method or record skipped payment setup."""
+        now_str = utcnow_iso()
+        skipped = bool(data.get("skipped"))
+
+        from app.services.ai_autopay_service import ai_autopay_service
+
+        mandate = None
+        if not skipped and (data.get("account_or_vpa") or data.get("account_number") or data.get("card_number")):
+            mandate = ai_autopay_service.add_mandate(user_id=user_id, data=data)
+
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            if skipped:
+                cursor.execute("""
+                    INSERT INTO customer_onboarding (user_id, address_completed, payment_completed, payment_skipped, onboarding_completed, created_at, updated_at)
+                    VALUES (?, 1, 0, 1, 1, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET payment_skipped = 1, onboarding_completed = 1, updated_at = ?
+                """, (user_id, now_str, now_str, now_str))
+            else:
+                cursor.execute("""
+                    INSERT INTO customer_onboarding (user_id, address_completed, payment_completed, payment_skipped, onboarding_completed, created_at, updated_at)
+                    VALUES (?, 1, 1, 0, 1, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET payment_completed = 1, onboarding_completed = 1, updated_at = ?
+                """, (user_id, now_str, now_str, now_str))
+            conn.commit()
+
+        status = self.get_onboarding_status(user_id)
+        return {
+            "success": True,
+            "skipped": skipped,
+            "mandate": mandate,
+            "onboarding_status": status,
+            "next_step": "/"
+        }
 
     # =========================================================================
     # MULTI-STEP CHECKOUT & ORDER CREATION

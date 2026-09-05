@@ -102,6 +102,75 @@ def set_default_address(
     return updated
 
 # -------------------------------------------------------------
+# ONBOARDING JOURNEY & PREREQUISITES
+# -------------------------------------------------------------
+@router.get("/onboarding/status")
+def get_customer_onboarding_status(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """
+    Get customer onboarding status and AutoPay prerequisites checklist:
+    - address (>= 1 address)
+    - payment (>= 1 payment method)
+    - order (>= 1 completed order)
+    """
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer:
+        eff_id = user_id or "usr_guest"
+    else:
+        eff_id = customer.id
+    return customer_order_service.get_onboarding_status(user_id=eff_id)
+
+@router.post("/onboarding/address")
+def submit_onboarding_address(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """Step 1: Save default delivery address during customer onboarding."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required to save onboarding address")
+    eff_id = customer.id if customer else user_id
+
+    # Validation
+    if not payload.get("full_name") or not payload.get("address_line1") or not payload.get("pincode"):
+        raise HTTPException(status_code=400, detail="Missing required address fields (full_name, address_line1, pincode)")
+
+    return customer_order_service.complete_onboarding_address(user_id=eff_id, data=payload)
+
+@router.post("/onboarding/payment")
+def submit_onboarding_payment(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """Step 2: Add payment method or skip payment setup to complete onboarding."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required to complete onboarding")
+    eff_id = customer.id if customer else user_id
+
+    return customer_order_service.complete_onboarding_payment(user_id=eff_id, data=payload)
+
+@router.get("/payment-methods")
+def get_customer_payment_methods(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """List saved customer payment methods / mandates."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer:
+        return []
+    from app.services.ai_autopay_service import ai_autopay_service
+    return ai_autopay_service.get_mandates(user_id=customer.id)
+
+# -------------------------------------------------------------
 # MULTI-STEP CHECKOUT
 # -------------------------------------------------------------
 @router.post("/checkout")

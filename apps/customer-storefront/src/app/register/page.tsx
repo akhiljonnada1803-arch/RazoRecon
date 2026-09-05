@@ -54,7 +54,8 @@ function RegisterForm() {
 
     const res = await register(name.trim(), email.trim(), password, company.trim() || undefined);
     if (res.success) {
-      router.push(redirectParam);
+      const targetParam = redirectParam && redirectParam !== '/' ? `?redirect=${encodeURIComponent(redirectParam)}` : '';
+      router.push(`/onboarding/address${targetParam}`);
     } else {
       setErrorMsg(res.error || 'Could not register account. Please try again or use the demo login.');
       setIsSubmitting(false);
