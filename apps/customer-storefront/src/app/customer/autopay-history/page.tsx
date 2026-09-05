@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CustomerHeader } from '@/components/layout/CustomerHeader';
 
 interface HistoryItem {
   id: string;
@@ -39,10 +38,20 @@ export default function AgentPurchaseHistoryPage() {
     setTimeout(() => setToastMsg(null), 5000);
   };
 
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('razorcommerce_token') || localStorage.getItem('razorrecon_token'))
+      : null;
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
+
   const loadHistory = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/v1/customer/autopay/history');
+      const res = await fetch('/api/v1/customer/autopay/history', { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to load purchase history');
       const data = await res.json();
       setHistory(data.history || []);
@@ -67,7 +76,7 @@ export default function AgentPurchaseHistoryPage() {
     try {
       const res = await fetch(`/api/v1/customer/autopay/logs/${logId}/refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ reason: 'Customer 1-Click Reversal via AutoPay History' }),
       });
       if (!res.ok) {
@@ -86,8 +95,6 @@ export default function AgentPurchaseHistoryPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      <CustomerHeader />
-
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-20 right-6 z-50 max-w-md animate-bounce-in">

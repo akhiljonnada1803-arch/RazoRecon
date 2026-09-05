@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CustomerHeader } from '@/components/layout/CustomerHeader';
 
 interface Settings {
   user_id: string;
@@ -527,8 +526,6 @@ export default function CustomerAutoPayPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      <CustomerHeader />
-
       {/* ================================================================
           ADDRESS PICKER MODAL
       ================================================================ */}
