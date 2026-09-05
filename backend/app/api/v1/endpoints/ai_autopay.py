@@ -1,17 +1,48 @@
-from fastapi import APIRouter, HTTPException, Query, Path, Body
+from fastapi import APIRouter, HTTPException, Query, Path, Body, Header
 from typing import List, Optional, Dict, Any
 from app.services.ai_autopay_service import ai_autopay_service
+from app.services.auth_service import auth_service
 
 router = APIRouter()
+
+def resolve_customer_user_id(
+    authorization: Optional[str] = None,
+    x_customer_id: Optional[str] = None,
+    user_id: Optional[str] = None
+) -> str:
+    """Resolve customer user ID from JWT Bearer token, custom header, or explicit query param."""
+    if authorization and authorization.startswith("Bearer "):
+        user = auth_service.verify_token(authorization)
+        if user:
+            return user.id
+    if x_customer_id:
+        user = auth_service.get_user_by_id_or_email(x_customer_id)
+        if user:
+            return user.id
+        return x_customer_id
+    if user_id and user_id != "usr_customer_demo":
+        user = auth_service.get_user_by_id_or_email(user_id)
+        if user:
+            return user.id
+        return user_id
+    if user_id == "usr_customer_demo":
+        return "usr_customer_demo"
+    return "usr_customer_guest"
+
 
 # -------------------------------------------------------------
 # DASHBOARD OVERVIEW
 # -------------------------------------------------------------
 @router.get("/dashboard")
-def get_autopay_dashboard(user_id: str = Query("usr_customer_demo")):
+def get_autopay_dashboard(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve full AI AutoPay dashboard: KPIs, active mandates, budget meters, pending recommendations, notifications, and execution history."""
     try:
-        return ai_autopay_service.get_dashboard_summary(user_id=user_id)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.get_dashboard_summary(user_id=effective_uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -19,18 +50,29 @@ def get_autopay_dashboard(user_id: str = Query("usr_customer_demo")):
 # BUDGET & SPENDING RULES CONFIGURATION
 # -------------------------------------------------------------
 @router.get("/settings")
-def get_autopay_settings(user_id: str = Query("usr_customer_demo")):
+def get_autopay_settings(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Get customer's monthly budget, single purchase limits, allowed categories, trust level, and authorization modes."""
     try:
-        return ai_autopay_service.get_settings(user_id=user_id)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.get_settings(user_id=effective_uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/settings")
-def update_autopay_settings(payload: Dict[str, Any] = Body(...), user_id: str = Query("usr_customer_demo")):
+def update_autopay_settings(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Update AutoPay settings, monthly budget, single transaction limit, allowed categories, merchant trust level, and purchase mode."""
     try:
-        return ai_autopay_service.update_settings(user_id=user_id, data=payload)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.update_settings(user_id=effective_uid, data=payload)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -38,18 +80,29 @@ def update_autopay_settings(payload: Dict[str, Any] = Body(...), user_id: str = 
 # RAZORPAY MANDATES (UPI, DEBIT, CREDIT, NETBANKING)
 # -------------------------------------------------------------
 @router.get("/mandates")
-def list_customer_mandates(user_id: str = Query("usr_customer_demo")):
+def list_customer_mandates(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """List registered Razorpay UPI AutoPay, Debit/Credit Card mandates, and NetBanking e-Mandates."""
     try:
-        return ai_autopay_service.get_mandates(user_id=user_id)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.get_mandates(user_id=effective_uid)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/mandates")
-def create_customer_mandate(payload: Dict[str, Any] = Body(...), user_id: str = Query("usr_customer_demo")):
+def create_customer_mandate(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Register and connect a new Razorpay payment mandate with safe masking."""
     try:
-        return ai_autopay_service.add_mandate(user_id=user_id, data=payload)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.add_mandate(user_id=effective_uid, data=payload)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -57,11 +110,14 @@ def create_customer_mandate(payload: Dict[str, Any] = Body(...), user_id: str = 
 def set_mandate_status(
     mandate_id: str = Path(...),
     payload: Dict[str, Any] = Body(...),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Toggle mandate status between ACTIVE, PAUSED, and REVOKED."""
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
     status = payload.get("status", "ACTIVE")
-    res = ai_autopay_service.update_mandate_status(mandate_id=mandate_id, user_id=user_id, status=status)
+    res = ai_autopay_service.update_mandate_status(mandate_id=mandate_id, user_id=effective_uid, status=status)
     if not res:
         raise HTTPException(status_code=404, detail="Mandate not found")
     return res
@@ -70,11 +126,17 @@ def set_mandate_status(
 # PRE-PURCHASE GUARDRAIL VALIDATION
 # -------------------------------------------------------------
 @router.post("/validate-guardrails")
-def validate_guardrails(payload: Dict[str, Any] = Body(...), user_id: str = Query("usr_customer_demo")):
+def validate_guardrails(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Validate all 6 pre-purchase guardrails without placing an order."""
     try:
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
         return ai_autopay_service.validate_autonomous_purchase(
-            user_id=user_id,
+            user_id=effective_uid,
             product_id=payload.get("product_id", "TEST-PROD-001"),
             product_name=payload.get("product_name", "Sample Product"),
             category=payload.get("category", "HARDWARE"),
@@ -91,15 +153,18 @@ def validate_guardrails(payload: Dict[str, Any] = Body(...), user_id: str = Quer
 # -------------------------------------------------------------
 @router.get("/address-preview")
 def get_autopay_address_preview(
-    user_id: str = Query("usr_customer_demo"),
-    address_id: Optional[str] = Query(None)
+    user_id: Optional[str] = Query(None),
+    address_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """
     Preview which shipping address will be used for the next autonomous purchase.
     Returns resolved address + all saved addresses so the UI can present a picker.
     """
     try:
-        return ai_autopay_service.select_address_for_autopay(user_id=user_id, address_id=address_id)
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+        return ai_autopay_service.select_address_for_autopay(user_id=effective_uid, address_id=address_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -107,30 +172,43 @@ def get_autopay_address_preview(
 # AI RECOMMENDATIONS & AUTONOMOUS REPLENISHMENT
 # -------------------------------------------------------------
 @router.get("/recommendations")
-def get_replenishment_recommendations(user_id: str = Query("usr_customer_demo")):
+def get_replenishment_recommendations(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """List upcoming replenishment predictions and recommendations."""
-    return ai_autopay_service.get_recommendations(user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.get_recommendations(user_id=effective_uid)
 
 @router.post("/recommendations/generate")
-def trigger_ai_replenishment_analysis(user_id: str = Query("usr_customer_demo")):
+def trigger_ai_replenishment_analysis(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Run AI replenishment engine analysis to detect inventory depletion and forecast restocking."""
-    return ai_autopay_service.generate_replenishment_recommendations(user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.generate_replenishment_recommendations(user_id=effective_uid)
 
 @router.post("/recommendations/{recommendation_id}/approve")
 def approve_and_execute_recommendation(
     recommendation_id: str = Path(...),
     payload: Dict[str, Any] = Body(default={}),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """
     Approve and trigger immediate AutoPay order execution for an AI recommendation.
     Optionally supply address_id in the request body to override the default delivery address.
     """
     try:
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
         address_id: Optional[str] = payload.get("address_id") or None
         return ai_autopay_service.execute_recommendation(
             recommendation_id=recommendation_id,
-            user_id=user_id,
+            user_id=effective_uid,
             is_customer_action=True,
             address_id=address_id
         )
@@ -143,16 +221,24 @@ def approve_and_execute_recommendation(
 def dismiss_recommendation(
     recommendation_id: str = Path(...),
     payload: Dict[str, Any] = Body(default={}),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Dismiss or reject an AI purchase recommendation."""
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
     reason = payload.get("reason", "Dismissed by customer")
-    return ai_autopay_service.reject_recommendation(recommendation_id=recommendation_id, user_id=user_id, reason=reason)
+    return ai_autopay_service.reject_recommendation(recommendation_id=recommendation_id, user_id=effective_uid, reason=reason)
 
 @router.post("/execute-autonomous-cycle")
-def trigger_autonomous_replenishment_cycle(user_id: str = Query("usr_customer_demo")):
+def trigger_autonomous_replenishment_cycle(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Trigger background autonomous purchase evaluation for all eligible replenishment items."""
-    return ai_autopay_service.run_autonomous_replenishment_cycle(user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.run_autonomous_replenishment_cycle(user_id=effective_uid)
 
 # -------------------------------------------------------------
 # 1-CLICK REVERSIBLE REFUND WORKFLOW
@@ -161,12 +247,15 @@ def trigger_autonomous_replenishment_cycle(user_id: str = Query("usr_customer_de
 def reverse_and_refund_autonomous_purchase(
     log_id: str = Path(...),
     payload: Dict[str, Any] = Body(default={}),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Reverse an AI autonomous purchase, restore the customer's monthly allowance, and create refund audit logs."""
     try:
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
         reason = payload.get("reason", "Customer requested reversal via 1-Click Refund")
-        return ai_autopay_service.refund_autonomous_purchase(log_id=log_id, user_id=user_id, reason=reason)
+        return ai_autopay_service.refund_autonomous_purchase(log_id=log_id, user_id=effective_uid, reason=reason)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -180,24 +269,17 @@ def reverse_and_refund_autonomous_purchase(
 @router.post("/one-click-buy")
 def execute_agent_one_click_purchase(
     payload: Dict[str, Any] = Body(default={}),
-    user_id: Optional[str] = Query(None)
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """
     Execute 1-Click Agent Purchase / Buy via AutoPay:
     POST /api/v1/customer/autopay or POST /customer/autopay
-
-    Validations & Execution:
-    1. Validates customer login & resolves user profile
-    2. Checks linked payment mandate (UPI AutoPay / Card / NetBanking)
-    3. Checks monthly spending limit & single transaction limit
-    4. Creates customer order in double-entry system
-    5. Creates Razorpay payment request / transaction
-    6. Returns structured success response
     """
     try:
-        # 1. Validate Customer Login & Identity
-        resolved_user_id = user_id or payload.get("user_id") or payload.get("customer_id") or "usr_customer_demo"
-        
+        effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id or payload.get("user_id") or payload.get("customer_id"))
+
         # Extract product or item details
         product_id = payload.get("product_id")
         items = payload.get("items") or []
@@ -216,11 +298,10 @@ def execute_agent_one_click_purchase(
         reason = payload.get("reason") or payload.get("custom_reason") or "Customer 1-Click AutoPay Purchase"
         address_id: Optional[str] = payload.get("address_id") or None
 
-        # 2-6. Execute AutoPay (Checks mandate, spending limits, creates order, creates payment request, returns success)
         res = ai_autopay_service.direct_one_click_buy(
             product_id=product_id,
             quantity=quantity,
-            user_id=resolved_user_id,
+            user_id=effective_uid,
             custom_reason=reason,
             product_name=product_name,
             unit_price=unit_price,
@@ -239,7 +320,7 @@ def execute_agent_one_click_purchase(
             "order_id": res.get("order_id"),
             "execution_id": res.get("execution_id"),
             "payment_id": f"pay_rzp_autopay_{res.get('order_id', '')}",
-            "payment_method": conf.get("payment_method") or "UPI AutoPay (akhil@okhdfcbank)",
+            "payment_method": conf.get("payment_method") or "UPI AutoPay",
             "amount": conf.get("total") or unit_price or 14999.0,
             "spent_this_month": conf.get("spent_this_month"),
             "remaining_budget": conf.get("remaining_budget"),
@@ -252,12 +333,15 @@ def execute_agent_one_click_purchase(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AutoPay purchase failed: {str(e)}")
 
-
-
 @router.get("/history")
-def get_agent_purchase_history(user_id: str = Query("usr_customer_demo")):
+def get_agent_purchase_history(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve full chronological purchase audit trail for /customer/autopay-history."""
-    summary = ai_autopay_service.get_dashboard_summary(user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    summary = ai_autopay_service.get_dashboard_summary(user_id=effective_uid)
     return {
         "kpis": summary["kpis"],
         "history": summary["execution_history"],
@@ -269,19 +353,33 @@ def get_agent_purchase_history(user_id: str = Query("usr_customer_demo")):
 # NOTIFICATIONS SYSTEM
 # -------------------------------------------------------------
 @router.get("/notifications")
-def get_customer_notifications(user_id: str = Query("usr_customer_demo"), limit: int = Query(20)):
+def get_customer_notifications(
+    user_id: Optional[str] = Query(None),
+    limit: int = Query(20),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve customer in-app notifications and alerts."""
-    return ai_autopay_service.get_notifications(user_id=user_id, limit=limit)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.get_notifications(user_id=effective_uid, limit=limit)
 
 @router.post("/notifications/{notification_id}/read")
 def mark_notification_as_read(
     notification_id: str = Path(...),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Mark a notification as read."""
-    return ai_autopay_service.mark_notification_read(notif_id=notification_id, user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.mark_notification_read(notif_id=notification_id, user_id=effective_uid)
 
 @router.post("/notifications/mark-all-read")
-def mark_all_notifications_as_read(user_id: str = Query("usr_customer_demo")):
+def mark_all_notifications_as_read(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Mark all notifications for this customer as read."""
-    return ai_autopay_service.mark_all_notifications_read(user_id=user_id)
+    effective_uid = resolve_customer_user_id(authorization, x_customer_id, user_id)
+    return ai_autopay_service.mark_all_notifications_read(user_id=effective_uid)

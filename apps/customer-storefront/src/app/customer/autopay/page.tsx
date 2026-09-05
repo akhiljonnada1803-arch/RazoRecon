@@ -6,16 +6,17 @@ import { CustomerHeader } from '@/components/layout/CustomerHeader';
 
 interface Settings {
   user_id: string;
-  monthly_budget: number;
+  monthly_budget: number | null;
   spent_this_month: number;
-  max_single_purchase_limit: number;
+  max_single_purchase_limit: number | null;
   allowed_categories: string[];
   merchant_trust_level: string;
   purchase_mode: string;
-  approval_threshold: number;
+  approval_threshold: number | null;
   autopay_enabled: boolean;
+  is_configured?: boolean;
   connected_mandate_id?: string;
-  remaining_budget: number;
+  remaining_budget: number | null;
   spent_percentage: number;
   last_autonomous_purchase?: {
     product_name: string;
@@ -125,7 +126,7 @@ export default function CustomerAutoPayPage() {
   const [singleLimitInput, setSingleLimitInput] = useState<number>(5000);
   const [selectedCats, setSelectedCats] = useState<string[]>(['HARDWARE', 'SOFTWARE', 'ACCESSORIES', 'SUBSCRIPTIONS']);
   const [merchantTrust, setMerchantTrust] = useState<string>('VERIFIED_ONLY');
-  const [purchaseMode, setPurchaseMode] = useState<string>('AUTO_BUY');
+  const [purchaseMode, setPurchaseMode] = useState<string>('RECOMMENDATION_ONLY');
   const [savingRules, setSavingRules] = useState(false);
   const [rulesSuccessMsg, setRulesSuccessMsg] = useState('');
 
@@ -147,6 +148,31 @@ export default function CustomerAutoPayPage() {
   const [runningAutoCycle, setRunningAutoCycle] = useState(false);
   const [autoCycleResult, setAutoCycleResult] = useState<any | null>(null);
 
+  // 5-Step Setup AI AutoPay Wizard State
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [wizardPaymentType, setWizardPaymentType] = useState<string>('UPI_AUTOPAY');
+  const [wizardBankName, setWizardBankName] = useState<string>('HDFC Bank');
+  const [wizardAccount, setWizardAccount] = useState<string>('');
+  const [wizardCardExpiry, setWizardCardExpiry] = useState<string>('12/28');
+  const [wizardMandateMaxAmount, setWizardMandateMaxAmount] = useState<number>(25000);
+  const [wizardBudget, setWizardBudget] = useState<number>(25000);
+  const [wizardSingleLimit, setWizardSingleLimit] = useState<number>(5000);
+  const [wizardCategories, setWizardCategories] = useState<string[]>(['HARDWARE', 'SOFTWARE', 'ACCESSORIES', 'SUBSCRIPTIONS']);
+  const [wizardMode, setWizardMode] = useState<string>('AUTO_BUY');
+  const [wizardEnableAutoPay, setWizardEnableAutoPay] = useState<boolean>(true);
+  const [completingWizard, setCompletingWizard] = useState<boolean>(false);
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('razorcommerce_token') || localStorage.getItem('razorrecon_token'))
+      : null;
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
+
   const showToast = (title: string, desc: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ title, desc, type });
     setTimeout(() => setToastMsg(null), 5000);
@@ -155,9 +181,10 @@ export default function CustomerAutoPayPage() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      const headers = getAuthHeaders();
       const [dashRes, addrRes] = await Promise.all([
-        fetch('/api/v1/customer/autopay/dashboard'),
-        fetch('/api/v1/customer/addresses')
+        fetch('/api/v1/customer/autopay/dashboard', { headers }),
+        fetch('/api/v1/customer/addresses', { headers })
       ]);
       if (!dashRes.ok) throw new Error('Failed to load AutoPay data');
       const data = await dashRes.json();
@@ -173,19 +200,22 @@ export default function CustomerAutoPayPage() {
         const addrData = await addrRes.json();
         const addrList: Address[] = Array.isArray(addrData) ? addrData : (addrData.addresses || []);
         setAddresses(addrList);
-        // Pre-select the default address
         const defaultAddr = addrList.find((a) => a.is_default === 1);
         if (defaultAddr) setSelectedAddressId(defaultAddr.id);
         else if (addrList.length > 0) setSelectedAddressId(addrList[0].id);
       }
 
-      // Pre-fill form inputs
+      // Pre-fill form inputs safely
       if (data.settings) {
-        setBudgetInput(data.settings.monthly_budget);
-        setSingleLimitInput(data.settings.max_single_purchase_limit);
+        if (data.settings.monthly_budget !== null && data.settings.monthly_budget !== undefined) {
+          setBudgetInput(data.settings.monthly_budget);
+        }
+        if (data.settings.max_single_purchase_limit !== null && data.settings.max_single_purchase_limit !== undefined) {
+          setSingleLimitInput(data.settings.max_single_purchase_limit);
+        }
         setSelectedCats(data.settings.allowed_categories || ['HARDWARE', 'SOFTWARE', 'ACCESSORIES', 'SUBSCRIPTIONS']);
         setMerchantTrust(data.settings.merchant_trust_level || 'VERIFIED_ONLY');
-        setPurchaseMode(data.settings.purchase_mode || 'AUTO_BUY');
+        setPurchaseMode(data.settings.purchase_mode || 'RECOMMENDATION_ONLY');
       }
     } catch (err: any) {
       console.error(err);
@@ -206,15 +236,15 @@ export default function CustomerAutoPayPage() {
     try {
       const res = await fetch('/api/v1/customer/autopay/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ autopay_enabled: newStatus }),
       });
       if (!res.ok) throw new Error('Failed to update AutoPay status');
       const updated = await res.json();
       setSettings(updated);
       showToast(
-        newStatus ? 'AutoPay Activated' : 'AutoPay Paused',
-        newStatus ? 'Autonomous purchasing is now enabled within your spending limits.' : 'Autonomous purchasing is paused. No auto-buys will execute.',
+        newStatus ? 'AutoPay Activated' : 'AutoPay Disabled',
+        newStatus ? 'Autonomous purchasing is now enabled within your spending limits.' : 'Autonomous purchasing is disabled. No auto-buys will execute.',
         newStatus ? 'success' : 'info'
       );
       fetchDashboardData();
@@ -231,7 +261,7 @@ export default function CustomerAutoPayPage() {
     try {
       const res = await fetch('/api/v1/customer/autopay/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           monthly_budget: budgetInput,
           max_single_purchase_limit: singleLimitInput,
@@ -265,7 +295,7 @@ export default function CustomerAutoPayPage() {
     try {
       const res = await fetch('/api/v1/customer/autopay/mandates', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: mandateType,
           bank_name: bankName,
@@ -288,10 +318,66 @@ export default function CustomerAutoPayPage() {
     }
   };
 
-  // 4. Open Address Picker before approving a recommendation
+  // 4. Complete Setup Wizard (5 Steps)
+  const handleCompleteSetupWizard = async () => {
+    if (!wizardAccount.trim()) {
+      showToast('Missing Details', 'Please enter UPI ID, Card Number, or Bank Account number.', 'error');
+      setWizardStep(2);
+      return;
+    }
+    setCompletingWizard(true);
+    try {
+      // Step 1 & 2: Create Mandate
+      const mandateRes = await fetch('/api/v1/customer/autopay/mandates', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          type: wizardPaymentType,
+          bank_name: wizardBankName,
+          account_or_vpa: wizardAccount,
+          max_amount: wizardMandateMaxAmount,
+        }),
+      });
+      if (!mandateRes.ok) {
+        const errData = await mandateRes.json();
+        throw new Error(errData.detail || 'Failed to authorize mandate');
+      }
+
+      // Step 3, 4 & 5: Update Settings & Enable AutoPay
+      const settingsRes = await fetch('/api/v1/customer/autopay/settings', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          monthly_budget: wizardBudget,
+          max_single_purchase_limit: wizardSingleLimit,
+          allowed_categories: wizardCategories,
+          merchant_trust_level: 'VERIFIED_ONLY',
+          purchase_mode: wizardMode,
+          autopay_enabled: wizardEnableAutoPay,
+        }),
+      });
+      if (!settingsRes.ok) {
+        const errData = await settingsRes.json();
+        throw new Error(errData.detail || 'Failed to save settings');
+      }
+
+      showToast(
+        'AutoPay Setup Complete! 🎉',
+        `Mandate connected with ${wizardBankName} and monthly budget of ₹${wizardBudget.toLocaleString('en-IN')} configured.`,
+        'success'
+      );
+      setShowSetupWizard(false);
+      fetchDashboardData();
+    } catch (err: any) {
+      showToast('Setup Failed', err.message, 'error');
+    } finally {
+      setCompletingWizard(false);
+    }
+  };
+
+  // 5. Open Address Picker before approving a recommendation
   const handleOpenAddressPicker = (recId: string, recName: string) => {
     if (addresses.length === 0) {
-      // No addresses — approve immediately, backend will surface the structured error
       handleConfirmAndApprove(recId, recName, null);
       return;
     }
@@ -300,7 +386,7 @@ export default function CustomerAutoPayPage() {
     setShowAddressPicker(true);
   };
 
-  // 4b. Confirm address selection and execute purchase
+  // 5b. Confirm address selection and execute purchase
   const handleConfirmAndApprove = async (recId: string, recName: string, addrId: string | null) => {
     setShowAddressPicker(false);
     setActionLoadingId(recId);
@@ -309,7 +395,7 @@ export default function CustomerAutoPayPage() {
       if (addrId) body.address_id = addrId;
       const res = await fetch(`/api/v1/customer/autopay/recommendations/${recId}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -333,12 +419,12 @@ export default function CustomerAutoPayPage() {
     }
   };
 
-  // 5. Dismiss Recommendation
+  // 6. Dismiss Recommendation
   const handleDismissRecommendation = async (recId: string) => {
     try {
       await fetch(`/api/v1/customer/autopay/recommendations/${recId}/reject`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ reason: 'Dismissed by customer' }),
       });
       showToast('Recommendation Dismissed', 'Item removed from upcoming replenishment feed.', 'info');
@@ -348,13 +434,14 @@ export default function CustomerAutoPayPage() {
     }
   };
 
-  // 6. Run Autonomous AI Cycle
+  // 7. Run Autonomous AI Cycle
   const handleRunAutonomousCycle = async () => {
     setRunningAutoCycle(true);
     setAutoCycleResult(null);
     try {
       const res = await fetch('/api/v1/customer/autopay/execute-autonomous-cycle', {
         method: 'POST',
+        headers: getAuthHeaders(),
       });
       const data = await res.json();
       setAutoCycleResult(data);
@@ -371,7 +458,7 @@ export default function CustomerAutoPayPage() {
     }
   };
 
-  // 7. 1-Click Reversible Refund / Reversal
+  // 8. 1-Click Reversible Refund / Reversal
   const handleRefundPurchase = async (logId: string, orderId: string, amount: number) => {
     if (!confirm(`Are you sure you want to reverse Order ${orderId}? ₹${amount.toLocaleString('en-IN')} will be credited back to your monthly budget allowance.`)) {
       return;
@@ -380,7 +467,7 @@ export default function CustomerAutoPayPage() {
     try {
       const res = await fetch(`/api/v1/customer/autopay/logs/${logId}/refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ reason: 'Customer requested 1-Click Reversal' }),
       });
       if (!res.ok) {
@@ -397,10 +484,13 @@ export default function CustomerAutoPayPage() {
     }
   };
 
-  // 8. Notifications helpers
+  // 9. Notifications helpers
   const handleMarkAllRead = async () => {
     try {
-      await fetch('/api/v1/customer/autopay/notifications/mark-all-read', { method: 'POST' });
+      await fetch('/api/v1/customer/autopay/notifications/mark-all-read', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
       setNotifications(notifications.map(n => ({ ...n, is_read: true })));
     } catch (err) {
       console.error(err);
@@ -421,19 +511,30 @@ export default function CustomerAutoPayPage() {
     }
   };
 
+  const toggleWizardCategory = (cat: string) => {
+    if (wizardCategories.includes(cat)) {
+      if (wizardCategories.length === 1) {
+        showToast('Rule Requirement', 'You must have at least one allowed product category selected.', 'info');
+        return;
+      }
+      setWizardCategories(wizardCategories.filter(c => c !== cat));
+    } else {
+      setWizardCategories([...wizardCategories, cat]);
+    }
+  };
+
+  const isConfigured = settings?.is_configured ?? (settings?.monthly_budget !== null && settings?.monthly_budget !== undefined);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       <CustomerHeader />
 
       {/* ================================================================
           ADDRESS PICKER MODAL
-          Shown before approving any AI recommendation so the customer
-          can confirm or change the delivery address.
       ================================================================ */}
       {showAddressPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden">
-            {/* Modal Header */}
             <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-extrabold text-white">📍 Confirm Delivery Address</h2>
@@ -445,7 +546,6 @@ export default function CustomerAutoPayPage() {
               >✕</button>
             </div>
 
-            {/* Address list */}
             <div className="px-6 py-4 space-y-3 max-h-72 overflow-y-auto">
               {addresses.length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-sm">
@@ -496,7 +596,6 @@ export default function CustomerAutoPayPage() {
               )}
             </div>
 
-            {/* Modal Footer Actions */}
             <div className="px-6 py-4 border-t border-slate-800 flex items-center space-x-3">
               <button
                 onClick={() => { setShowAddressPicker(false); setPendingRecId(null); }}
@@ -547,6 +646,40 @@ export default function CustomerAutoPayPage() {
           <span className="text-indigo-400 font-semibold">Razorpay AutoPay & Spending Budget</span>
         </div>
 
+        {/* ONBOARDING HERO BANNER: Shown for unconfigured / new customers */}
+        {!isConfigured && (
+          <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border-2 border-dashed border-indigo-500/40 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-2xl">
+            <div className="flex items-start space-x-4">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-3xl flex-shrink-0">
+                🚀
+              </div>
+              <div>
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[10px] uppercase font-black tracking-wider">
+                    New Account · Unconfigured
+                  </span>
+                  <span className="text-xs text-slate-400">AutoPay Disabled · 0 Active Mandates</span>
+                </div>
+                <h2 className="text-xl font-black text-white tracking-tight">
+                  Complete Your AI AutoPay Setup Wizard
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
+                  Your account starts with zero seeded data and AutoPay disabled. Follow our simple 5-step wizard to authorize a payment method, set spending caps, and activate autonomous restock.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setWizardStep(1);
+                setShowSetupWizard(true);
+              }}
+              className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm rounded-2xl shadow-xl shadow-indigo-600/30 transition flex items-center space-x-2 whitespace-nowrap self-start md:self-auto hover:scale-105 active:scale-95"
+            >
+              <span>Launch Setup Wizard (5 Steps) →</span>
+            </button>
+          </div>
+        )}
+
         {/* Hero Header & Live Status Bar */}
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-900 border border-indigo-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl mb-8">
           <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -z-0 pointer-events-none" />
@@ -568,8 +701,19 @@ export default function CustomerAutoPayPage() {
               </p>
             </div>
 
-            {/* Master AutoPay Switch & Controls */}
+            {/* Controls */}
             <div className="flex items-center space-x-4">
+              {/* Setup Wizard button */}
+              <button
+                onClick={() => {
+                  setWizardStep(1);
+                  setShowSetupWizard(true);
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl text-slate-200 hover:text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-lg"
+              >
+                <span>🪄 Setup Wizard</span>
+              </button>
+
               {/* Notification Bell Button */}
               <button
                 onClick={() => setShowNotifDrawer(true)}
@@ -594,7 +738,7 @@ export default function CustomerAutoPayPage() {
                     <span>AutoPay Status</span>
                   </div>
                   <div className={`text-[11px] font-bold ${settings?.autopay_enabled ? 'text-emerald-400' : 'text-slate-400'}`}>
-                    {settings?.autopay_enabled ? 'ACTIVE & AUTHORIZED' : 'PAUSED'}
+                    {settings?.autopay_enabled ? 'ACTIVE & AUTHORIZED' : 'DISABLED'}
                   </div>
                 </div>
 
@@ -620,53 +764,74 @@ export default function CustomerAutoPayPage() {
           {/* Section 1: 4-KPI Metric Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
             {/* KPI 1: Monthly Budget */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
-                <span>Monthly Budget</span>
-                <span className="text-indigo-400">{settings?.spent_percentage || 0}% Used</span>
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+                  <span>Monthly Budget</span>
+                  <span className={settings?.monthly_budget !== null && settings?.monthly_budget !== undefined ? 'text-indigo-400' : 'text-slate-500'}>
+                    {settings?.monthly_budget !== null && settings?.monthly_budget !== undefined ? `${settings?.spent_percentage || 0}% Used` : 'Not Configured'}
+                  </span>
+                </div>
+                <div className={`text-2xl font-black ${settings?.monthly_budget !== null && settings?.monthly_budget !== undefined ? 'text-white' : 'text-slate-400'}`}>
+                  {settings?.monthly_budget !== null && settings?.monthly_budget !== undefined
+                    ? `₹${settings.monthly_budget.toLocaleString('en-IN')}`
+                    : 'Not Set'}
+                </div>
               </div>
-              <div className="text-2xl font-black text-white">
-                ₹{(settings?.monthly_budget || 25000).toLocaleString('en-IN')}
-              </div>
+
               {/* Progress meter */}
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-3">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    (settings?.spent_percentage || 0) > 85 ? 'bg-rose-500' :
-                    (settings?.spent_percentage || 0) > 60 ? 'bg-amber-400' :
-                    'bg-indigo-500'
-                  }`}
-                  style={{ width: `${Math.min(100, settings?.spent_percentage || 0)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-400 mt-2">
-                <span>Spent: <strong className="text-slate-200">₹{(settings?.spent_this_month || 0).toLocaleString('en-IN')}</strong></span>
-                <span>Left: <strong className="text-emerald-400">₹{(settings?.remaining_budget || 0).toLocaleString('en-IN')}</strong></span>
+              <div>
+                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden mt-3">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      (settings?.spent_percentage || 0) > 85 ? 'bg-rose-500' :
+                      (settings?.spent_percentage || 0) > 60 ? 'bg-amber-400' :
+                      'bg-indigo-500'
+                    }`}
+                    style={{ width: `${settings?.monthly_budget ? Math.min(100, settings?.spent_percentage || 0) : 0}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-400 mt-2">
+                  <span>Spent: <strong className="text-slate-200">₹{(settings?.spent_this_month || 0).toLocaleString('en-IN')}</strong></span>
+                  <span>Left: <strong className="text-emerald-400">
+                    {settings?.monthly_budget !== null && settings?.monthly_budget !== undefined
+                      ? `₹${(settings.remaining_budget || 0).toLocaleString('en-IN')}`
+                      : 'Not Set'}
+                  </strong></span>
+                </div>
               </div>
             </div>
 
             {/* KPI 2: Max Single Purchase Cap */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg">
-              <div className="text-xs text-slate-400 font-semibold mb-1">Max Single Purchase Cap</div>
-              <div className="text-2xl font-black text-amber-400">
-                ₹{(settings?.max_single_purchase_limit || 5000).toLocaleString('en-IN')}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="text-xs text-slate-400 font-semibold mb-1">Max Single Purchase Cap</div>
+                <div className={`text-2xl font-black ${settings?.max_single_purchase_limit !== null && settings?.max_single_purchase_limit !== undefined ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {settings?.max_single_purchase_limit !== null && settings?.max_single_purchase_limit !== undefined
+                    ? `₹${settings.max_single_purchase_limit.toLocaleString('en-IN')}`
+                    : 'Not Set'}
+                </div>
               </div>
               <p className="text-[11px] text-slate-400 mt-2 leading-tight">
-                Any autonomous order exceeding this cap is automatically blocked and requires approval.
+                {settings?.max_single_purchase_limit !== null && settings?.max_single_purchase_limit !== undefined
+                  ? 'Orders exceeding this cap are blocked from autonomous execution and require manual approval.'
+                  : 'Define a single purchase cap to guard against unexpected debits.'}
               </p>
             </div>
 
             {/* KPI 3: AI Purchase Mode */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg">
-              <div className="text-xs text-slate-400 font-semibold mb-1">Purchase Authorization Mode</div>
-              <div className="flex items-center space-x-2 mt-1">
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wide uppercase ${
-                  settings?.purchase_mode === 'AUTO_BUY'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                }`}>
-                  {settings?.purchase_mode === 'AUTO_BUY' ? 'Mode B: Auto Buy' : 'Mode A: Recommendations'}
-                </span>
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="text-xs text-slate-400 font-semibold mb-1">Purchase Authorization Mode</div>
+                <div className="flex items-center space-x-2 mt-1">
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wide uppercase ${
+                    settings?.purchase_mode === 'AUTO_BUY'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+                  }`}>
+                    {settings?.purchase_mode === 'AUTO_BUY' ? 'Mode B: Auto Buy' : 'Mode A: Recommendation Only'}
+                  </span>
+                </div>
               </div>
               <p className="text-[11px] text-slate-400 mt-2 leading-tight">
                 {settings?.purchase_mode === 'AUTO_BUY'
@@ -676,31 +841,36 @@ export default function CustomerAutoPayPage() {
             </div>
 
             {/* KPI 4: Connected Primary Mandate */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg">
-              <div className="text-xs text-slate-400 font-semibold mb-1">Connected Payment Method</div>
-              {mandates.length > 0 ? (
-                <div className="mt-1">
-                  <div className="text-sm font-bold text-white truncate flex items-center space-x-1.5">
-                    <span className="text-indigo-400">⚡</span>
-                    <span>{mandates[0].bank_name}</span>
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="text-xs text-slate-400 font-semibold mb-1">Connected Payment Method</div>
+                {mandates.length > 0 ? (
+                  <div className="mt-1">
+                    <div className="text-sm font-bold text-white truncate flex items-center space-x-1.5">
+                      <span className="text-indigo-400">⚡</span>
+                      <span>{mandates[0].bank_name}</span>
+                    </div>
+                    <div className="text-xs font-mono text-slate-300 truncate mt-0.5">
+                      {mandates[0].account_or_vpa_masked}
+                    </div>
+                    <div className="text-[11px] text-emerald-400 font-semibold mt-1">
+                      ✓ Mandate Active (Max ₹{mandates[0].max_amount.toLocaleString('en-IN')})
+                    </div>
                   </div>
-                  <div className="text-xs font-mono text-slate-300 truncate mt-0.5">
-                    {mandates[0].account_or_vpa_masked}
+                ) : (
+                  <div className="mt-2">
+                    <div className="text-xs text-rose-400 font-bold">No Mandates (0 Active)</div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Payment method authorization required.</p>
                   </div>
-                  <div className="text-[11px] text-emerald-400 font-semibold mt-1">
-                    ✓ Mandate Active (Max ₹{mandates[0].max_amount.toLocaleString('en-IN')})
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2">
-                  <div className="text-xs text-rose-400 font-bold">No Mandate Connected</div>
-                  <button
-                    onClick={() => setShowMandateModal(true)}
-                    className="mt-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1 rounded-lg transition"
-                  >
-                    + Connect Mandate
-                  </button>
-                </div>
+                )}
+              </div>
+              {mandates.length === 0 && (
+                <button
+                  onClick={() => setShowMandateModal(true)}
+                  className="mt-3 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-xl transition w-full"
+                >
+                  + Connect Mandate
+                </button>
               )}
             </div>
           </div>
@@ -801,7 +971,7 @@ export default function CustomerAutoPayPage() {
                     <p className="text-xs text-slate-400 mt-0.5">Customize your monthly limits, transaction caps, and allowed categories.</p>
                   </div>
                   <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-bold">
-                    Guardrails Active
+                    Guardrails Engine
                   </span>
                 </div>
 
@@ -834,7 +1004,7 @@ export default function CustomerAutoPayPage() {
                         value={budgetInput}
                         onChange={(e) => setBudgetInput(Number(e.target.value))}
                         className="w-full pl-9 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-bold text-base focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                        placeholder="Custom amount (e.g. 35000)"
+                        placeholder="Custom amount (e.g. 25000)"
                         min={1000}
                         required
                       />
@@ -869,7 +1039,7 @@ export default function CustomerAutoPayPage() {
                         value={singleLimitInput}
                         onChange={(e) => setSingleLimitInput(Number(e.target.value))}
                         className="w-full pl-9 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-bold text-base focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                        placeholder="Custom amount (e.g. 7500)"
+                        placeholder="Custom amount (e.g. 5000)"
                         min={100}
                         required
                       />
@@ -948,107 +1118,108 @@ export default function CustomerAutoPayPage() {
                       AI Purchase Authorization Mode
                     </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Mode A */}
                       <div
                         onClick={() => setPurchaseMode('RECOMMENDATION_ONLY')}
-                        className={`p-5 rounded-2xl border cursor-pointer transition ${
+                        className={`p-4 rounded-2xl border cursor-pointer transition ${
                           purchaseMode === 'RECOMMENDATION_ONLY'
-                            ? 'bg-indigo-950/70 border-indigo-500 shadow-xl'
-                            : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800/70'
+                            ? 'bg-indigo-950/80 border-indigo-500 ring-2 ring-indigo-500/40'
+                            : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-extrabold text-white">Mode A: Recommendation Only</span>
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Manual</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-extrabold text-indigo-300 uppercase tracking-wider">Mode A</span>
+                          <input
+                            type="radio"
+                            name="purchaseMode"
+                            checked={purchaseMode === 'RECOMMENDATION_ONLY'}
+                            onChange={() => {}}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
                         </div>
-                        <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                          AI analyzes consumption rates and forecasts restocking. You review and approve every order manually.
+                        <h4 className="text-sm font-extrabold text-white">Recommendations Only</h4>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          AI generates restock suggestions with explainability. You manually review & click to approve every purchase.
                         </p>
                       </div>
 
-                      {/* Mode B */}
                       <div
                         onClick={() => setPurchaseMode('AUTO_BUY')}
-                        className={`p-5 rounded-2xl border cursor-pointer transition ${
+                        className={`p-4 rounded-2xl border cursor-pointer transition ${
                           purchaseMode === 'AUTO_BUY'
-                            ? 'bg-emerald-950/70 border-emerald-500 shadow-xl'
-                            : 'bg-slate-800/40 border-slate-700 hover:bg-slate-800/70'
+                            ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40'
+                            : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-extrabold text-white">Mode B: Auto Buy</span>
-                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Autonomous</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">Mode B (Autonomous)</span>
+                          <input
+                            type="radio"
+                            name="purchaseMode"
+                            checked={purchaseMode === 'AUTO_BUY'}
+                            onChange={() => {}}
+                            className="text-emerald-500 focus:ring-emerald-500"
+                          />
                         </div>
-                        <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                          AI autonomously purchases products within your monthly budget, single item limits, and whitelisted categories.
+                        <h4 className="text-sm font-extrabold text-white">Autonomous Auto-Buy</h4>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                          AI automatically executes orders within your budget and guardrails without asking for approval each time.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Save Button */}
-                  <div className="pt-4 flex items-center justify-between">
+                  {rulesSuccessMsg && (
+                    <div className="p-3 bg-emerald-950/60 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">
+                      ✓ {rulesSuccessMsg}
+                    </div>
+                  )}
+
+                  <div className="pt-2">
                     <button
                       type="submit"
                       disabled={savingRules}
-                      className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center space-x-2"
+                      className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition"
                     >
-                      {savingRules ? <span>Saving Guardrails...</span> : <span>Save Spending Rules</span>}
+                      {savingRules ? 'Saving Guardrails...' : 'Save Spending Guardrails'}
                     </button>
-                    {rulesSuccessMsg && (
-                      <span className="text-xs font-bold text-emerald-400 animate-fade-in">
-                        ✓ {rulesSuccessMsg}
-                      </span>
-                    )}
                   </div>
                 </form>
               </div>
             </div>
 
-            {/* Right Sidebar: Safety Rules Visual Checklist */}
+            {/* Sidebar Information Card */}
             <div className="space-y-6">
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
-                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider mb-4 flex items-center space-x-2">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <h4 className="text-sm font-extrabold text-white flex items-center space-x-2">
                   <span>🛡️</span>
-                  <span>Safety Guardrail Architecture</span>
-                </h3>
-                <div className="space-y-3.5 text-xs">
-                  <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+                  <span>Safety Guardrails Guarantee</span>
+                </h4>
+                <div className="space-y-3 text-xs text-slate-300">
+                  <div className="flex items-start space-x-2.5">
                     <span className="text-emerald-400 font-bold">✓</span>
                     <div>
-                      <strong className="text-slate-200">Budget Headroom Check</strong>
-                      <p className="text-slate-400 mt-0.5">Calculates `spent + cost &le; monthly_budget` before checkout dispatch.</p>
+                      <strong className="text-slate-200">Zero-Overspend Check:</strong>
+                      <p className="text-slate-400 mt-0.5">Every transaction is checked against your monthly remaining allowance before execution.</p>
                     </div>
                   </div>
-
-                  <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+                  <div className="flex items-start space-x-2.5">
                     <span className="text-emerald-400 font-bold">✓</span>
                     <div>
-                      <strong className="text-slate-200">Single Purchase Cap</strong>
-                      <p className="text-slate-400 mt-0.5">Enforces maximum limit of ₹{singleLimitInput.toLocaleString('en-IN')} per transaction.</p>
+                      <strong className="text-slate-200">Per-Order Price Ceiling:</strong>
+                      <p className="text-slate-400 mt-0.5">Orders above your single purchase limit will never execute automatically.</p>
                     </div>
                   </div>
-
-                  <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+                  <div className="flex items-start space-x-2.5">
                     <span className="text-emerald-400 font-bold">✓</span>
                     <div>
-                      <strong className="text-slate-200">Category Whitelist</strong>
-                      <p className="text-slate-400 mt-0.5">Blocks products outside of {selectedCats.join(', ')}.</p>
+                      <strong className="text-slate-200">Category Restrictions:</strong>
+                      <p className="text-slate-400 mt-0.5">Restricts auto-buys strictly to the whitelisted business supplies you select.</p>
                     </div>
                   </div>
-
-                  <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
+                  <div className="flex items-start space-x-2.5">
                     <span className="text-emerald-400 font-bold">✓</span>
                     <div>
-                      <strong className="text-slate-200">100% Explainable AI</strong>
-                      <p className="text-slate-400 mt-0.5">Every AI purchase logs an explicit rationale and price trigger.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-800/50 border border-slate-700/60">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <div>
-                      <strong className="text-slate-200">1-Click Reversible</strong>
+                      <strong className="text-slate-200">1-Click Reversible:</strong>
                       <p className="text-slate-400 mt-0.5">Any autonomous purchase can be reversed with immediate budget restitution.</p>
                     </div>
                   </div>
@@ -1077,48 +1248,68 @@ export default function CustomerAutoPayPage() {
             </div>
 
             {/* Mandates Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mandates.map((m) => (
-                <div
-                  key={m.id}
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col justify-between relative overflow-hidden group"
-                >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition" />
-
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-[11px] font-extrabold uppercase tracking-wider">
-                        {m.type.replace('_', ' ')}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        m.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'
-                      }`}>
-                        ● {m.status}
-                      </span>
-                    </div>
-
-                    <div className="text-base font-extrabold text-white">{m.bank_name}</div>
-                    <div className="text-sm font-mono text-slate-300 mt-1">{m.account_or_vpa_masked}</div>
-
-                    <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-1 text-xs text-slate-400">
-                      <div className="flex justify-between">
-                        <span>Max Debit Limit:</span>
-                        <strong className="text-slate-200">₹{m.max_amount.toLocaleString('en-IN')}</strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Frequency:</span>
-                        <strong className="text-slate-200">{m.billing_frequency}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-mono text-[10px]">ID: {m.id}</span>
-                    <span className="text-emerald-400 font-bold text-[11px]">✓ Verified Mandate</span>
-                  </div>
+            {mandates.length === 0 ? (
+              <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+                <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                  💳
                 </div>
-              ))}
-            </div>
+                <h4 className="text-base font-extrabold text-white mb-1">
+                  No Payment Mandates Connected
+                </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  Connect a UPI AutoPay, Debit Card, or NetBanking e-Mandate to authorize safe autonomous replenishments.
+                </p>
+                <button
+                  onClick={() => setShowMandateModal(true)}
+                  className="mt-6 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition"
+                >
+                  + Connect Payment Method
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {mandates.map((m) => (
+                  <div
+                    key={m.id}
+                    className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col justify-between relative overflow-hidden group"
+                  >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition" />
+
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg text-[11px] font-extrabold uppercase tracking-wider">
+                          {m.type.replace('_', ' ')}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          m.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'
+                        }`}>
+                          ● {m.status}
+                        </span>
+                      </div>
+
+                      <div className="text-base font-extrabold text-white">{m.bank_name}</div>
+                      <div className="text-sm font-mono text-slate-300 mt-1">{m.account_or_vpa_masked}</div>
+
+                      <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-1 text-xs text-slate-400">
+                        <div className="flex justify-between">
+                          <span>Max Debit Limit:</span>
+                          <strong className="text-slate-200">₹{m.max_amount.toLocaleString('en-IN')}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Frequency:</span>
+                          <strong className="text-slate-200">{m.billing_frequency}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-mono text-[10px]">ID: {m.id}</span>
+                      <span className="text-emerald-400 font-bold text-[11px]">✓ Verified Mandate</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Security Guarantee Note */}
             <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex items-center space-x-3 text-xs text-slate-400">
@@ -1142,8 +1333,9 @@ export default function CustomerAutoPayPage() {
               </div>
               <button
                 onClick={handleRunAutonomousCycle}
-                disabled={runningAutoCycle}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center space-x-2 self-start sm:self-auto"
+                disabled={runningAutoCycle || mandates.length === 0 || !settings?.autopay_enabled}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center space-x-2 self-start sm:self-auto"
+                title={mandates.length === 0 ? 'Mandate authorization required' : !settings?.autopay_enabled ? 'AutoPay is currently disabled' : 'Run restock evaluation'}
               >
                 <span>{runningAutoCycle ? 'Running Autonomous AI Cycle...' : '⚡ Run Autonomous Restock Cycle'}</span>
               </button>
@@ -1161,93 +1353,125 @@ export default function CustomerAutoPayPage() {
               </div>
             )}
 
-            {/* Recommendations Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {recommendations.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col justify-between relative group"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="px-2.5 py-1 bg-slate-800 text-indigo-300 border border-slate-700 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
-                        {rec.category}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                          rec.need_urgency === 'HIGH' ? 'bg-rose-500/20 text-rose-300' :
-                          rec.need_urgency === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
-                          'bg-indigo-500/20 text-indigo-300'
-                        }`}>
-                          {rec.need_urgency} URGENCY
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                          {Math.round(rec.confidence_score * 100)}% Confidence
-                        </span>
-                      </div>
-                    </div>
-
-                    <h4 className="text-base font-extrabold text-white group-hover:text-indigo-300 transition">
-                      {rec.product_name}
-                    </h4>
-
-                    <div className="flex items-center space-x-2 text-xs text-slate-400 mt-1">
-                      <span>Merchant: <strong className="text-slate-300">{rec.merchant_name}</strong></span>
-                      {rec.merchant_verified ? <span className="text-emerald-400 font-bold text-[10px]">✓ Verified</span> : null}
-                    </div>
-
-                    <div className="mt-3 p-3 bg-slate-950/80 border border-slate-800/80 rounded-2xl text-xs text-slate-300 italic leading-relaxed">
-                      &ldquo;{rec.reasoning}&rdquo;
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="text-slate-400">Qty: {rec.quantity} &times; ₹{rec.unit_price.toLocaleString('en-IN')}</span>
-                        <div className="text-base font-extrabold text-emerald-400">
-                          Total: ₹{rec.total_price.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-                      <span className="text-slate-500 text-[11px] font-mono">Restock by: {rec.predicted_date}</span>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-6 pt-4 border-t border-slate-800 space-y-3">
-                    {/* Selected address chip */}
-                    {(() => {
-                      const chosenAddr = addresses.find((a) => a.id === selectedAddressId);
-                      return chosenAddr ? (
-                        <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2">
-                          <span className="text-slate-500">📍</span>
-                          <span className="truncate">
-                            Ship to: <strong className="text-slate-200">{chosenAddr.full_name}</strong>
-                            {' · '}{chosenAddr.city}, {chosenAddr.state} — {chosenAddr.pincode}
-                          </span>
-                          {chosenAddr.is_default === 1 && (
-                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">DEFAULT</span>
-                          )}
-                        </div>
-                      ) : null;
-                    })()}
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => handleOpenAddressPicker(rec.id, rec.product_name)}
-                        disabled={actionLoadingId === rec.id}
-                        className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition"
-                      >
-                        {actionLoadingId === rec.id ? 'Placing Order...' : 'Approve & AutoPay Now'}
-                      </button>
-                      <button
-                        onClick={() => handleDismissRecommendation(rec.id)}
-                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
+            {/* Recommendations Grid OR Strict Zero-State */}
+            {recommendations.length === 0 ? (
+              <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+                <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                  📦
                 </div>
-              ))}
-            </div>
+                <h4 className="text-base font-extrabold text-white mb-1">
+                  No purchase history available yet.
+                </h4>
+                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                  Replenishment predictions will activate once you place your first order and enable AutoPay.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <Link
+                    href="/"
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition"
+                  >
+                    Browse Storefront Catalog
+                  </Link>
+                  {!isConfigured && (
+                    <button
+                      onClick={() => {
+                        setWizardStep(1);
+                        setShowSetupWizard(true);
+                      }}
+                      className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition border border-slate-700"
+                    >
+                      Complete AutoPay Setup
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {recommendations.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl p-6 shadow-xl flex flex-col justify-between relative group"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="px-2.5 py-1 bg-slate-800 text-indigo-300 border border-slate-700 rounded-lg text-[10px] font-extrabold uppercase tracking-wider">
+                          {rec.category}
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            rec.need_urgency === 'HIGH' ? 'bg-rose-500/20 text-rose-300' :
+                            rec.need_urgency === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300' :
+                            'bg-indigo-500/20 text-indigo-300'
+                          }`}>
+                            {rec.need_urgency} URGENCY
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                            {Math.round(rec.confidence_score * 100)}% Confidence
+                          </span>
+                        </div>
+                      </div>
+
+                      <h4 className="text-base font-extrabold text-white group-hover:text-indigo-300 transition">
+                        {rec.product_name}
+                      </h4>
+
+                      <div className="flex items-center space-x-2 text-xs text-slate-400 mt-1">
+                        <span>Merchant: <strong className="text-slate-300">{rec.merchant_name}</strong></span>
+                        {rec.merchant_verified ? <span className="text-emerald-400 font-bold text-[10px]">✓ Verified</span> : null}
+                      </div>
+
+                      <div className="mt-3 p-3 bg-slate-950/80 border border-slate-800/80 rounded-2xl text-xs text-slate-300 italic leading-relaxed">
+                        &ldquo;{rec.reasoning}&rdquo;
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-slate-400">Qty: {rec.quantity} &times; ₹{rec.unit_price.toLocaleString('en-IN')}</span>
+                          <div className="text-base font-extrabold text-emerald-400">
+                            Total: ₹{rec.total_price.toLocaleString('en-IN')}
+                          </div>
+                        </div>
+                        <span className="text-slate-500 text-[11px] font-mono">Restock by: {rec.predicted_date}</span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="mt-6 pt-4 border-t border-slate-800 space-y-3">
+                      {(() => {
+                        const chosenAddr = addresses.find((a) => a.id === selectedAddressId);
+                        return chosenAddr ? (
+                          <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2">
+                            <span className="text-slate-500">📍</span>
+                            <span className="truncate">
+                              Ship to: <strong className="text-slate-200">{chosenAddr.full_name}</strong>
+                              {' · '}{chosenAddr.city}, {chosenAddr.state} — {chosenAddr.pincode}
+                            </span>
+                            {chosenAddr.is_default === 1 && (
+                              <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">DEFAULT</span>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => handleOpenAddressPicker(rec.id, rec.product_name)}
+                          disabled={actionLoadingId === rec.id}
+                          className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition"
+                        >
+                          {actionLoadingId === rec.id ? 'Placing Order...' : 'Approve & AutoPay Now'}
+                        </button>
+                        <button
+                          onClick={() => handleDismissRecommendation(rec.id)}
+                          className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1371,6 +1595,462 @@ export default function CustomerAutoPayPage() {
         )}
       </main>
 
+      {/* ================================================================
+          5-STEP SETUP AI AUTOPAY WIZARD MODAL
+      ================================================================ */}
+      {showSetupWizard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-xl">
+                  🪄
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Setup AI AutoPay Wizard</h3>
+                  <p className="text-xs text-slate-400">Step {wizardStep} of 5</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSetupWizard(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Stepper Progress Indicator */}
+            <div className="py-4 border-b border-slate-800/80">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-2">
+                <span className={wizardStep >= 1 ? 'text-indigo-400' : ''}>1. Method</span>
+                <span className={wizardStep >= 2 ? 'text-indigo-400' : ''}>2. Mandate</span>
+                <span className={wizardStep >= 3 ? 'text-indigo-400' : ''}>3. Limits</span>
+                <span className={wizardStep >= 4 ? 'text-indigo-400' : ''}>4. Categories</span>
+                <span className={wizardStep >= 5 ? 'text-indigo-400' : ''}>5. Mode</span>
+              </div>
+              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300"
+                  style={{ width: `${(wizardStep / 5) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Step Body */}
+            <div className="py-5 flex-1 overflow-y-auto pr-1">
+              {/* STEP 1: CHOOSE PAYMENT METHOD */}
+              {wizardStep === 1 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Step 1: Choose Payment Method</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Select your preferred instrument for recurring Razorpay AutoPay authorizations.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {[
+                      {
+                        type: 'UPI_AUTOPAY',
+                        title: 'UPI AutoPay',
+                        subtitle: 'Google Pay, PhonePe, Paytm, BHIM',
+                        icon: '⚡',
+                      },
+                      {
+                        type: 'DEBIT_CARD_MANDATE',
+                        title: 'Debit Card',
+                        subtitle: 'Visa, Mastercard, RuPay',
+                        icon: '💳',
+                      },
+                      {
+                        type: 'CREDIT_CARD_MANDATE',
+                        title: 'Credit Card',
+                        subtitle: 'Commercial & Corporate Cards',
+                        icon: '🏦',
+                      },
+                      {
+                        type: 'NETBANKING_EMANDATE',
+                        title: 'NetBanking e-Mandate',
+                        subtitle: 'HDFC, ICICI, SBI, Axis',
+                        icon: '🌐',
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.type}
+                        onClick={() => setWizardPaymentType(item.type)}
+                        className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                          wizardPaymentType === item.type
+                            ? 'bg-indigo-950/70 border-indigo-500 ring-2 ring-indigo-500/40 shadow-lg'
+                            : 'bg-slate-800/40 border-slate-700/80 hover:bg-slate-800/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-2xl">{item.icon}</span>
+                          <input
+                            type="radio"
+                            checked={wizardPaymentType === item.type}
+                            onChange={() => {}}
+                            className="text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <div className="text-sm font-extrabold text-white">{item.title}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">{item.subtitle}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: CREATE MANDATE DETAILS */}
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Step 2: Create Mandate Authorization</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Provide instrument identifiers. All data is tokenized using RBI & PCI-DSS standards.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      Issuing Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      value={wizardBankName}
+                      onChange={(e) => setWizardBankName(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      placeholder="e.g. HDFC Bank, ICICI Bank, SBI"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      {wizardPaymentType === 'UPI_AUTOPAY' ? 'UPI ID / VPA' :
+                       wizardPaymentType === 'NETBANKING_EMANDATE' ? 'Bank Account Number' : 'Card Number (Simulated Tokenization)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={wizardAccount}
+                      onChange={(e) => setWizardAccount(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      placeholder={
+                        wizardPaymentType === 'UPI_AUTOPAY' ? 'user@okhdfcbank' :
+                        wizardPaymentType === 'NETBANKING_EMANDATE' ? '987654321011' : '4315 8888 9999 4242'
+                      }
+                      required
+                    />
+                  </div>
+
+                  {(wizardPaymentType === 'DEBIT_CARD_MANDATE' || wizardPaymentType === 'CREDIT_CARD_MANDATE') && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Expiry MM/YY</label>
+                        <input
+                          type="text"
+                          value={wizardCardExpiry}
+                          onChange={(e) => setWizardCardExpiry(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-mono"
+                          placeholder="12/28"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">CVV (Simulated)</label>
+                        <input
+                          type="password"
+                          maxLength={3}
+                          defaultValue="888"
+                          className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                      Max Recurring Debit Cap (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={wizardMandateMaxAmount}
+                      onChange={(e) => setWizardMandateMaxAmount(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold text-sm"
+                      min={1000}
+                      required
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Upper ceiling authorized under the Razorpay e-mandate.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: SET SPENDING LIMITS */}
+              {wizardStep === 3 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Step 3: Set Spending Limits</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Define the maximum monthly allowance and per-order threshold.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                      Monthly Budget Cap (₹)
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {[5000, 10000, 25000, 50000].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setWizardBudget(preset)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                            wizardBudget === preset
+                              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          ₹{preset.toLocaleString('en-IN')}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="number"
+                      value={wizardBudget}
+                      onChange={(e) => setWizardBudget(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      min={1000}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                      Max Single Purchase Cap (₹)
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {[500, 1000, 5000, 15000].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setWizardSingleLimit(preset)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                            wizardSingleLimit === preset
+                              ? 'bg-amber-600 text-white border-amber-500 shadow-md'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}
+                        >
+                          ₹{preset.toLocaleString('en-IN')}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="number"
+                      value={wizardSingleLimit}
+                      onChange={(e) => setWizardSingleLimit(Number(e.target.value))}
+                      className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      min={100}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: SELECT APPROVED CATEGORIES */}
+              {wizardStep === 4 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Step 4: Select Approved Categories</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Whitelist product categories the AI agent is allowed to replenish.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {[
+                      { key: 'HARDWARE', label: 'Hardware', desc: 'POS terminals, card readers, soundboxes' },
+                      { key: 'SOFTWARE', label: 'Software', desc: 'Sync services, licenses, add-ons' },
+                      { key: 'ACCESSORIES', label: 'Accessories', desc: 'Thermal receipt rolls, docks, cables' },
+                      { key: 'SUBSCRIPTIONS', label: 'Subscriptions', desc: 'Maintenance care plans, cloud SaaS' },
+                    ].map((item) => {
+                      const checked = wizardCategories.includes(item.key);
+                      return (
+                        <div
+                          key={item.key}
+                          onClick={() => toggleWizardCategory(item.key)}
+                          className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                            checked
+                              ? 'bg-indigo-950/60 border-indigo-500 shadow-md'
+                              : 'bg-slate-800/40 border-slate-700/60 opacity-60 hover:opacity-80'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-extrabold text-white">{item.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {}}
+                              className="h-4 w-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <span className="text-[11px] text-slate-400 leading-relaxed">{item.desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 5: ENABLE AUTONOMOUS PURCHASES */}
+              {wizardStep === 5 && (
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Step 5: Enable Autonomous Purchases</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Choose how the AI agent operates and activate AutoPay.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div
+                      onClick={() => setWizardMode('AUTO_BUY')}
+                      className={`p-4 rounded-2xl border cursor-pointer transition ${
+                        wizardMode === 'AUTO_BUY'
+                          ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40'
+                          : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-extrabold text-white">Mode B: Autonomous Auto-Buy</div>
+                          <div className="text-xs text-slate-300 mt-0.5">
+                            AI buys automatically when all spending limits and guardrails pass.
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          checked={wizardMode === 'AUTO_BUY'}
+                          onChange={() => {}}
+                          className="text-emerald-500 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setWizardMode('RECOMMENDATION_ONLY')}
+                      className={`p-4 rounded-2xl border cursor-pointer transition ${
+                        wizardMode === 'RECOMMENDATION_ONLY'
+                          ? 'bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/40'
+                          : 'bg-slate-800/40 border-slate-700 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-extrabold text-white">Mode A: Recommendation Only</div>
+                          <div className="text-xs text-slate-300 mt-0.5">
+                            AI forecasts restocking needs; you approve orders manually.
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          checked={wizardMode === 'RECOMMENDATION_ONLY'}
+                          onChange={() => {}}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AutoPay master switch for wizard */}
+                  <div className="p-4 bg-slate-800/60 border border-slate-700 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-white">Enable AutoPay Now</div>
+                      <div className="text-xs text-slate-400">Activate recurring autonomous restock capabilities.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWizardEnableAutoPay(!wizardEnableAutoPay)}
+                      className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        wizardEnableAutoPay ? 'bg-emerald-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          wizardEnableAutoPay ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Setup Summary */}
+                  <div className="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs space-y-1 text-slate-400">
+                    <div className="flex justify-between">
+                      <span>Payment Method:</span>
+                      <strong className="text-slate-200">{wizardBankName} ({wizardPaymentType.replace('_', ' ')})</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Monthly Budget:</span>
+                      <strong className="text-indigo-300">₹{wizardBudget.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Max Per Order:</span>
+                      <strong className="text-amber-300">₹{wizardSingleLimit.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Operating Mode:</span>
+                      <strong className="text-emerald-300">{wizardMode}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+              {wizardStep > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setWizardStep((prev) => (prev - 1) as any)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition"
+                >
+                  ← Back
+                </button>
+              ) : <div />}
+
+              {wizardStep < 5 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (wizardStep === 2 && !wizardAccount.trim()) {
+                      showToast('Missing Account', 'Please enter UPI ID or Card/Bank number.', 'error');
+                      return;
+                    }
+                    setWizardStep((prev) => (prev + 1) as any);
+                  }}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-indigo-600/30 transition"
+                >
+                  Next Step →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCompleteSetupWizard}
+                  disabled={completingWizard}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center space-x-2"
+                >
+                  <span>{completingWizard ? 'Authorizing with Razorpay...' : 'Complete Setup & Activate AutoPay'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONNECT PAYMENT METHOD MODAL */}
       {showMandateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
@@ -1388,7 +2068,6 @@ export default function CustomerAutoPayPage() {
             </p>
 
             <form onSubmit={handleConnectMandate} className="mt-6 space-y-4">
-              {/* Type Select */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Mandate Type
@@ -1405,7 +2084,6 @@ export default function CustomerAutoPayPage() {
                 </select>
               </div>
 
-              {/* Bank Name */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Issuing Bank
@@ -1420,7 +2098,6 @@ export default function CustomerAutoPayPage() {
                 />
               </div>
 
-              {/* Account / UPI / Card Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   {mandateType === 'UPI_AUTOPAY' ? 'UPI ID / VPA' :
@@ -1439,7 +2116,6 @@ export default function CustomerAutoPayPage() {
                 />
               </div>
 
-              {/* Expiry if Card */}
               {(mandateType === 'DEBIT_CARD_MANDATE' || mandateType === 'CREDIT_CARD_MANDATE') && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1464,7 +2140,6 @@ export default function CustomerAutoPayPage() {
                 </div>
               )}
 
-              {/* Max Transaction Amount */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Maximum Auto-Debit Limit (₹)
@@ -1526,7 +2201,6 @@ export default function CustomerAutoPayPage() {
               </button>
             </div>
 
-            {/* Notification items */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               {notifications.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 text-xs">No notifications yet.</div>

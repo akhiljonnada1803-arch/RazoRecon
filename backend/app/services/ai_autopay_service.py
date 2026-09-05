@@ -29,14 +29,14 @@ class AIAutoPayService:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS customer_budgets (
                     user_id TEXT PRIMARY KEY,
-                    monthly_budget REAL NOT NULL DEFAULT 25000.0,
-                    spent_this_month REAL NOT NULL DEFAULT 8500.0,
-                    max_single_purchase_limit REAL NOT NULL DEFAULT 5000.0,
+                    monthly_budget REAL,
+                    spent_this_month REAL NOT NULL DEFAULT 0.0,
+                    max_single_purchase_limit REAL,
                     allowed_categories_json TEXT NOT NULL DEFAULT '["HARDWARE","SOFTWARE","ACCESSORIES","SUBSCRIPTIONS"]',
                     merchant_trust_level TEXT NOT NULL DEFAULT 'VERIFIED_ONLY', -- VERIFIED_ONLY, ALL_MERCHANTS
-                    purchase_mode TEXT NOT NULL DEFAULT 'AUTO_BUY', -- RECOMMENDATION_ONLY, AUTO_BUY
-                    approval_threshold REAL NOT NULL DEFAULT 5000.0,
-                    autopay_enabled INTEGER NOT NULL DEFAULT 1,
+                    purchase_mode TEXT NOT NULL DEFAULT 'RECOMMENDATION_ONLY', -- RECOMMENDATION_ONLY, AUTO_BUY
+                    approval_threshold REAL,
+                    autopay_enabled INTEGER NOT NULL DEFAULT 0,
                     connected_mandate_id TEXT,
                     last_autonomous_purchase_json TEXT,
                     created_at TEXT NOT NULL,
@@ -44,21 +44,54 @@ class AIAutoPayService:
                 )
             """)
 
-            # Add missing columns if upgrading existing table
+            # Add missing columns or migrate if upgrading existing table
             cursor.execute("PRAGMA table_info(customer_budgets)")
-            existing_cols = [r[1] for r in cursor.fetchall()]
-            if "max_single_purchase_limit" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN max_single_purchase_limit REAL NOT NULL DEFAULT 5000.0")
-            if "allowed_categories_json" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN allowed_categories_json TEXT NOT NULL DEFAULT '[\"HARDWARE\",\"SOFTWARE\",\"ACCESSORIES\",\"SUBSCRIPTIONS\"]'")
-            if "merchant_trust_level" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN merchant_trust_level TEXT NOT NULL DEFAULT 'VERIFIED_ONLY'")
-            if "purchase_mode" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN purchase_mode TEXT NOT NULL DEFAULT 'AUTO_BUY'")
-            if "connected_mandate_id" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN connected_mandate_id TEXT")
-            if "last_autonomous_purchase_json" not in existing_cols:
-                cursor.execute("ALTER TABLE customer_budgets ADD COLUMN last_autonomous_purchase_json TEXT")
+            cols_info = cursor.fetchall()
+            existing_cols = [r[1] for r in cols_info]
+            mb_col = next((c for c in cols_info if c[1] == "monthly_budget"), None)
+            if mb_col and mb_col[3] == 1:  # notnull is 1, migrate to nullable
+                cursor.execute("""
+                    CREATE TABLE customer_budgets_new (
+                        user_id TEXT PRIMARY KEY,
+                        monthly_budget REAL,
+                        spent_this_month REAL NOT NULL DEFAULT 0.0,
+                        max_single_purchase_limit REAL,
+                        allowed_categories_json TEXT NOT NULL DEFAULT '["HARDWARE","SOFTWARE","ACCESSORIES","SUBSCRIPTIONS"]',
+                        merchant_trust_level TEXT NOT NULL DEFAULT 'VERIFIED_ONLY',
+                        purchase_mode TEXT NOT NULL DEFAULT 'RECOMMENDATION_ONLY',
+                        approval_threshold REAL,
+                        autopay_enabled INTEGER NOT NULL DEFAULT 0,
+                        connected_mandate_id TEXT,
+                        last_autonomous_purchase_json TEXT,
+                        category_budgets_json TEXT,
+                        max_single_tx_limit REAL,
+                        approval_mode TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO customer_budgets_new 
+                    (user_id, monthly_budget, spent_this_month, max_single_purchase_limit, allowed_categories_json, merchant_trust_level, purchase_mode, approval_threshold, autopay_enabled, connected_mandate_id, last_autonomous_purchase_json, category_budgets_json, max_single_tx_limit, approval_mode, created_at, updated_at)
+                    SELECT user_id, monthly_budget, spent_this_month, max_single_purchase_limit, allowed_categories_json, merchant_trust_level, purchase_mode, approval_threshold, autopay_enabled, connected_mandate_id, last_autonomous_purchase_json, category_budgets_json, max_single_tx_limit, approval_mode, created_at, updated_at
+                    FROM customer_budgets
+                """)
+                cursor.execute("DROP TABLE customer_budgets")
+                cursor.execute("ALTER TABLE customer_budgets_new RENAME TO customer_budgets")
+            else:
+                if "max_single_purchase_limit" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN max_single_purchase_limit REAL")
+                if "allowed_categories_json" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN allowed_categories_json TEXT NOT NULL DEFAULT '[\"HARDWARE\",\"SOFTWARE\",\"ACCESSORIES\",\"SUBSCRIPTIONS\"]'")
+                if "merchant_trust_level" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN merchant_trust_level TEXT NOT NULL DEFAULT 'VERIFIED_ONLY'")
+                if "purchase_mode" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN purchase_mode TEXT NOT NULL DEFAULT 'RECOMMENDATION_ONLY'")
+                if "connected_mandate_id" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN connected_mandate_id TEXT")
+                if "last_autonomous_purchase_json" not in existing_cols:
+                    cursor.execute("ALTER TABLE customer_budgets ADD COLUMN last_autonomous_purchase_json TEXT")
+
 
             # 2. Customer Razorpay Mandates Table
             cursor.execute("""
@@ -293,37 +326,63 @@ class AIAutoPayService:
             if not row:
                 now_str = utcnow_iso()
                 default_cats = ["HARDWARE", "SOFTWARE", "ACCESSORIES", "SUBSCRIPTIONS"]
-                default_cat_budgets = {"HARDWARE": 15000.0, "SOFTWARE": 5000.0, "ACCESSORIES": 3000.0, "SUBSCRIPTIONS": 2000.0}
                 cursor.execute("""
                     INSERT INTO customer_budgets 
-                    (user_id, monthly_budget, spent_this_month, max_single_purchase_limit, allowed_categories_json, category_budgets_json, merchant_trust_level, purchase_mode, approval_threshold, autopay_enabled, created_at, updated_at)
-                    VALUES (?, 25000.0, 8500.0, 5000.0, ?, ?, 'VERIFIED_ONLY', 'AUTO_BUY', 5000.0, 1, ?, ?)
-                """, (user_id, json.dumps(default_cats), json.dumps(default_cat_budgets), now_str, now_str))
+                    (user_id, monthly_budget, spent_this_month, max_single_purchase_limit, allowed_categories_json, category_budgets_json, merchant_trust_level, purchase_mode, approval_threshold, autopay_enabled, connected_mandate_id, last_autonomous_purchase_json, created_at, updated_at)
+                    VALUES (?, NULL, 0.0, NULL, ?, NULL, 'VERIFIED_ONLY', 'RECOMMENDATION_ONLY', NULL, 0, NULL, NULL, ?, ?)
+                """, (user_id, json.dumps(default_cats), now_str, now_str))
                 conn.commit()
                 cursor.execute("SELECT * FROM customer_budgets WHERE user_id = ?", (user_id,))
                 row = cursor.fetchone()
 
             d = dict(row)
             d["allowed_categories"] = json.loads(d["allowed_categories_json"]) if d.get("allowed_categories_json") else ["HARDWARE", "SOFTWARE", "ACCESSORIES", "SUBSCRIPTIONS"]
-            d["autopay_enabled"] = bool(d.get("autopay_enabled"))
-            d["monthly_budget"] = float(d.get("monthly_budget", 25000.0))
-            d["spent_this_month"] = float(d.get("spent_this_month", 0.0))
-            d["max_single_purchase_limit"] = float(d.get("max_single_purchase_limit", 5000.0))
-            d["remaining_budget"] = max(0.0, round(d["monthly_budget"] - d["spent_this_month"], 2))
-            d["spent_percentage"] = min(100.0, round((d["spent_this_month"] / d["monthly_budget"]) * 100, 1)) if d["monthly_budget"] > 0 else 0.0
+            d["autopay_enabled"] = bool(d.get("autopay_enabled", 0))
+            d["monthly_budget"] = float(d["monthly_budget"]) if d.get("monthly_budget") is not None else None
+            d["spent_this_month"] = float(d.get("spent_this_month") or 0.0)
+            d["max_single_purchase_limit"] = float(d["max_single_purchase_limit"]) if d.get("max_single_purchase_limit") is not None else None
+            d["approval_threshold"] = float(d["approval_threshold"]) if d.get("approval_threshold") is not None else None
+            d["remaining_budget"] = max(0.0, round(d["monthly_budget"] - d["spent_this_month"], 2)) if d["monthly_budget"] is not None else None
+            d["spent_percentage"] = min(100.0, round((d["spent_this_month"] / d["monthly_budget"]) * 100, 1)) if d["monthly_budget"] and d["monthly_budget"] > 0 else 0.0
             d["last_autonomous_purchase"] = json.loads(d["last_autonomous_purchase_json"]) if d.get("last_autonomous_purchase_json") else None
+            d["purchase_mode"] = d.get("purchase_mode") or "RECOMMENDATION_ONLY"
+            if not d.get("connected_mandate_id"):
+                cursor.execute("SELECT id FROM customer_mandates WHERE user_id = ? AND status = 'ACTIVE' LIMIT 1", (user_id,))
+                active_m = cursor.fetchone()
+                if active_m:
+                    d["connected_mandate_id"] = active_m["id"]
+                    cursor.execute("UPDATE customer_budgets SET connected_mandate_id = ? WHERE user_id = ?", (active_m["id"], user_id))
+                    conn.commit()
+
+            d["is_configured"] = bool(d["monthly_budget"] is not None and d.get("connected_mandate_id"))
             return d
 
     def update_settings(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         current = self.get_settings(user_id)
         now_str = utcnow_iso()
 
-        monthly_budget = float(data.get("monthly_budget", current["monthly_budget"]))
-        max_single_purchase_limit = float(data.get("max_single_purchase_limit", current["max_single_purchase_limit"]))
+        monthly_budget_in = data.get("monthly_budget")
+        if monthly_budget_in is not None:
+            monthly_budget = float(monthly_budget_in)
+        else:
+            monthly_budget = current.get("monthly_budget")
+
+        single_limit_in = data.get("max_single_purchase_limit")
+        if single_limit_in is not None:
+            max_single_purchase_limit = float(single_limit_in)
+        else:
+            max_single_purchase_limit = current.get("max_single_purchase_limit")
+
         allowed_categories = data.get("allowed_categories", current.get("allowed_categories", ["HARDWARE", "SOFTWARE", "ACCESSORIES", "SUBSCRIPTIONS"]))
-        merchant_trust_level = str(data.get("merchant_trust_level", current["merchant_trust_level"])).upper()
-        purchase_mode = str(data.get("purchase_mode", current["purchase_mode"])).upper()
-        approval_threshold = float(data.get("approval_threshold", current.get("approval_threshold", 5000.0)))
+        merchant_trust_level = str(data.get("merchant_trust_level", current.get("merchant_trust_level", "VERIFIED_ONLY"))).upper()
+        purchase_mode = str(data.get("purchase_mode", current.get("purchase_mode", "RECOMMENDATION_ONLY"))).upper()
+
+        approval_threshold_in = data.get("approval_threshold")
+        if approval_threshold_in is not None:
+            approval_threshold = float(approval_threshold_in)
+        else:
+            approval_threshold = current.get("approval_threshold")
+
         autopay_enabled = 1 if data.get("autopay_enabled", current["autopay_enabled"]) else 0
         connected_mandate_id = data.get("connected_mandate_id", current.get("connected_mandate_id"))
 
@@ -347,11 +406,12 @@ class AIAutoPayService:
         # Check if autopay was just toggled
         if autopay_enabled != (1 if current["autopay_enabled"] else 0):
             status_text = "Enabled" if autopay_enabled else "Disabled"
+            budget_str = f"with monthly limit ₹{monthly_budget:,.2f}" if monthly_budget else "with spending limits pending"
             self.create_notification(
                 user_id=user_id,
                 notif_type="AUTOPAY_ENABLED" if autopay_enabled else "AUTOPAY_DISABLED",
                 title=f"AutoPay Spending System {status_text}",
-                message=f"Autonomous purchase authorization is now {status_text.lower()} with monthly limit ₹{monthly_budget:,.2f}.",
+                message=f"Autonomous purchase authorization is now {status_text.lower()} {budget_str}.",
                 severity="SUCCESS" if autopay_enabled else "INFO"
             )
 
@@ -404,6 +464,9 @@ class AIAutoPayService:
         token = data.get("mandate_token") or f"tok_rzp_{uuid.uuid4().hex[:12]}"
         freq = data.get("billing_frequency", "AS_PRESENTED")
         expires_at = data.get("expires_at") or (datetime.now() + timedelta(days=365*3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Ensure budget row exists
+        self.get_settings(user_id)
 
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -622,20 +685,27 @@ class AIAutoPayService:
             chosen_mandate = None
 
         # Check 3: Monthly Budget
-        monthly_budget = float(settings["monthly_budget"])
-        spent_month = float(settings["spent_this_month"])
-        if spent_month + total_cost <= monthly_budget:
-            checks["monthly_budget"] = True
+        if settings.get("monthly_budget") is not None:
+            monthly_budget = float(settings["monthly_budget"])
+            spent_month = float(settings["spent_this_month"])
+            if spent_month + total_cost <= monthly_budget:
+                checks["monthly_budget"] = True
+            else:
+                remaining = max(0.0, monthly_budget - spent_month)
+                failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds remaining monthly budget allowance (₹{remaining:,.2f} left of ₹{monthly_budget:,.2f}).")
         else:
-            remaining = max(0.0, monthly_budget - spent_month)
-            failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds remaining monthly budget allowance (₹{remaining:,.2f} left of ₹{monthly_budget:,.2f}).")
+            failures.append("Monthly budget has not been configured.")
 
         # Check 4: Single Purchase Limit
-        single_cap = float(settings["max_single_purchase_limit"])
-        if total_cost <= single_cap:
-            checks["single_purchase_limit"] = True
+        if settings.get("max_single_purchase_limit") is not None:
+            single_cap = float(settings["max_single_purchase_limit"])
+            if total_cost <= single_cap:
+                checks["single_purchase_limit"] = True
+            else:
+                failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds Maximum Single Purchase Limit of ₹{single_cap:,.2f}.")
         else:
-            failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds Maximum Single Purchase Limit of ₹{single_cap:,.2f}.")
+            failures.append("Maximum single purchase limit has not been configured.")
+
 
         # Check 5: Category Whitelist
         allowed_cats = [c.upper() for c in settings.get("allowed_categories", [])]
@@ -684,7 +754,36 @@ class AIAutoPayService:
     # =========================================================================
     # AI REPLENISHMENT PREDICTION & RECOMMENDATIONS ENGINE
     # =========================================================================
+    def can_generate_recommendations(self, user_id: str) -> tuple[bool, str]:
+        """
+        Check if replenishment recommendations may be generated for a customer.
+        Requirements:
+        1. Mandate exists (at least 1 active mandate in customer_mandates)
+        2. AutoPay enabled (autopay_enabled is True)
+        3. Customer has purchase history (at least 1 order in merchant_orders)
+        Otherwise returns False with descriptive message.
+        """
+        settings = self.get_settings(user_id)
+        if not settings.get("autopay_enabled"):
+            return False, "AutoPay is disabled."
+
+        mandates = self.get_mandates(user_id)
+        active_mandates = [m for m in mandates if m.get("status") == "ACTIVE"]
+        if not active_mandates:
+            return False, "No active mandate found."
+
+        orders = customer_order_service.get_customer_orders(user_id=user_id)
+        order_count = len(orders) if isinstance(orders, list) else (orders.get("total", len(orders.get("orders", []))) if isinstance(orders, dict) else 0)
+        if order_count == 0:
+            return False, "No purchase history available yet."
+
+        return True, "Eligible for replenishment recommendations"
+
     def generate_replenishment_recommendations(self, user_id: str = "usr_customer_demo") -> List[Dict[str, Any]]:
+        can_generate, reason = self.can_generate_recommendations(user_id)
+        if not can_generate:
+            return []
+
         now_dt = datetime.now()
         now_str = utcnow_iso()
 
@@ -798,8 +897,12 @@ class AIAutoPayService:
             cursor.execute("SELECT * FROM ai_autopay_recommendations WHERE user_id = ? ORDER BY confidence_score DESC, created_at DESC", (user_id,))
             rows = cursor.fetchall()
             if not rows:
-                return self.generate_replenishment_recommendations(user_id)
+                can_generate, _ = self.can_generate_recommendations(user_id)
+                if can_generate:
+                    return self.generate_replenishment_recommendations(user_id)
+                return []
             return [dict(r) for r in rows]
+
 
     # =========================================================================
     # AUTONOMOUS PURCHASE EXECUTION & AUDIT LOGGING
@@ -1480,10 +1583,12 @@ class AIAutoPayService:
         pending_recs = [r for r in recommendations if r["status"] == "PENDING_APPROVAL"]
         executed_recs = [r for r in recommendations if r["status"] == "EXECUTED"]
 
-        monthly_budget = float(settings["monthly_budget"])
-        spent = float(settings["spent_this_month"])
-        remaining = max(0.0, round(monthly_budget - spent, 2))
-        spent_pct = min(100.0, round((spent / monthly_budget) * 100, 1)) if monthly_budget > 0 else 0.0
+        can_generate, rec_notice = self.can_generate_recommendations(user_id)
+
+        monthly_budget = float(settings["monthly_budget"]) if settings.get("monthly_budget") is not None else None
+        spent = float(settings["spent_this_month"] or 0.0)
+        remaining = max(0.0, round(monthly_budget - spent, 2)) if monthly_budget is not None else None
+        spent_pct = min(100.0, round((spent / monthly_budget) * 100, 1)) if monthly_budget and monthly_budget > 0 else 0.0
 
         # Connected mandate summary
         connected_mandate = None
@@ -1494,16 +1599,25 @@ class AIAutoPayService:
         if not connected_mandate and mandates:
             connected_mandate = mandates[0]
 
+        is_configured = bool(monthly_budget is not None and monthly_budget > 0 and len(mandates) > 0 and settings.get("connected_mandate_id"))
+
+        active_mandates_count = len([m for m in mandates if m["status"] == "ACTIVE"])
+        autopay_status = "ACTIVE" if settings["autopay_enabled"] else "DISABLED"
+
         return {
             "settings": settings,
+            "is_configured": is_configured,
+            "autopay_status": autopay_status,
+            "active_mandates_count": active_mandates_count,
+            "recommendation_notice": rec_notice if not can_generate else None,
             "kpis": {
                 "monthly_budget": monthly_budget,
                 "spent_this_month": spent,
                 "remaining_budget": remaining,
                 "spent_percentage": spent_pct,
-                "autopay_status": "ACTIVE" if settings["autopay_enabled"] else "INACTIVE",
-                "purchase_mode": settings.get("purchase_mode", "AUTO_BUY"),
-                "max_single_purchase_limit": settings.get("max_single_purchase_limit", 5000.0),
+                "autopay_status": autopay_status,
+                "purchase_mode": settings.get("purchase_mode", "RECOMMENDATION_ONLY"),
+                "max_single_purchase_limit": settings.get("max_single_purchase_limit"),
                 "merchant_trust_level": settings.get("merchant_trust_level", "VERIFIED_ONLY"),
                 "connected_mandate": connected_mandate,
                 "active_mandates_count": len([m for m in mandates if m["status"] == "ACTIVE"]),

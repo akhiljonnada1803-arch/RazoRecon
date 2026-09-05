@@ -1133,14 +1133,15 @@ class CommerceService:
                 active_saved_addresses = []
 
         # Get customer AutoPay rules
-        effective_autopay_uid = user_id or "usr_customer_demo"
+        effective_autopay_uid = user_id or "usr_customer_guest"
         autopay_settings = ai_autopay_service.get_settings(user_id=effective_autopay_uid)
-        single_limit = float(autopay_settings.get("max_single_purchase_limit", 20000.0))
-        monthly_budget = float(autopay_settings.get("monthly_budget", 50000.0))
-        spent_month = float(autopay_settings.get("spent_this_month", 0.0))
-        remaining_budget = max(0.0, monthly_budget - spent_month)
-        autopay_enabled = bool(autopay_settings.get("autopay_enabled", True))
-        payment_method_name = autopay_settings.get("connected_payment_method") or "Linked HDFC Bank (user@upi)"
+        single_limit = float(autopay_settings.get("max_single_purchase_limit") or 0.0)
+        monthly_budget = float(autopay_settings.get("monthly_budget") or 0.0)
+        spent_month = float(autopay_settings.get("spent_this_month") or 0.0)
+        remaining_budget = max(0.0, monthly_budget - spent_month) if monthly_budget > 0 else 0.0
+        autopay_enabled = bool(autopay_settings.get("autopay_enabled", False))
+        payment_method_name = autopay_settings.get("connected_payment_method") or "No Linked Payment Mandate"
+
 
         autopay_guardrail_info = {
             "autopay_enabled": autopay_enabled,
