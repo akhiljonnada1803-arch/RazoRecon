@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   ChatMessage, 
   Product, 
@@ -267,6 +268,38 @@ export function CommerceChatInterface({
                     >
                       View Order Dossier →
                     </a>
+                  </div>
+                </div>
+              {/* MANDATE REQUIRED / PROCEED TO CHECKOUT ACTION CARD */}
+              {msg.flow_step === 'MANDATE_REQUIRED' && (
+                <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl space-y-3 w-full max-w-xl shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-950">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span>AutoPay Not Connected — Added to Cart</span>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] bg-amber-100/80 border-amber-300 text-amber-800 font-bold">
+                      Mandate Required
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-amber-900/90 leading-relaxed">
+                    This item has been safely added to your shopping cart. You can complete your purchase now via Razorpay Checkout, or connect UPI AutoPay to enable instant 1-click autonomous purchases.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <Link
+                      href={msg.checkout_link || "/checkout"}
+                      className="px-4 py-2 bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold rounded-xl shadow-xs flex items-center gap-1.5 transition"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>Open Payment Page / Checkout</span>
+                    </Link>
+                    <Link
+                      href="/onboarding/payment"
+                      className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs flex items-center gap-1.5 transition"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Connect UPI AutoPay</span>
+                    </Link>
                   </div>
                 </div>
               )}

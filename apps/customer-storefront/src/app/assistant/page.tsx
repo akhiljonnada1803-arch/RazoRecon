@@ -185,11 +185,25 @@ export default function CustomerAssistantPage() {
 
       setMessages((prev) => [...prev, assistantMessage]);
 
+      if (data.cart) {
+        setCart(data.cart);
+        try {
+          localStorage.setItem('razorcommerce_cart', JSON.stringify(data.cart.items.map((i: any) => ({
+            product_id: i.product_id,
+            name: i.name,
+            price: i.price,
+            quantity: i.quantity,
+            image_url: i.image_url,
+            sku: `SKU-${i.product_id.toUpperCase()}`
+          }))));
+        } catch (e) {}
+      }
+
       if (data.comparison_data) {
         setComparisonModalData(data.comparison_data);
       }
 
-      if (data.action_triggered === 'checkout_link_created' && data.checkout_link) {
+      if ((data.action_triggered === 'checkout_link_created' && data.checkout_link) || data.flow_step === 'MANDATE_REQUIRED' || data.action_triggered === 'add_to_cart') {
         setIsCartOpen(true);
       }
 

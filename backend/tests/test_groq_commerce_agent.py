@@ -83,8 +83,8 @@ def test_commerce_chat_endpoint_with_groq_integration():
             assert data["comparison_data"] is not None
 
 
-def test_commerce_chat_user_replies_yes_to_approval_prompt():
-    """When user replies with 'yes' to an APPROVAL_REQUIRED limit check, it executes order instead of showing products again."""
+def test_commerce_chat_unconnected_autopay_blocks_autonomous_purchase_and_adds_to_cart():
+    """When user without connected AutoPay/mandate replies 'yes' or asks to buy, agent blocks autonomous purchase, adds to cart, and provides checkout link."""
     prev_assistant_message = {
         "role": "assistant",
         "content": "⚠️ AutoPay Purchase Limit Check:\n• Product Price: ₹14,999.00\nThis purchase exceeds your configured AutoPay limits. Would you like to authorize this manually or complete checkout?",
@@ -104,17 +104,115 @@ def test_commerce_chat_user_replies_yes_to_approval_prompt():
         }
     }
 
-    # User simply replies 'yes'
+    # User without connected mandate replies 'yes' or asks to buy
     resp = client.post("/api/v1/commerce/chat", json={
         "query": "yes",
         "history": [prev_assistant_message]
     })
     assert resp.status_code == 200
     data = resp.json()
-    # It must NOT search the catalog for 'yes' and show recommendations again!
+    
+    # Must NOT complete autonomous purchase
+    assert data["flow_step"] == "MANDATE_REQUIRED"
+    assert data["action_triggered"] == "add_to_cart"
+    assert "AutoPay Mandate Not Connected" in data["message"]
+    assert "I have added Razorpay Smart POS Terminal V3 Pro" in data["message"]
+    assert data["checkout_link"] is not None
+    assert "/checkout" in data["checkout_link"]
+    # Cart must have item added
+    assert data["cart"] is not None
+    assert any(i["product_id"] == "prod_pos_smart_v3" for i in data["cart"]["items"])
+
+
+def test_commerce_chat_direct_buy_intent_without_mandate():
+    """When customer says 'buy it' or 'confirm purchase' without connected mandate, agent adds to cart with checkout link."""
+    prev_assistant_message = {
+        "role": "assistant",
+        "content": "Here are your recommendations",
+        "flow_step": "TOP_RECOMMENDATIONS",
+        "recommended_products": [
+            {
+                "id": "prod_pos_smart_v3",
+                "name": "Razorpay Smart POS Terminal V3 Pro",
+                "price": 14999.0,
+                "category": "Payment Terminals"
+            }
+        ]
+    }
+
+    resp = client.post("/api/v1/commerce/chat", json={
+        "query": "buy it",
+        "history": [prev_assistant_message]
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["flow_step"] == "MANDATE_REQUIRED"
+    assert data["action_triggered"] == "add_to_cart"
+    assert "AutoPay Mandate Not Connected" in data["message"]
+    assert data["checkout_link"] is not None
+    assert any(i["product_id"] == "prod_pos_smart_v3" for i in data["cart"]["items"])
+
+
+def test_commerce_chat_connected_autopay_executes_autonomous_purchase():
+    """When customer WITH connected AutoPay mandate authorizes the order, it places order autonomously."""
+    from app.services.auth_service import auth_service
+    from app.services.ai_autopay_service import ai_autopay_service
+    user = auth_service.list_users()[0]
+    token = auth_service._generate_jwt(user)
+
+    from app.services.customer_order_service import customer_order_service
+    customer_order_service.add_address(user.id, {
+        "full_name": "Test Customer",
+        "phone": "+91 98765 43210",
+        "address_line1": "123 Tech Park Alpha",
+        "address_line2": "Outer Ring Road",
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "pincode": "560100",
+        "is_default": 1
+    })
+
+    # Ensure user has connected mandate and enabled AutoPay
+    ai_autopay_service.add_mandate(user.id, {
+        "type": "UPI_AUTOPAY",
+        "bank_name": "HDFC Bank",
+        "account_or_vpa": "testuser@okhdfcbank",
+        "max_amount": 50000.0
+    })
+    ai_autopay_service.update_settings(user.id, {
+        "autopay_enabled": 1,
+        "monthly_budget": 50000.0,
+        "max_single_purchase_limit": 25000.0
+    })
+
+    prev_assistant_message = {
+        "role": "assistant",
+        "content": "⚠️ AutoPay Purchase Limit Check",
+        "flow_step": "APPROVAL_REQUIRED",
+        "requires_approval": True,
+        "selected_product": {
+            "id": "prod_pos_smart_v3",
+            "name": "Razorpay Smart POS Terminal V3 Pro",
+            "price": 14999.0,
+            "category": "Payment Terminals"
+        },
+        "selected_address": {
+            "address_line": "123 Tech Park Alpha",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pincode": "560100"
+        }
+    }
+
+    resp = client.post(
+        "/api/v1/commerce/chat",
+        json={"query": "yes", "history": [prev_assistant_message]},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
     assert data["flow_step"] == "AUTONOMOUS_PURCHASE"
     assert "Approved & Placed Successfully" in data["message"]
-    assert "Razorpay Smart POS Terminal V3 Pro" in data["message"]
 
 
 def test_commerce_chat_user_replies_no_to_cancel():

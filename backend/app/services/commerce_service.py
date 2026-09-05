@@ -1157,8 +1157,23 @@ class CommerceService:
         spent_month = float(autopay_settings.get("spent_this_month") or 0.0)
         remaining_budget = max(0.0, monthly_budget - spent_month) if monthly_budget > 0 else 0.0
         autopay_enabled = bool(autopay_settings.get("autopay_enabled", False))
-        payment_method_name = autopay_settings.get("connected_payment_method") or "No Linked Payment Mandate"
 
+        # Check for active payment mandate
+        user_mandates = []
+        if user_id and user_id != "usr_customer_guest":
+            try:
+                user_mandates = [m for m in ai_autopay_service.get_mandates(user_id=user_id) if m.get("status") == "ACTIVE"]
+            except Exception:
+                user_mandates = []
+
+        is_mandate_connected = len(user_mandates) > 0
+        is_autopay_ready = bool(is_mandate_connected and autopay_enabled)
+
+        if is_mandate_connected:
+            first_m = user_mandates[0]
+            payment_method_name = f"{first_m.get('type', 'UPI_AUTOPAY')} ({first_m.get('bank_name', 'Bank')} • {first_m.get('account_or_vpa_masked', 'Connected')})"
+        else:
+            payment_method_name = "No Linked Payment Mandate"
 
         autopay_guardrail_info = {
             "autopay_enabled": autopay_enabled,
@@ -1167,8 +1182,63 @@ class CommerceService:
             "remaining_budget": remaining_budget,
             "single_limit": single_limit,
             "payment_method": payment_method_name,
-            "autopay_status": "ACTIVE" if autopay_enabled else "PAUSED"
+            "autopay_status": "ACTIVE" if autopay_enabled else "PAUSED",
+            "is_mandate_connected": is_mandate_connected,
+            "is_autopay_ready": is_autopay_ready
         }
+
+        def build_mandate_required_response(target_p: ProductDTO, target_q: int, target_a: Optional[Dict[str, Any]]) -> CommerceChatResponseDTO:
+            nonlocal active_cart
+            # Add item to active cart
+            existing_item = next((i for i in active_cart.items if i.product_id == target_p.id), None)
+            if existing_item:
+                existing_item.quantity += target_q
+            else:
+                active_cart.items.append(
+                    CartItemDTO(
+                        product_id=target_p.id,
+                        name=target_p.name,
+                        price=target_p.price,
+                        quantity=target_q,
+                        image_url=target_p.image_url,
+                        category=target_p.category
+                    )
+                )
+            active_cart = self.calculate_cart_totals(active_cart)
+            checkout_url = f"/checkout?prod={target_p.id}&qty={target_q}"
+
+            if not user_id or user_id == "usr_customer_guest":
+                reason_detail = "you are currently shopping as a guest without an active account"
+            elif not autopay_enabled:
+                reason_detail = "AutoPay is currently disabled or paused in your account settings"
+            else:
+                reason_detail = "you have not connected a UPI AutoPay or Card payment mandate yet"
+
+            msg = (
+                f"⚠️ **AutoPay Mandate Not Connected**\n\n"
+                f"Because {reason_detail}, autonomous 1-click purchases cannot be charged directly.\n\n"
+                f"🛒 **I have added {target_p.name} (Qty: {target_q}) to your cart!**\n\n"
+                f"You can choose to:\n"
+                f"1. **[Proceed to Payment Page / Checkout]({checkout_url})** — Complete payment right now using Razorpay Checkout (UPI, Cards, NetBanking, EMI).\n"
+                f"2. **[Connect UPI AutoPay](/onboarding/payment)** — Link your UPI or Card mandate in settings to enable autonomous 1-click buying."
+            )
+
+            return CommerceChatResponseDTO(
+                message=msg,
+                flow_step="MANDATE_REQUIRED",
+                action_triggered="add_to_cart",
+                selected_product=target_p,
+                selected_address=target_a,
+                cart=active_cart,
+                checkout_link=checkout_url,
+                suggested_prompts=[
+                    "Proceed to Checkout",
+                    "Connect UPI AutoPay",
+                    "View Shopping Cart",
+                    "Browse other products"
+                ],
+                autopay_guardrail_info=autopay_guardrail_info
+            )
 
         # ---------------------------------------------------------------------
         # CONVERSATION CONTEXT PARSER: Extract previous assistant state
@@ -1218,16 +1288,24 @@ class CommerceService:
                 order_qty = max(1, quantity or 1)
                 total_price = float(target_prod.price * order_qty)
 
-                buy_res = ai_autopay_service.direct_one_click_buy(
-                    product_id=target_prod.id,
-                    quantity=order_qty,
-                    user_id=user_id or "usr_customer_demo",
-                    custom_reason=f"Customer Manual 1-Click Approval of {target_prod.name}",
-                    product_name=target_prod.name,
-                    unit_price=target_prod.price,
-                    category=target_prod.category,
-                    is_autonomous_agent=True
-                )
+                if not is_autopay_ready:
+                    return build_mandate_required_response(target_prod, order_qty, chosen_addr)
+
+                effective_buy_uid = user_id or "usr_customer_demo"
+                try:
+                    buy_res = ai_autopay_service.direct_one_click_buy(
+                        product_id=target_prod.id,
+                        quantity=order_qty,
+                        user_id=effective_buy_uid,
+                        custom_reason=f"Customer Manual 1-Click Approval of {target_prod.name}",
+                        product_name=target_prod.name,
+                        unit_price=target_prod.price,
+                        category=target_prod.category,
+                        is_autonomous_agent=True
+                    )
+                except ValueError as ve:
+                    return build_mandate_required_response(target_prod, order_qty, chosen_addr)
+
                 order_id = buy_res.get("order_id", f"ord_{uuid.uuid4().hex[:10]}")
                 order_conf = buy_res.get("confirmation", {})
                 tracking_id = f"DELHIVERY-{uuid.uuid4().hex[:8].upper()}"
@@ -1269,7 +1347,7 @@ class CommerceService:
                     action_triggered="CANCELLED",
                     suggested_prompts=["Recommend POS machines", "Find laptops", "View spending limits"]
                 )
-            if is_affirmative:
+            if is_affirmative or any(w in q for w in ["confirm", "buy", "proceed", "order", "charge", "pay", "yes"]):
                 action = "confirm_autopay_purchase"
 
         # Handle user responding to ADDRESS_SELECTION
@@ -1314,27 +1392,44 @@ class CommerceService:
         # ---------------------------------------------------------------------
         # STEP 10: PURCHASE EXECUTION (Confirm & Execute AutoPay)
         # ---------------------------------------------------------------------
-        if action == "confirm_autopay_purchase" or any(w in q for w in ["confirm purchase", "confirm autopay", "buy with autopay now", "execute order"]):
-            target_prod = self.get_product_by_id(selected_product_id or "") or self.products[0]
-            chosen_addr = selected_address or (active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0])
+        is_purchase_action = (
+            action == "confirm_autopay_purchase" or
+            any(w in q for w in [
+                "confirm purchase", "confirm autopay", "buy with autopay now", "buy with autopay",
+                "execute order", "buy it now", "buy it", "buy this", "order this", "purchase this",
+                "can you buy it", "please buy it", "buy autonomusly", "buy autonomously", "order it"
+            ])
+        )
+
+        if is_purchase_action:
+            target_prod = self.get_product_by_id(selected_product_id or "") or self._resolve_prod(prev_prod) or (self._resolve_prod(prev_recs[0]) if prev_recs else None) or self.products[0]
+            chosen_addr = selected_address or prev_addr or (active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0])
             order_qty = max(1, quantity or 1)
             total_price = float(target_prod.price * order_qty)
+
+            if not is_autopay_ready:
+                return build_mandate_required_response(target_prod, order_qty, chosen_addr)
 
             # Validate guardrails
             is_valid_limit = total_price <= single_limit
             is_valid_budget = (spent_month + total_price) <= monthly_budget
+            effective_buy_uid = user_id or "usr_customer_demo"
 
             if autopay_enabled and is_valid_limit and is_valid_budget:
-                buy_res = ai_autopay_service.direct_one_click_buy(
-                    product_id=target_prod.id,
-                    quantity=order_qty,
-                    user_id="usr_customer_demo",
-                    custom_reason=f"Conversational Advisor Purchase of {target_prod.name}",
-                    product_name=target_prod.name,
-                    unit_price=target_prod.price,
-                    category=target_prod.category,
-                    is_autonomous_agent=True
-                )
+                try:
+                    buy_res = ai_autopay_service.direct_one_click_buy(
+                        product_id=target_prod.id,
+                        quantity=order_qty,
+                        user_id=effective_buy_uid,
+                        custom_reason=f"Conversational Advisor Purchase of {target_prod.name}",
+                        product_name=target_prod.name,
+                        unit_price=target_prod.price,
+                        category=target_prod.category,
+                        is_autonomous_agent=True
+                    )
+                except ValueError as ve:
+                    return build_mandate_required_response(target_prod, order_qty, chosen_addr)
+
                 order_id = buy_res.get("order_id", f"ord_{uuid.uuid4().hex[:10]}")
                 order_conf = buy_res.get("confirmation", {})
                 tracking_id = f"DELHIVERY-{uuid.uuid4().hex[:8].upper()}"
@@ -1416,6 +1511,22 @@ class CommerceService:
                 "currency": "INR"
             }
 
+            if is_autopay_ready:
+                ready_msg = f"• **AutoPay**: {payment_method_name}\n\nReady to proceed? Say **'Confirm Purchase'** or click below to finalize your order autonomously."
+                prompts = [
+                    "Confirm Purchase with AutoPay",
+                    "Change shipping address",
+                    "Cancel and choose another product"
+                ]
+            else:
+                ready_msg = f"• **AutoPay**: ⚠️ Not Connected\n\nSay **'Confirm'** to add this to your shopping cart and open Razorpay Checkout, or connect AutoPay in your account settings."
+                prompts = [
+                    "Confirm & Add to Cart",
+                    "Connect UPI AutoPay",
+                    "Change shipping address",
+                    "Cancel and choose another product"
+                ]
+
             message = (
                 f"📋 **Order Summary & AutoPay Verification**\n\n"
                 f"• **Item**: {target_prod.name} (Qty: {order_qty})\n"
@@ -1423,8 +1534,7 @@ class CommerceService:
                 f"• **Delivery**: FREE Priority Delivery\n"
                 f"• **Total Payable**: ₹{total_amount:,.2f}\n"
                 f"• **Ship to**: {chosen_addr.get('label', 'Default Location')} ({chosen_addr.get('city')}, {chosen_addr.get('pincode')})\n"
-                f"• **AutoPay**: {payment_method_name}\n\n"
-                f"Ready to proceed? Say **'Confirm Purchase'** or click below to finalize your order autonomously."
+                f"{ready_msg}"
             )
 
             return CommerceChatResponseDTO(
@@ -1436,11 +1546,7 @@ class CommerceService:
                 order_summary=order_summary,
                 saved_addresses=active_saved_addresses,
                 autopay_guardrail_info=autopay_guardrail_info,
-                suggested_prompts=[
-                    "Confirm Purchase with AutoPay",
-                    "Change shipping address",
-                    "Cancel and choose another product"
-                ]
+                suggested_prompts=prompts
             )
 
         # ---------------------------------------------------------------------
