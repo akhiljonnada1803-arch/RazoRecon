@@ -182,6 +182,7 @@ def test_commerce_chat_connected_autopay_executes_autonomous_purchase():
     ai_autopay_service.update_settings(user.id, {
         "autopay_enabled": 1,
         "monthly_budget": 50000.0,
+        "spent_this_month": 0.0,
         "max_single_purchase_limit": 25000.0
     })
 

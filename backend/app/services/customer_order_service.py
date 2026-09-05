@@ -10,6 +10,7 @@ from app.services.audit_service import audit_service
 from app.services.merchant_service import merchant_service, DB_PATH as MERCHANT_DB_PATH
 from app.services.catalog_service import catalog_service
 from app.services.pricing_service import apply_volume_pricing, calculate_volume_discount
+from app.core.encryption import payment_encryption_service, CIPHER_NAME
 
 DB_PATH = MERCHANT_DB_PATH
 
@@ -103,6 +104,24 @@ class CustomerOrderService:
                     payment_completed INTEGER DEFAULT 0,
                     payment_skipped INTEGER DEFAULT 0,
                     onboarding_completed INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            # 6. Customer Saved Payment Methods Table (AES-256 Encrypted at Rest)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS customer_saved_payment_methods (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    payment_method_type TEXT NOT NULL, -- CARD, UPI, NETBANKING, WALLET
+                    bank_name TEXT,
+                    nickname TEXT,
+                    masked_identifier TEXT NOT NULL,
+                    encrypted_data TEXT NOT NULL,
+                    is_default INTEGER NOT NULL DEFAULT 0,
+                    is_encrypted INTEGER NOT NULL DEFAULT 1,
+                    encryption_cipher TEXT NOT NULL DEFAULT 'AES-256-GCM/Fernet',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -263,6 +282,150 @@ class CustomerOrderService:
             return dict(row) if row else None
 
     # =========================================================================
+    # SAVED PAYMENT METHODS (AES-256 ENCRYPTED AT REST)
+    # =========================================================================
+    def add_saved_payment_method(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Securely encrypts and stores a saved customer payment method (Card, UPI VPA, NetBanking).
+        Sensitive details (raw PAN, VPA, account number) are encrypted with AES-256 (Fernet)
+        before hitting the SQLite database.
+        """
+        pm_id = f"pm_saved_{uuid.uuid4().hex[:10]}"
+        now_str = utcnow_iso()
+        pm_type = str(data.get("payment_method_type", data.get("type", "UPI"))).upper()
+        bank_name = data.get("bank_name", "HDFC Bank")
+        nickname = data.get("nickname") or f"{bank_name} {pm_type}"
+        is_default = 1 if data.get("is_default") else 0
+
+        # Extract sensitive field
+        raw_val = (
+            data.get("card_number") or
+            data.get("account_or_vpa") or
+            data.get("vpa") or
+            data.get("account_number") or
+            data.get("bank_or_vpa") or
+            "user@upi"
+        )
+        masked_id = payment_encryption_service.mask_identifier(str(raw_val), pm_type)
+
+        # Build payload of sensitive details to encrypt
+        sensitive_payload = {
+            "type": pm_type,
+            "bank_name": bank_name,
+            "raw_identifier": str(raw_val).strip(),
+            "card_holder_name": data.get("card_holder_name") or data.get("name_on_card"),
+            "expiry_month": data.get("expiry_month"),
+            "expiry_year": data.get("expiry_year"),
+            "created_at": now_str
+        }
+        encrypted_ciphertext = payment_encryption_service.encrypt_json_payload(sensitive_payload)
+
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            if is_default:
+                cursor.execute("UPDATE customer_saved_payment_methods SET is_default = 0 WHERE user_id = ?", (user_id,))
+
+            cursor.execute("""
+                INSERT INTO customer_saved_payment_methods
+                (id, user_id, payment_method_type, bank_name, nickname, masked_identifier, encrypted_data, is_default, is_encrypted, encryption_cipher, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            """, (pm_id, user_id, pm_type, bank_name, nickname, masked_id, encrypted_ciphertext, is_default, CIPHER_NAME, now_str, now_str))
+            conn.commit()
+
+        audit_service.log_audit(
+            action="PAYMENT_METHOD_SAVED",
+            entity_type="PAYMENT_METHOD",
+            entity_id=pm_id,
+            user_id=user_id,
+            role="Customer",
+            old_value=None,
+            new_value={"type": pm_type, "bank_name": bank_name, "masked_identifier": masked_id, "is_encrypted": True}
+        )
+
+        return {
+            "id": pm_id,
+            "user_id": user_id,
+            "payment_method_type": pm_type,
+            "bank_name": bank_name,
+            "nickname": nickname,
+            "masked_identifier": masked_id,
+            "is_default": bool(is_default),
+            "is_encrypted": True,
+            "encryption_cipher": CIPHER_NAME,
+            "created_at": now_str,
+            "updated_at": now_str
+        }
+
+    def get_saved_payment_methods(self, user_id: str) -> List[Dict[str, Any]]:
+        """
+        Lists all saved payment methods and registered mandates for the user.
+        Always returns masked identifiers and confirms AES-256 encryption.
+        """
+        from app.services.ai_autopay_service import ai_autopay_service
+        results = []
+
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, payment_method_type, bank_name, nickname, masked_identifier, is_default, is_encrypted, encryption_cipher, created_at, updated_at
+                FROM customer_saved_payment_methods
+                WHERE user_id = ?
+                ORDER BY is_default DESC, created_at DESC
+            """, (user_id,))
+            for r in cursor.fetchall():
+                d = dict(r)
+                d["is_mandate"] = False
+                d["is_default"] = bool(d["is_default"])
+                d["is_encrypted"] = bool(d.get("is_encrypted", 1))
+                results.append(d)
+
+        # Also retrieve active AutoPay mandates
+        mandates = ai_autopay_service.get_mandates(user_id=user_id)
+        for m in mandates:
+            results.append({
+                "id": m["id"],
+                "user_id": m["user_id"],
+                "payment_method_type": m["type"],
+                "bank_name": m.get("bank_name", "Razorpay AutoPay"),
+                "nickname": f"{m.get('bank_name', 'AutoPay')} Mandate ({m['type'].replace('_', ' ')})",
+                "masked_identifier": m.get("account_or_vpa_masked", "••••"),
+                "is_default": True if len(results) == 0 else False,
+                "is_mandate": True,
+                "mandate_id": m["id"],
+                "status": m.get("status", "ACTIVE"),
+                "max_amount": m.get("max_amount", 25000.0),
+                "is_encrypted": True,
+                "encryption_cipher": CIPHER_NAME,
+                "created_at": m.get("created_at"),
+                "updated_at": m.get("updated_at")
+            })
+
+        return results
+
+    def delete_saved_payment_method(self, user_id: str, pm_id: str) -> bool:
+        """Deletes a saved payment method or revokes mandate."""
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM customer_saved_payment_methods WHERE id = ? AND user_id = ?", (pm_id, user_id))
+            conn.commit()
+            if cursor.rowcount > 0:
+                audit_service.log_audit(
+                    action="PAYMENT_METHOD_DELETED",
+                    entity_type="PAYMENT_METHOD",
+                    entity_id=pm_id,
+                    user_id=user_id,
+                    role="Customer",
+                    old_value=None,
+                    new_value={"deleted": True}
+                )
+                return True
+
+        # Check if it was a mandate
+        from app.services.ai_autopay_service import ai_autopay_service
+        revoked = ai_autopay_service.update_mandate_status(mandate_id=pm_id, user_id=user_id, status="REVOKED")
+        return bool(revoked)
+
+    # =========================================================================
     # CUSTOMER ONBOARDING JOURNEY & PREREQUISITES TRACKING
     # =========================================================================
     def get_onboarding_status(self, user_id: str) -> Dict[str, Any]:
@@ -282,12 +445,16 @@ class CustomerOrderService:
             cursor.execute("SELECT * FROM customer_mandates WHERE user_id = ? AND status = 'ACTIVE'", (user_id,))
             mandates = [dict(r) for r in cursor.fetchall()]
 
+            cursor.execute("SELECT * FROM customer_saved_payment_methods WHERE user_id = ?", (user_id,))
+            saved_methods = [dict(r) for r in cursor.fetchall()]
+
             cursor.execute("SELECT * FROM customer_onboarding WHERE user_id = ?", (user_id,))
             ob_row = cursor.fetchone()
             ob_data = dict(ob_row) if ob_row else None
 
         has_address = len(addresses) > 0
-        has_payment = len(mandates) > 0
+        total_payment_instruments = len(mandates) + len(saved_methods)
+        has_payment = total_payment_instruments > 0
         has_order = len(orders) > 0
         payment_skipped = bool(ob_data and ob_data.get("payment_skipped"))
         is_onboarding_completed = bool(
@@ -296,6 +463,12 @@ class CustomerOrderService:
         )
 
         autopay_eligible = bool(has_address and has_payment and has_order)
+
+        payment_label = "No payment method on file"
+        if len(mandates) > 0:
+            payment_label = f"{mandates[0]['bank_name']} connected (AES-256 Encrypted)"
+        elif len(saved_methods) > 0:
+            payment_label = f"{saved_methods[0]['bank_name']} saved (AES-256 Encrypted)"
 
         prerequisites = {
             "address": {
@@ -306,9 +479,9 @@ class CustomerOrderService:
             },
             "payment": {
                 "met": has_payment,
-                "count": len(mandates),
+                "count": total_payment_instruments,
                 "label": "Payment Method Authorization",
-                "detail": f"{mandates[0]['bank_name']} connected" if has_payment else "No payment method on file",
+                "detail": payment_label,
             },
             "order": {
                 "met": has_order,
@@ -325,7 +498,7 @@ class CustomerOrderService:
             "has_address": has_address,
             "addresses_count": len(addresses),
             "has_payment_method": has_payment,
-            "payment_methods_count": len(mandates),
+            "payment_methods_count": total_payment_instruments,
             "payment_skipped": payment_skipped,
             "has_completed_order": has_order,
             "orders_count": len(orders),

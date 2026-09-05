@@ -18,3 +18,4 @@ frontend/.next/
 dist/
 build/
 *.db
+*.key

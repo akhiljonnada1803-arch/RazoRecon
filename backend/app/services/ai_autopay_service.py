@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from app.core.timestamps import utcnow_iso
 from app.services.audit_service import audit_service
+from app.core.encryption import payment_encryption_service, CIPHER_NAME
 from app.services.customer_order_service import customer_order_service, DB_PATH as MERCHANT_DB_PATH
 
 DB_PATH = MERCHANT_DB_PATH
@@ -118,6 +119,30 @@ class AIAutoPayService:
                 cursor.execute("ALTER TABLE customer_mandates ADD COLUMN bank_name TEXT NOT NULL DEFAULT 'HDFC Bank'")
             if "account_or_vpa_masked" not in m_cols:
                 cursor.execute("ALTER TABLE customer_mandates ADD COLUMN account_or_vpa_masked TEXT NOT NULL DEFAULT 'user@upi'")
+            if "bank_or_vpa" not in m_cols:
+                cursor.execute("ALTER TABLE customer_mandates ADD COLUMN bank_or_vpa TEXT")
+            if "is_encrypted" not in m_cols:
+                cursor.execute("ALTER TABLE customer_mandates ADD COLUMN is_encrypted INTEGER NOT NULL DEFAULT 1")
+            if "encryption_cipher" not in m_cols:
+                cursor.execute(f"ALTER TABLE customer_mandates ADD COLUMN encryption_cipher TEXT NOT NULL DEFAULT '{CIPHER_NAME}'")
+
+            # Automated migration: Encrypt any legacy unencrypted mandates at rest
+            cursor.execute("SELECT id, mandate_token, bank_or_vpa, account_or_vpa_masked FROM customer_mandates")
+            for r in cursor.fetchall():
+                row_id = r["id"]
+                raw_token = r["mandate_token"]
+                raw_vpa = r["bank_or_vpa"] or r["account_or_vpa_masked"]
+                update_needed = False
+                enc_token = raw_token
+                enc_vpa = raw_vpa
+                if raw_token and not payment_encryption_service.is_encrypted(raw_token):
+                    enc_token = payment_encryption_service.encrypt(raw_token)
+                    update_needed = True
+                if raw_vpa and not payment_encryption_service.is_encrypted(raw_vpa):
+                    enc_vpa = payment_encryption_service.encrypt(raw_vpa)
+                    update_needed = True
+                if update_needed:
+                    cursor.execute("UPDATE customer_mandates SET mandate_token = ?, bank_or_vpa = ?, is_encrypted = 1, encryption_cipher = ? WHERE id = ?", (enc_token, enc_vpa, CIPHER_NAME, row_id))
 
             # 3. AI Replenishment Recommendations Table
             cursor.execute("""
@@ -250,32 +275,35 @@ class AIAutoPayService:
                     now_str, now_str
                 ))
 
-                # Seed sample mandates across 4 types
+                # Seed sample mandates across 4 types (AES-256 encrypted at rest)
                 cursor.execute("""
                     INSERT INTO customer_mandates
-                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2030-12-31T23:59:59Z', ?, ?)
+                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at, is_encrypted, encryption_cipher)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2030-12-31T23:59:59Z', ?, ?, 1, ?)
                 """, (
                     "mnd_rzp_upi_99214", "usr_customer_demo", "UPI_AUTOPAY", "RAZORPAY",
-                    "mandate_rzp_token_881923", "HDFC Bank", "akhil@okhdfcbank", "akhil@okhdfcbank", 25000.0, now_str, now_str
+                    payment_encryption_service.encrypt("mandate_rzp_token_881923"), "HDFC Bank", "akhil@okhdfcbank",
+                    payment_encryption_service.encrypt("akhil@okhdfcbank"), 25000.0, now_str, now_str, CIPHER_NAME
                 ))
 
                 cursor.execute("""
                     INSERT INTO customer_mandates
-                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2029-08-31T23:59:59Z', ?, ?)
+                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at, is_encrypted, encryption_cipher)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2029-08-31T23:59:59Z', ?, ?, 1, ?)
                 """, (
                     "mnd_rzp_card_77412", "usr_customer_demo", "CREDIT_CARD_MANDATE", "RAZORPAY",
-                    "card_token_rzp_554109", "ICICI Bank", "•••• •••• •••• 8899", "•••• •••• •••• 8899", 50000.0, now_str, now_str
+                    payment_encryption_service.encrypt("card_token_rzp_554109"), "ICICI Bank", "•••• •••• •••• 8899",
+                    payment_encryption_service.encrypt("card_token_rzp_554109"), 50000.0, now_str, now_str, CIPHER_NAME
                 ))
 
                 cursor.execute("""
                     INSERT INTO customer_mandates
-                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2028-06-30T23:59:59Z', ?, ?)
+                    (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at, is_encrypted, encryption_cipher)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'AS_PRESENTED', '2028-06-30T23:59:59Z', ?, ?, 1, ?)
                 """, (
                     "mnd_rzp_debit_66101", "usr_customer_demo", "DEBIT_CARD_MANDATE", "RAZORPAY",
-                    "card_token_rzp_331092", "State Bank of India", "•••• •••• •••• 4242", "•••• •••• •••• 4242", 15000.0, now_str, now_str
+                    payment_encryption_service.encrypt("card_token_rzp_331092"), "State Bank of India", "•••• •••• •••• 4242",
+                    payment_encryption_service.encrypt("card_token_rzp_331092"), 15000.0, now_str, now_str, CIPHER_NAME
                 ))
 
                 # Seed sample execution logs
@@ -385,6 +413,7 @@ class AIAutoPayService:
 
         autopay_enabled = 1 if data.get("autopay_enabled", current["autopay_enabled"]) else 0
         connected_mandate_id = data.get("connected_mandate_id", current.get("connected_mandate_id"))
+        spent_this_month = float(data.get("spent_this_month", current.get("spent_this_month", 0.0)))
 
         cats_json = json.dumps(allowed_categories)
 
@@ -392,12 +421,12 @@ class AIAutoPayService:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE customer_budgets
-                SET monthly_budget = ?, max_single_purchase_limit = ?, allowed_categories_json = ?,
+                SET monthly_budget = ?, spent_this_month = ?, max_single_purchase_limit = ?, allowed_categories_json = ?,
                     merchant_trust_level = ?, purchase_mode = ?, approval_threshold = ?,
                     autopay_enabled = ?, connected_mandate_id = ?, updated_at = ?
                 WHERE user_id = ?
             """, (
-                monthly_budget, max_single_purchase_limit, cats_json,
+                monthly_budget, spent_this_month, max_single_purchase_limit, cats_json,
                 merchant_trust_level, purchase_mode, approval_threshold,
                 autopay_enabled, connected_mandate_id, now_str, user_id
             ))
@@ -430,17 +459,34 @@ class AIAutoPayService:
     # =========================================================================
     # MANDATES MANAGEMENT (UPI, DEBIT, CREDIT, NETBANKING)
     # =========================================================================
-    def get_mandates(self, user_id: str = "usr_customer_demo") -> List[Dict[str, Any]]:
+    def get_mandates(self, user_id: str = "usr_customer_demo", include_decrypted: bool = False) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM customer_mandates WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
-            return [dict(r) for r in cursor.fetchall()]
+            rows = [dict(r) for r in cursor.fetchall()]
+            out = []
+            for r in rows:
+                item = dict(r)
+                item["is_encrypted"] = bool(r.get("is_encrypted", 1))
+                item["encryption_cipher"] = r.get("encryption_cipher") or CIPHER_NAME
+                raw_token = payment_encryption_service.decrypt(r.get("mandate_token", ""))
+                raw_account = payment_encryption_service.decrypt(r.get("bank_or_vpa", ""))
+                if include_decrypted:
+                    item["raw_bank_or_vpa"] = raw_account
+                    item["raw_mandate_token"] = raw_token
+                else:
+                    # Sanitize token for customer-facing display
+                    item["mandate_token_masked"] = f"tok_rzp_••••{raw_token[-4:]}" if len(raw_token) >= 4 else "tok_rzp_••••"
+                    item["bank_or_vpa"] = r.get("account_or_vpa_masked", "••••")
+                out.append(item)
+            return out
 
     def add_mandate(self, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Connect a new payment method mandate:
         Supports UPI_AUTOPAY, DEBIT_CARD_MANDATE, CREDIT_CARD_MANDATE, NETBANKING_EMANDATE.
-        Raw card details are NEVER stored; only masked account / VPA is saved.
+        Raw payment details are securely encrypted using AES-256 (Fernet) at rest;
+        only masked accounts / VPAs are visible in customer UIs.
         """
         mnd_id = f"mnd_rzp_{uuid.uuid4().hex[:8]}"
         now_str = utcnow_iso()
@@ -449,21 +495,18 @@ class AIAutoPayService:
         account_raw = data.get("account_or_vpa", data.get("bank_or_vpa", "user@upi"))
         
         # Mask account/card safely
-        if m_type in ["DEBIT_CARD_MANDATE", "CREDIT_CARD_MANDATE"]:
-            clean_digits = "".join(filter(str.isdigit, str(account_raw)))
-            last4 = clean_digits[-4:] if len(clean_digits) >= 4 else "4242"
-            account_masked = f"•••• •••• •••• {last4}"
-        elif m_type == "NETBANKING_EMANDATE":
-            clean_digits = "".join(filter(str.isdigit, str(account_raw)))
-            last4 = clean_digits[-4:] if len(clean_digits) >= 4 else "9102"
-            account_masked = f"{bank_name} e-Mandate •••• {last4}"
-        else: # UPI_AUTOPAY
-            account_masked = str(account_raw).strip().lower()
+        account_masked = payment_encryption_service.mask_identifier(str(account_raw), m_type)
+        if m_type in ["NETBANKING_EMANDATE", "NETBANKING"] and not account_masked.startswith(bank_name):
+            account_masked = f"{bank_name} {account_masked}"
 
         max_amt = float(data.get("max_amount", 25000.0))
         token = data.get("mandate_token") or f"tok_rzp_{uuid.uuid4().hex[:12]}"
         freq = data.get("billing_frequency", "AS_PRESENTED")
         expires_at = data.get("expires_at") or (datetime.now() + timedelta(days=365*3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Bank-Grade AES-256 Encryption at Rest
+        encrypted_token = payment_encryption_service.encrypt(token)
+        encrypted_account = payment_encryption_service.encrypt(str(account_raw).strip())
 
         # Ensure budget row exists
         self.get_settings(user_id)
@@ -472,9 +515,9 @@ class AIAutoPayService:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO customer_mandates
-                (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at)
-                VALUES (?, ?, ?, 'RAZORPAY', ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?)
-            """, (mnd_id, user_id, m_type, token, bank_name, account_masked, account_masked, max_amt, freq, expires_at, now_str, now_str))
+                (id, user_id, type, provider, mandate_token, bank_name, account_or_vpa_masked, bank_or_vpa, max_amount, status, billing_frequency, expires_at, created_at, updated_at, is_encrypted, encryption_cipher)
+                VALUES (?, ?, ?, 'RAZORPAY', ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, 1, ?)
+            """, (mnd_id, user_id, m_type, encrypted_token, bank_name, account_masked, encrypted_account, max_amt, freq, expires_at, now_str, now_str, CIPHER_NAME))
 
             # Set as primary connected mandate
             cursor.execute("UPDATE customer_budgets SET connected_mandate_id = ?, updated_at = ? WHERE user_id = ?", (mnd_id, now_str, user_id))
@@ -485,7 +528,7 @@ class AIAutoPayService:
             user_id=user_id,
             notif_type="MANDATE_CONNECTED",
             title="Payment Mandate Connected Successfully",
-            message=f"{m_type.replace('_', ' ')} via {bank_name} ({account_masked}) connected with ₹{max_amt:,.2f} transaction authorization.",
+            message=f"{m_type.replace('_', ' ')} via {bank_name} ({account_masked}) connected with ₹{max_amt:,.2f} transaction authorization (AES-256 Encrypted).",
             severity="SUCCESS",
             metadata={"mandate_id": mnd_id, "type": m_type}
         )
@@ -497,7 +540,7 @@ class AIAutoPayService:
             user_id=user_id,
             role="Customer",
             old_value=None,
-            new_value={"type": m_type, "bank": bank_name, "account_masked": account_masked, "max_amount": max_amt}
+            new_value={"type": m_type, "bank": bank_name, "account_masked": account_masked, "max_amount": max_amt, "is_encrypted": True}
         )
 
         return {
@@ -506,7 +549,9 @@ class AIAutoPayService:
             "bank_name": bank_name,
             "account_or_vpa_masked": account_masked,
             "max_amount": max_amt,
-            "status": "ACTIVE"
+            "status": "ACTIVE",
+            "is_encrypted": True,
+            "encryption_cipher": CIPHER_NAME
         }
 
     def update_mandate_status(self, mandate_id: str, user_id: str, status: str) -> Optional[Dict[str, Any]]:

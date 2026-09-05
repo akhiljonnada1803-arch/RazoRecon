@@ -163,12 +163,42 @@ def get_customer_payment_methods(
     authorization: Optional[str] = Header(None),
     x_customer_id: Optional[str] = Header(None)
 ):
-    """List saved customer payment methods / mandates."""
+    """List saved customer payment methods & active mandates (AES-256 encrypted at rest)."""
     customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
     if not customer:
         return []
-    from app.services.ai_autopay_service import ai_autopay_service
-    return ai_autopay_service.get_mandates(user_id=customer.id)
+    return customer_order_service.get_saved_payment_methods(user_id=customer.id)
+
+@router.post("/payment-methods")
+def add_customer_payment_method(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """Save a customer payment method (Card, UPI VPA) with AES-256 encryption at rest."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required to save payment method")
+    eff_id = customer.id if customer else user_id
+    return customer_order_service.add_saved_payment_method(user_id=eff_id, data=payload)
+
+@router.delete("/payment-methods/{payment_method_id}")
+def delete_customer_payment_method(
+    payment_method_id: str,
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
+    """Delete a saved payment method or revoke connected mandate."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer and not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    eff_id = customer.id if customer else user_id
+    deleted = customer_order_service.delete_saved_payment_method(user_id=eff_id, pm_id=payment_method_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Payment method not found")
+    return {"success": True, "message": "Saved payment method removed successfully"}
 
 # -------------------------------------------------------------
 # MULTI-STEP CHECKOUT
