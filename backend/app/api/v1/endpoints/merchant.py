@@ -1,20 +1,23 @@
-from fastapi import APIRouter, Query, Body, HTTPException, Path
+from fastapi import APIRouter, Query, Body, HTTPException, Path, Depends
 from typing import Optional, List, Dict, Any
 from app.services.merchant_service import merchant_service
 from app.services.merchant_analytics_service import merchant_analytics_service
+from app.core.auth_dependency import get_authenticated_merchant_context, MerchantContext
 
 router = APIRouter()
 
 @router.get("/analytics/advanced")
 def get_advanced_merchant_analytics(
-    merchant_id: Optional[str] = Query("all", description="Merchant ID for drilldown"),
+    merchant_id: Optional[str] = Query(None, description="Merchant ID for drilldown"),
     date_range: Optional[str] = Query("30d", description="Timeframe filter: today, 7d, 30d, 90d, 1y, custom"),
     from_date: Optional[str] = Query(None, description="Start date for custom range (YYYY-MM-DD)"),
-    to_date: Optional[str] = Query(None, description="End date for custom range (YYYY-MM-DD)")
+    to_date: Optional[str] = Query(None, description="End date for custom range (YYYY-MM-DD)"),
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
     """Retrieve telemetry for 7 Recharts visualizations."""
+    target_id = merchant_id if (merchant_id and merchant_id != "all") else context.merchant_id
     return merchant_analytics_service.get_advanced_analytics(
-        merchant_id=merchant_id or "all",
+        merchant_id=target_id,
         date_range=date_range or "30d",
         from_date=from_date,
         to_date=to_date
@@ -22,33 +25,44 @@ def get_advanced_merchant_analytics(
 
 
 @router.get("/dashboard")
-def get_merchant_dashboard():
+def get_merchant_dashboard(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """Retrieve high-level merchant KPIs: Gross Revenue, Orders, SKUs, Conversion Rate, Customer Growth %."""
-    return merchant_service.get_dashboard_metrics()
+    return merchant_service.get_dashboard_metrics(merchant_id=context.merchant_id, is_demo=context.is_demo)
 
 @router.get("/delivery-partners")
-def list_delivery_partners():
-    """List 5 realistic demo courier partners (Delhivery, BlueDart, XpressBees, Ekart, Shadowfax) with telemetry."""
-    return merchant_service.get_delivery_partners()
+def list_delivery_partners(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
+    """List 5 realistic demo courier partners with telemetry."""
+    return merchant_service.get_delivery_partners(merchant_id=context.merchant_id if not context.is_demo else None)
 
 @router.get("/shipments")
-def list_shipments():
+def list_shipments(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """List active logistics dispatches and pickup queue across courier fleet."""
-    return merchant_service.get_shipments()
+    return merchant_service.get_shipments(merchant_id=context.merchant_id if not context.is_demo else None)
 
 @router.get("/orders")
 def list_orders(
     status: Optional[str] = Query("ALL", description="Filter by status: ALL, PAYMENT_RECEIVED, ACCEPTED, PICKING, PACKED, READY_FOR_PICKUP, PICKED_UP_BY_COURIER, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, RETURNED, REFUNDED, REJECTED"),
-    search: Optional[str] = Query(None, description="Search by order number, customer, email, AWB or tracking ID")
+    search: Optional[str] = Query(None, description="Search by order number, customer, email, AWB or tracking ID"),
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
     """List merchant orders with line items, customer details, and 11-stage status workflow."""
-    return merchant_service.get_orders(status=status, search=search)
+    return merchant_service.get_orders(status=status, search=search, merchant_id=context.merchant_id if not context.is_demo else None)
 
 @router.post("/orders")
-def create_order(payload: Dict[str, Any] = Body(...)):
+def create_order(
+    payload: Dict[str, Any] = Body(...),
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """Create a new merchant order and record lifecycle timestamp."""
     import uuid
     order_id = payload.get("order_id") or payload.get("id") or f"ord_{uuid.uuid4().hex[:8]}"
+    merchant_id = payload.get("merchant_id") or context.merchant_id
     return merchant_service.create_order(
         order_id=order_id,
         customer_name=payload.get("customer_name"),
@@ -61,7 +75,8 @@ def create_order(payload: Dict[str, Any] = Body(...)):
         tax=float(payload.get("tax")) if payload.get("tax") is not None else None,
         discount=float(payload.get("discount")) if payload.get("discount") is not None else None,
         payment_id=payload.get("payment_id"),
-        payment_method=payload.get("payment_method") or "upi"
+        payment_method=payload.get("payment_method") or "upi",
+        merchant_id=merchant_id
     )
 
 @router.get("/orders/{order_id}")
@@ -274,9 +289,11 @@ def update_order_status_endpoint(
 # -------------------------------------------------------------
 
 @router.get("/customers")
-def list_customers():
-    """List 100 enterprise and retail commerce customers with buying affinity and LTV."""
-    return merchant_service.get_customers()
+def list_customers(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
+    """List enterprise and retail commerce customers with buying affinity and LTV."""
+    return merchant_service.get_customers(merchant_id=context.merchant_id if not context.is_demo else None)
 
 @router.get("/customers/{customer_id}")
 def get_customer(customer_id: str):

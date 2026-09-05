@@ -187,6 +187,7 @@ class AuthService:
                     gstin TEXT,
                     owner_user_id TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'ACTIVE',
+                    is_demo_account INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(owner_user_id) REFERENCES users(id)
                 )
@@ -208,12 +209,24 @@ class AuthService:
             if "hashed_password" not in user_cols:
                 cursor.execute("ALTER TABLE users ADD COLUMN hashed_password TEXT")
 
+            # Migration check: ensure is_demo_account column exists in merchants
+            cursor.execute("PRAGMA table_info(merchants)")
+            merchant_cols = [c["name"] for c in cursor.fetchall()]
+            if "is_demo_account" not in merchant_cols:
+                cursor.execute("ALTER TABLE merchants ADD COLUMN is_demo_account INTEGER NOT NULL DEFAULT 0")
+
             # Seed core security definitions so system is independent of demo seeds
             self._init_core_security(cursor)
             conn.commit()
 
     def _init_core_security(self, cursor: sqlite3.Cursor):
-        """Always ensure core permissions, roles, and bindings exist regardless of demo seed."""
+        """Always ensure core permissions, roles, demo merchant, and bindings exist regardless of demo seed."""
+        # Ensure demo merchant is recognized as a demo account
+        cursor.execute("""
+            INSERT OR REPLACE INTO merchants (merchant_id, business_name, gstin, owner_user_id, status, is_demo_account, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("rzp_live_acme_8842", "Acme Direct Corp", "29AAAAA0000A1Z5", "usr_merchant_owner", "ACTIVE", 1, "2026-01-01 00:00:00 UTC"))
+
         for p in PERMISSIONS_DEFINITIONS:
             cursor.execute("""
                 INSERT OR REPLACE INTO permissions (id, name, description)
@@ -445,11 +458,11 @@ class AuthService:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (user_id, business_clean, email_clean, pwd_hash, pwd_hash, salt, "role_merchant_owner", org_id, now_str))
 
-            # Insert Merchant
+            # Insert Merchant (strictly real merchant with is_demo_account = 0)
             cursor.execute("""
-                INSERT INTO merchants (merchant_id, business_name, gstin, owner_user_id, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (merchant_id, business_clean, gstin_clean, user_id, "ACTIVE", now_str))
+                INSERT INTO merchants (merchant_id, business_name, gstin, owner_user_id, status, is_demo_account, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (merchant_id, business_clean, gstin_clean, user_id, "ACTIVE", 0, now_str))
 
             conn.commit()
 
@@ -486,6 +499,24 @@ class AuthService:
             token_type="bearer",
             user=user_dto
         )
+
+    def is_demo_merchant(self, merchant_id: Optional[str]) -> bool:
+        """Determine if a merchant is a preloaded demo account or a real newly registered merchant."""
+        if not merchant_id:
+            return False
+        if merchant_id in ("rzp_live_acme_8842", "mcht_acme_pos", "mcht_bharat_audio", "mcht_dahua_sec", "mcht_epson_pos", "mcht_novus_cloud"):
+            return True
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT is_demo_account FROM merchants WHERE merchant_id = ?", (merchant_id,))
+                row = cursor.fetchone()
+                if row and row["is_demo_account"] == 1:
+                    return True
+        except Exception:
+            pass
+        return False
+
 
     def register_user(
         self, 

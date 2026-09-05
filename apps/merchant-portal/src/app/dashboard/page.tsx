@@ -151,11 +151,11 @@ export default function MerchantDashboardPage() {
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                ₹{metrics ? metrics.gross_revenue.toLocaleString('en-IN') : '1,49,020'}
+                ₹{metrics ? metrics.gross_revenue.toLocaleString('en-IN') : '0'}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
                 <TrendingUp className="h-3.5 w-3.5" />
-                <span>+24.8% vs last month</span>
+                <span>{metrics && metrics.total_orders === 0 ? 'Fresh Storefront' : '+24.8% vs last month'}</span>
               </div>
             </div>
 
@@ -167,11 +167,11 @@ export default function MerchantDashboardPage() {
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                {metrics ? metrics.total_orders : '6'}
+                {metrics ? metrics.total_orders : '0'}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>{metrics?.paid_orders || 4} settled & reconciled</span>
+                <span>{metrics?.paid_orders || 0} settled & reconciled</span>
               </div>
             </div>
 
@@ -183,10 +183,10 @@ export default function MerchantDashboardPage() {
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                {metrics ? metrics.total_products : '50'}
+                {metrics ? metrics.total_products : '0'}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-semibold text-purple-600">
-                <span>7 Categories • 100% In-Stock</span>
+                <span>{metrics && metrics.total_products === 0 ? 'No products published yet' : 'In-Stock & Buyable'}</span>
               </div>
             </div>
 
@@ -198,29 +198,165 @@ export default function MerchantDashboardPage() {
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                {metrics ? `${metrics.conversion_rate_pct}%` : '50.0%'}
+                {metrics ? `${metrics.conversion_rate_pct}%` : '0.0%'}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-600">
                 <ArrowUpRight className="h-3.5 w-3.5" />
-                <span>+6.2% from AI Upsell</span>
+                <span>{metrics && metrics.total_orders === 0 ? 'Awaiting 1st order' : '+6.2% from AI Upsell'}</span>
               </div>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Customer Growth</span>
+                <span className="text-xs font-semibold text-slate-500">Customer Base</span>
                 <div className="h-8 w-8 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600">
                   <Users className="h-4 w-4" />
                 </div>
               </div>
               <div className="text-2xl font-extrabold text-slate-900 font-mono">
-                +{metrics ? `${metrics.customer_growth_pct}%` : '+18.4%'}
+                {metrics ? metrics.total_customers : '0'}
               </div>
               <div className="flex items-center gap-1 text-[11px] font-semibold text-teal-600">
-                <span>5 Enterprise B2B Buyers</span>
+                <span>{metrics && metrics.total_customers === 0 ? 'Zero customers registered' : 'Active buyers'}</span>
               </div>
             </div>
           </div>
+
+          {/* New Merchant Zero-State Onboarding Section */}
+          {metrics && metrics.total_orders === 0 && metrics.gross_revenue === 0 && (
+            <div className="bg-gradient-to-br from-blue-50 via-indigo-50/50 to-white border-2 border-blue-200/80 rounded-3xl p-6 sm:p-8 shadow-md space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-[#0B72E7] text-white border-0 text-xs font-bold uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5 mr-1" />
+                      Quick Setup Guide
+                    </Badge>
+                    <span className="text-xs text-slate-500 font-medium">5 Steps to Launch Your Store</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                    Welcome to RazorCommerce! Let&apos;s get your store live.
+                  </h2>
+                  <p className="text-slate-600 text-sm max-w-2xl">
+                    Your merchant account is strictly isolated and active. Complete these 5 steps to start accepting customer orders and activate AI autonomous commerce.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-2xl border border-blue-100 shadow-xs">
+                  <span className="text-xs font-bold text-slate-700">Setup Progress:</span>
+                  <span className="text-xs font-mono font-extrabold text-[#0B72E7] bg-blue-50 px-2 py-0.5 rounded-lg">
+                    {metrics.total_products > 0 ? '40%' : '20%'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                {/* 1. Add First Product */}
+                <Link href="/merchant/catalog" className="group">
+                  <div className="bg-white hover:bg-blue-50/50 border border-slate-200 hover:border-[#0B72E7] p-4 rounded-2xl transition-all shadow-xs hover:shadow-md h-full flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="h-9 w-9 rounded-xl bg-blue-100 text-[#0B72E7] flex items-center justify-center font-bold text-sm">
+                        1
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#0B72E7] transition-colors">
+                        Add First Product
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Create or upload your first product SKU with price, stock, and GST rate.
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs font-semibold text-[#0B72E7] pt-2 border-t border-slate-100">
+                      <span>Add Product</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+
+                {/* 2. Complete Store Profile */}
+                <Link href="/merchant/settings" className="group">
+                  <div className="bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-500 p-4 rounded-2xl transition-all shadow-xs hover:shadow-md h-full flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                        2
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-emerald-600 transition-colors">
+                        Complete Store Profile
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Set business name, GSTIN, PAN, and primary dispatch warehouse location.
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs font-semibold text-emerald-600 pt-2 border-t border-slate-100">
+                      <span>Configure Store</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+
+                {/* 3. Connect Razorpay Account */}
+                <Link href="/merchant/payments" className="group">
+                  <div className="bg-white hover:bg-purple-50/50 border border-slate-200 hover:border-purple-500 p-4 rounded-2xl transition-all shadow-xs hover:shadow-md h-full flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm">
+                        3
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-purple-600 transition-colors">
+                        Connect Razorpay
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Link Razorpay Key ID and Secret for 1-click checkout and T+1 automated settlement.
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs font-semibold text-purple-600 pt-2 border-t border-slate-100">
+                      <span>Link Gateway</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+
+                {/* 4. Publish Catalog */}
+                <Link href="/merchant/catalog" className="group">
+                  <div className="bg-white hover:bg-amber-50/50 border border-slate-200 hover:border-amber-500 p-4 rounded-2xl transition-all shadow-xs hover:shadow-md h-full flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="h-9 w-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
+                        4
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-amber-600 transition-colors">
+                        Publish Catalog
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Make SKUs live for customer storefront discovery and instant buyable links.
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs font-semibold text-amber-600 pt-2 border-t border-slate-100">
+                      <span>Publish SKUs</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+
+                {/* 5. Enable AI Commerce */}
+                <Link href="/merchant/agent-api" className="group">
+                  <div className="bg-white hover:bg-rose-50/50 border border-slate-200 hover:border-rose-500 p-4 rounded-2xl transition-all shadow-xs hover:shadow-md h-full flex flex-col justify-between space-y-3">
+                    <div className="space-y-2">
+                      <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">
+                        5
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-sm group-hover:text-rose-600 transition-colors">
+                        Enable AI Commerce
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Expose agent discovery endpoints, review intelligence, and AutoPay reorders.
+                      </p>
+                    </div>
+                    <div className="flex items-center text-xs font-semibold text-rose-600 pt-2 border-t border-slate-100">
+                      <span>Activate AI</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* AI Growth Engine Proactive Alerts Widget */}
           <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">

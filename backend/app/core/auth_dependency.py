@@ -38,3 +38,40 @@ def require_authenticated_customer(
         )
 
     return user
+
+class MerchantContext:
+    def __init__(self, merchant_id: str, user: Optional[UserDTO] = None, is_demo: bool = False):
+        self.merchant_id = merchant_id
+        self.user = user
+        self.is_demo = is_demo
+
+def get_authenticated_merchant_context(
+    authorization: Optional[str] = Header(default=None),
+    x_merchant_id: Optional[str] = Header(default=None),
+    merchant_id: Optional[str] = None
+) -> MerchantContext:
+    """
+    Resolve the authenticated merchant identity from:
+    1. Authorization Bearer JWT token
+    2. x-merchant-id header
+    3. merchant_id query parameter
+    4. Default demo merchant rzp_live_acme_8842 if unauthenticated demo
+    """
+    user: Optional[UserDTO] = None
+    if authorization:
+        user = auth_service.verify_token(authorization)
+
+    resolved_id: Optional[str] = None
+    if user and user.merchant_id:
+        resolved_id = user.merchant_id
+    elif x_merchant_id:
+        resolved_id = x_merchant_id.strip()
+    elif merchant_id and merchant_id.strip().lower() != "all":
+        resolved_id = merchant_id.strip()
+
+    if not resolved_id:
+        resolved_id = "rzp_live_acme_8842"
+
+    is_demo = auth_service.is_demo_merchant(resolved_id)
+    return MerchantContext(merchant_id=resolved_id, user=user, is_demo=is_demo)
+

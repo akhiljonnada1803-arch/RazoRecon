@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Path, Body, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, Path, Body, UploadFile, File, Depends
 from typing import List, Optional, Dict, Any
 import os
 import uuid
@@ -18,6 +18,7 @@ from app.schemas.catalog import (
 )
 
 from app.services.catalog_service import catalog_service
+from app.core.auth_dependency import get_authenticated_merchant_context, MerchantContext
 
 router = APIRouter()
 
@@ -34,9 +35,12 @@ def list_catalog_products(
     max_price: Optional[float] = Query(default=None, description="Maximum price filter"),
     sort_by: str = Query(default="newest", description="Sort: newest, price_asc, price_desc, stock_asc, stock_desc, name"),
     page: int = Query(default=1, ge=1, description="Page number"),
-    limit: int = Query(default=50, ge=1, le=100, description="Items per page")
+    limit: int = Query(default=50, ge=1, le=100, description="Items per page"),
+    merchant_id: Optional[str] = Query(default=None, description="Filter by merchant ID"),
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
     """Retrieve filtered, sorted, and paginated products from the enterprise catalog."""
+    filter_merchant = merchant_id if (merchant_id and merchant_id != "all") else (context.merchant_id if not context.is_demo else None)
     return catalog_service.get_all_products(
         search=search,
         category=category,
@@ -45,19 +49,27 @@ def list_catalog_products(
         max_price=max_price,
         sort_by=sort_by,
         page=page,
-        limit=limit
+        limit=limit,
+        merchant_id=filter_merchant
     )
 
 @router.get("/stats", response_model=CatalogStatsDTO)
-def get_catalog_statistics():
+def get_catalog_statistics(
+    merchant_id: Optional[str] = Query(default=None, description="Filter stats by merchant ID"),
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """Retrieve aggregate catalog metrics: total inventory valuation, units, low stock alerts, in-stock rate."""
-    return catalog_service.get_catalog_stats()
+    filter_merchant = merchant_id if (merchant_id and merchant_id != "all") else (context.merchant_id if not context.is_demo else None)
+    return catalog_service.get_catalog_stats(merchant_id=filter_merchant)
 
 @router.get("/inventory")
-def get_inventory_management_data():
+def get_inventory_management_data(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """Retrieve detailed inventory view with stock levels, low stock alerts, valuation, and threshold alerts."""
-    stats = catalog_service.get_catalog_stats()
-    all_products = catalog_service.get_all_products(limit=100)
+    filter_merchant = context.merchant_id if not context.is_demo else None
+    stats = catalog_service.get_catalog_stats(merchant_id=filter_merchant)
+    all_products = catalog_service.get_all_products(limit=100, merchant_id=filter_merchant)
     
     return {
         "stats": stats,
@@ -152,9 +164,13 @@ def get_product(product_id: str = Path(..., description="Unique product identifi
     return product
 
 @router.post("", response_model=ProductDetailDTO, status_code=201)
-def create_product(payload: ProductCreateDTO):
+@router.post("/products", response_model=ProductDetailDTO, status_code=201)
+def create_product(
+    payload: ProductCreateDTO,
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """Create a new product SKU in the enterprise catalog."""
-    return catalog_service.create_product(payload)
+    return catalog_service.create_product(payload, merchant_id=context.merchant_id)
 
 @router.put("/{product_id}", response_model=ProductDetailDTO)
 def update_product(

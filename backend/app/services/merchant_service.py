@@ -106,10 +106,29 @@ class MerchantService:
                 except Exception:
                     pass
 
+            # Ensure merchant_id column exists if upgrading
+            if cols and "merchant_id" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE merchant_orders ADD COLUMN merchant_id TEXT DEFAULT 'rzp_live_acme_8842'")
+                    cursor.execute("UPDATE merchant_orders SET merchant_id = 'rzp_live_acme_8842' WHERE merchant_id IS NULL OR merchant_id = ''")
+                except Exception:
+                    pass
+
+            # Ensure merchant_id column exists on merchant_customers
+            cursor.execute("PRAGMA table_info(merchant_customers)")
+            cust_cols = [row[1] for row in cursor.fetchall()]
+            if cust_cols and "merchant_id" not in cust_cols:
+                try:
+                    cursor.execute("ALTER TABLE merchant_customers ADD COLUMN merchant_id TEXT DEFAULT 'rzp_live_acme_8842'")
+                    cursor.execute("UPDATE merchant_customers SET merchant_id = 'rzp_live_acme_8842' WHERE merchant_id IS NULL OR merchant_id = ''")
+                except Exception:
+                    pass
+
             # Orders Table with full 13 lifecycle timestamps
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS merchant_orders (
                     id TEXT PRIMARY KEY,
+                    merchant_id TEXT NOT NULL DEFAULT 'rzp_live_acme_8842',
                     order_number TEXT NOT NULL UNIQUE,
                     customer_id TEXT NOT NULL,
                     customer_name TEXT NOT NULL,
@@ -156,6 +175,7 @@ class MerchantService:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS merchant_customers (
                     id TEXT PRIMARY KEY,
+                    merchant_id TEXT NOT NULL DEFAULT 'rzp_live_acme_8842',
                     name TEXT NOT NULL,
                     email TEXT NOT NULL UNIQUE,
                     phone TEXT,
@@ -379,35 +399,51 @@ class MerchantService:
                 conn.commit()
 
     # Dashboard Metrics
-    def get_dashboard_metrics(self) -> Dict[str, Any]:
+    def get_dashboard_metrics(self, merchant_id: Optional[str] = None, is_demo: bool = False) -> Dict[str, Any]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             
-            cursor.execute("SELECT COALESCE(SUM(total_amount), 0) as rev FROM merchant_orders WHERE payment_status = 'PAID'")
+            where_clause = " WHERE merchant_id = ?" if merchant_id else ""
+            where_paid = " WHERE payment_status = 'PAID' AND merchant_id = ?" if merchant_id else " WHERE payment_status = 'PAID'"
+            params = (merchant_id,) if merchant_id else ()
+
+            cursor.execute(f"SELECT COALESCE(SUM(total_amount), 0) as rev FROM merchant_orders{where_paid}", params)
             revenue = cursor.fetchone()["rev"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_orders")
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_orders{where_clause}", params)
             total_orders = cursor.fetchone()["cnt"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_orders WHERE payment_status = 'PAID'")
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_orders{where_paid}", params)
             paid_orders = cursor.fetchone()["cnt"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_orders WHERE order_status IN ('PAYMENT_RECEIVED', 'PENDING_CONFIRMATION')")
+            pending_where = " WHERE order_status IN ('PAYMENT_RECEIVED', 'PENDING_CONFIRMATION') AND merchant_id = ?" if merchant_id else " WHERE order_status IN ('PAYMENT_RECEIVED', 'PENDING_CONFIRMATION')"
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_orders{pending_where}", params)
             pending_orders = cursor.fetchone()["cnt"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_orders WHERE order_status = 'READY_FOR_PICKUP'")
+            ready_where = " WHERE order_status = 'READY_FOR_PICKUP' AND merchant_id = ?" if merchant_id else " WHERE order_status = 'READY_FOR_PICKUP'"
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_orders{ready_where}", params)
             ready_for_pickup = cursor.fetchone()["cnt"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_orders WHERE order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')")
+            active_where = " WHERE order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY') AND merchant_id = ?" if merchant_id else " WHERE order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')"
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_orders{active_where}", params)
             active_shipments = cursor.fetchone()["cnt"]
 
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_customers")
+            cust_where = " WHERE merchant_id = ?" if merchant_id else ""
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM merchant_customers{cust_where}", params)
             total_customers = cursor.fetchone()["cnt"]
 
-            conversion_rate = round((paid_orders / max(1, total_orders) * 100), 1)
-            aov = round(revenue / max(1, paid_orders), 2)
+            # Query isolated product count for this merchant
+            try:
+                from app.services.catalog_service import catalog_service
+                stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
+                total_products = stats.total_products
+            except Exception:
+                total_products = 50 if is_demo else 0
 
-            cursor.execute("SELECT * FROM merchant_orders ORDER BY created_at DESC LIMIT 6")
+            conversion_rate = round((paid_orders / max(1, total_orders) * 100), 1) if total_orders > 0 else 0.0
+            aov = round(revenue / max(1, paid_orders), 2) if paid_orders > 0 else 0.0
+
+            cursor.execute(f"SELECT * FROM merchant_orders{where_clause} ORDER BY created_at DESC LIMIT 6", params)
             recent_orders = []
             for row in cursor.fetchall():
                 d = dict(row)
@@ -415,15 +451,20 @@ class MerchantService:
                 d["timeline"] = json.loads(d["timeline_json"]) if d["timeline_json"] else []
                 recent_orders.append(d)
 
-            revenue_trend = [
-                {"date": "Mon", "revenue": 145000, "orders": 14},
-                {"date": "Tue", "revenue": 182000, "orders": 19},
-                {"date": "Wed", "revenue": 158000, "orders": 16},
-                {"date": "Thu", "revenue": 219000, "orders": 24},
-                {"date": "Fri", "revenue": 285000, "orders": 31},
-                {"date": "Sat", "revenue": 342000, "orders": 38},
-                {"date": "Sun", "revenue": 298000, "orders": 29},
-            ]
+            if total_orders == 0 and not is_demo:
+                revenue_trend = []
+                customer_growth_pct = 0.0
+            else:
+                revenue_trend = [
+                    {"date": "Mon", "revenue": 145000, "orders": 14},
+                    {"date": "Tue", "revenue": 182000, "orders": 19},
+                    {"date": "Wed", "revenue": 158000, "orders": 16},
+                    {"date": "Thu", "revenue": 219000, "orders": 24},
+                    {"date": "Fri", "revenue": 285000, "orders": 31},
+                    {"date": "Sat", "revenue": 342000, "orders": 38},
+                    {"date": "Sun", "revenue": 298000, "orders": 29},
+                ]
+                customer_growth_pct = 24.8
 
             return {
                 "gross_revenue": revenue,
@@ -433,9 +474,9 @@ class MerchantService:
                 "ready_for_pickup": ready_for_pickup,
                 "active_shipments": active_shipments,
                 "total_customers": total_customers,
-                "total_products": 50,
+                "total_products": total_products,
                 "conversion_rate_pct": conversion_rate,
-                "customer_growth_pct": 24.8,
+                "customer_growth_pct": customer_growth_pct,
                 "average_order_value": aov,
                 "recent_orders": recent_orders,
                 "revenue_trend": revenue_trend,
@@ -456,7 +497,8 @@ class MerchantService:
         tax: Optional[float] = None,
         discount: Optional[float] = None,
         payment_id: Optional[str] = None,
-        payment_method: str = "upi"
+        payment_method: str = "upi",
+        merchant_id: str = "rzp_live_acme_8842"
     ) -> Dict[str, Any]:
         existing = self.get_order_by_id(order_id)
         if existing:
@@ -473,7 +515,7 @@ class MerchantService:
             cursor = conn.cursor()
             
             # 1. Customer Association
-            cursor.execute("SELECT * FROM merchant_customers WHERE LOWER(email) = ?", (c_email,))
+            cursor.execute("SELECT * FROM merchant_customers WHERE LOWER(email) = ? AND merchant_id = ?", (c_email, merchant_id))
             cust_row = cursor.fetchone()
             
             if cust_row:
@@ -500,10 +542,10 @@ class MerchantService:
                 }
                 cursor.execute("""
                     INSERT INTO merchant_customers
-                    (id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, 'SILVER', ?, 1, ?, ?, 'New customer purchase verified via Razorpay.', ?, ?, ?)
+                    (id, merchant_id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'SILVER', ?, 1, ?, ?, 'New customer purchase verified via Razorpay.', ?, ?, ?)
                 """, (
-                    cust_id, c_name, c_email, c_phone, gross_amount, gross_amount,
+                    cust_id, merchant_id, c_name, c_email, c_phone, gross_amount, gross_amount,
                     json.dumps(prefs), datetime.now().strftime("%Y-%m-%d"), now_str, now_str
                 ))
 
@@ -553,10 +595,10 @@ class MerchantService:
             # 3. Database Persistence
             cursor.execute("""
                 INSERT INTO merchant_orders
-                (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?)
             """, (
-                order_id, order_num, cust_id, c_name, c_email, c_phone,
+                order_id, merchant_id, order_num, cust_id, c_name, c_email, c_phone,
                 ship_addr, json.dumps(items_clean), final_subtotal, final_tax, final_discount, final_total,
                 json.dumps(timeline), payment_id or f"pay_rzp_{uuid.uuid4().hex[:10]}", payment_method,
                 now_str, now_str, now_str, now_str, now_str
@@ -573,7 +615,7 @@ class MerchantService:
                 user_name=c_name,
                 role="Customer",
                 old_value=None,
-                new_value={"order_id": order_id, "order_number": order_num, "amount": final_total, "items_count": len(items_clean)}
+                new_value={"order_id": order_id, "order_number": order_num, "amount": final_total, "items_count": len(items_clean), "merchant_id": merchant_id}
             )
             audit_service.log_audit(
                 action="PAYMENT_COMPLETED",
@@ -582,7 +624,7 @@ class MerchantService:
                 user_name="Razorpay Payment Gateway",
                 role="Payment Gateway",
                 old_value={"status": "INITIATED"},
-                new_value={"status": "CAPTURED", "method": payment_method, "amount": final_total, "order_id": order_id}
+                new_value={"status": "CAPTURED", "method": payment_method, "amount": final_total, "order_id": order_id, "merchant_id": merchant_id}
             )
         except Exception as ex:
             print(f"Warning: Audit log failure: {ex}")
@@ -590,12 +632,16 @@ class MerchantService:
         return self.get_order_by_id(order_id)
 
     # Orders Retrieval & Filters
-    def get_orders(self, status: Optional[str] = None, search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_orders(self, status: Optional[str] = None, search: Optional[str] = None, merchant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             query = "SELECT * FROM merchant_orders"
             params = []
             where_clauses = []
+
+            if merchant_id:
+                where_clauses.append("merchant_id = ?")
+                params.append(merchant_id)
 
             if status and status.upper() != "ALL":
                 st = status.upper()
@@ -1182,29 +1228,37 @@ class MerchantService:
         """Alias for courier_pickup to guarantee backward compatibility."""
         return self.courier_pickup(order_id, courier_name)
 
-    def get_delivery_partners(self) -> List[Dict[str, Any]]:
+    def get_delivery_partners(self, merchant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             partners = []
             for p in DELIVERY_PARTNERS:
-                cursor.execute("""
-                    SELECT COUNT(*) as cnt FROM merchant_orders 
-                    WHERE delivery_partner LIKE ? AND order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')
-                """, (f"%{p['code']}%",))
+                if merchant_id:
+                    cursor.execute("""
+                        SELECT COUNT(*) as cnt FROM merchant_orders 
+                        WHERE delivery_partner LIKE ? AND order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY') AND merchant_id = ?
+                    """, (f"%{p['code']}%", merchant_id))
+                else:
+                    cursor.execute("""
+                        SELECT COUNT(*) as cnt FROM merchant_orders 
+                        WHERE delivery_partner LIKE ? AND order_status IN ('PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')
+                    """, (f"%{p['code']}%",))
                 cnt = cursor.fetchone()["cnt"]
                 partner_copy = dict(p)
                 partner_copy["active_shipments"] = cnt
                 partners.append(partner_copy)
             return partners
 
-    def get_shipments(self) -> List[Dict[str, Any]]:
+    def get_shipments(self, merchant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            where_m = "WHERE merchant_id = ? AND " if merchant_id else "WHERE "
+            params = (merchant_id,) if merchant_id else ()
+            cursor.execute(f"""
                 SELECT * FROM merchant_orders 
-                WHERE order_status IN ('READY_FOR_PICKUP', 'PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'RETURNED')
+                {where_m}order_status IN ('READY_FOR_PICKUP', 'PICKED_UP_BY_COURIER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'RETURNED')
                 ORDER BY updated_at DESC
-            """)
+            """, params)
             shipments = []
             for row in cursor.fetchall():
                 d = dict(row)
@@ -1214,10 +1268,12 @@ class MerchantService:
             return shipments
 
     # Customers Retrieval
-    def get_customers(self) -> List[Dict[str, Any]]:
+    def get_customers(self, merchant_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM merchant_customers ORDER BY lifetime_value DESC")
+            where_m = "WHERE merchant_id = ? " if merchant_id else ""
+            params = (merchant_id,) if merchant_id else ()
+            cursor.execute(f"SELECT * FROM merchant_customers {where_m}ORDER BY lifetime_value DESC", params)
             customers = []
             for row in cursor.fetchall():
                 d = dict(row)
@@ -1249,7 +1305,8 @@ class MerchantService:
         tax: float,
         discount: float,
         payment_id: str,
-        payment_method: str = "upi"
+        payment_method: str = "upi",
+        merchant_id: str = "rzp_live_acme_8842"
     ) -> Optional[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -1258,14 +1315,14 @@ class MerchantService:
             if cursor.fetchone():
                 return None
 
-            now = datetime.datetime.now()
+            now = datetime.now()
             now_str = now.isoformat()
             short_id = uuid.uuid4().hex[:6].upper()
             order_number = f"RCM-{now.year}-{short_id}"
             tracking_id = f"TRK-{short_id}"
             awb = f"AWB{random.randint(10000000, 99999999)}"
             carrier = random.choice(["BlueDart Apex", "Delhivery Surface", "DTDC Express"])
-            eta = (now + datetime.timedelta(days=3)).strftime("%d %b %Y")
+            eta = (now + timedelta(days=3)).strftime("%d %b %Y")
 
             timeline = [
                 {"status": "ORDER_PLACED", "label": "Order Placed", "time": now.strftime("%I:%M %p"), "date": now.strftime("%d %b"), "completed": True},
@@ -1277,10 +1334,10 @@ class MerchantService:
 
             cursor.execute("""
                 INSERT INTO merchant_orders
-                (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
             """, (
-                order_id, order_number, "cust_001", customer_name, customer_email, customer_phone,
+                order_id, merchant_id, order_number, "cust_001", customer_name, customer_email, customer_phone,
                 shipping_address, json.dumps(items), subtotal, tax, discount, gross_amount,
                 carrier, awb, tracking_id, "Central Warehouse", eta,
                 json.dumps(timeline), payment_id, payment_method,

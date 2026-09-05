@@ -3,6 +3,27 @@ class ApiClient {
     const isBrowser = typeof window !== 'undefined';
     const primaryUrl = isBrowser ? `/api/v1${endpoint}` : `http://127.0.0.1:8000/api/v1${endpoint}`;
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((options?.headers as Record<string, string>) || {}),
+    };
+
+    if (isBrowser) {
+      const token = localStorage.getItem('razorcommerce_merchant_token');
+      if (token && !headers['Authorization']) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      try {
+        const userRaw = localStorage.getItem('razorcommerce_merchant_user');
+        if (userRaw) {
+          const user = JSON.parse(userRaw);
+          if (user?.merchant_id && !headers['x-merchant-id']) {
+            headers['x-merchant-id'] = user.merchant_id;
+          }
+        }
+      } catch (e) {}
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -10,10 +31,7 @@ class ApiClient {
       const response = await fetch(primaryUrl, {
         ...options,
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(options?.headers || {}),
-        },
+        headers,
       });
 
       clearTimeout(timeoutId);
@@ -22,7 +40,7 @@ class ApiClient {
         if (isBrowser) {
           const directResp = await fetch(`http://127.0.0.1:8000/api/v1${endpoint}`, {
             ...options,
-            headers: { 'Content-Type': 'application/json', ...(options?.headers || {}) },
+            headers,
           }).catch(() => null);
 
           if (directResp && directResp.ok) {

@@ -157,8 +157,37 @@ class DemandIntelligenceService:
                 "90d": create_points(90, 3.20, 6.0),
             }
 
-    def get_demand_intelligence(self) -> Dict[str, Any]:
-        catalog_res = catalog_service.get_all_products(limit=100)
+    def get_demand_intelligence(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
+        catalog_res = catalog_service.get_all_products(limit=100, merchant_id=merchant_id)
+        if not catalog_res.products:
+            now_iso = utcnow_iso()
+            return {
+                "summary": {
+                    "average_demand_score": 0,
+                    "total_products_tracked": 0,
+                    "trending_count": 0,
+                    "growing_count": 0,
+                    "stable_count": 0,
+                    "declining_count": 0,
+                    "dead_inventory_count": 0,
+                    "dead_inventory_tied_capital_inr": 0.0,
+                    "projected_revenue_lift_inr": 0.0,
+                    "active_campaign_recommendations_count": 0,
+                    "demand_score_calculated_at": now_iso,
+                    "discount_recommendation_generated_at": now_iso,
+                    "campaign_recommendation_generated_at": now_iso,
+                    "last_updated": now_iso
+                },
+                "products": [],
+                "trending_products": [],
+                "growing_products": [],
+                "declining_products": [],
+                "dead_inventory": [],
+                "autonomous_campaigns": [],
+                "growth_insights": [],
+                "category_heatmap": [],
+            }
+
         enriched_products = []
         trending_list = []
         growing_list = []
@@ -375,8 +404,8 @@ class DemandIntelligenceService:
             "category_heatmap": category_heatmap,
         }
 
-    def get_inventory_optimization(self) -> Dict[str, Any]:
-        data = self.get_demand_intelligence()
+    def get_inventory_optimization(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
+        data = self.get_demand_intelligence(merchant_id=merchant_id)
         products = data["products"]
 
         fast_movers = [p for p in products if p["inventory_velocity"] >= 3.0]

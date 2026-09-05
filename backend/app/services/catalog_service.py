@@ -142,6 +142,11 @@ class CatalogService:
                 cursor.execute("ALTER TABLE products ADD COLUMN popularity_score REAL DEFAULT 0.88")
                 conn.commit()
 
+            if "merchant_id" not in existing_cols:
+                cursor.execute("ALTER TABLE products ADD COLUMN merchant_id TEXT DEFAULT 'rzp_live_acme_8842'")
+                cursor.execute("UPDATE products SET merchant_id = 'rzp_live_acme_8842' WHERE merchant_id IS NULL OR merchant_id = ''")
+                conn.commit()
+
             cursor.execute("SELECT COUNT(*) as cnt FROM products")
             row = cursor.fetchone()
             if row["cnt"] < 50:
@@ -422,13 +427,18 @@ class CatalogService:
         page: int = 1,
         limit: int = 50,
         sort_by: str = "newest",
-        sort_dir: str = "desc"
+        sort_dir: str = "desc",
+        merchant_id: Optional[str] = None
     ) -> ProductListResponseDTO:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             
             where_clauses = []
             params: List[Any] = []
+
+            if merchant_id:
+                where_clauses.append("merchant_id = ?")
+                params.append(merchant_id)
 
             if category and category.lower() != "all":
                 where_clauses.append("category = ?")
@@ -482,12 +492,15 @@ class CatalogService:
             products = [self._row_to_dto(r) for r in rows]
 
             # Category breakdowns
-            cursor.execute("""
+            cat_where = "WHERE merchant_id = ?" if merchant_id else ""
+            cat_params = (merchant_id,) if merchant_id else ()
+            cursor.execute(f"""
                 SELECT category, COUNT(*) as cnt, SUM(stock_quantity) as units
                 FROM products
+                {cat_where}
                 GROUP BY category
                 ORDER BY cnt DESC
-            """)
+            """, cat_params)
             category_dtos = [
                 CategoryCountDTO(
                     name=r["category"],
@@ -518,7 +531,7 @@ class CatalogService:
                 return None
             return self._row_to_dto(row)
 
-    def create_product(self, data: ProductCreateDTO) -> ProductDetailDTO:
+    def create_product(self, data: ProductCreateDTO, merchant_id: str = "rzp_live_acme_8842") -> ProductDetailDTO:
         pid = f"prod_{uuid.uuid4().hex[:10]}"
         sku = data.sku or f"RZP-{uuid.uuid4().hex[:6].upper()}"
         cost_price = data.cost_price if data.cost_price is not None else round(data.price * 0.65, 2)
@@ -549,15 +562,15 @@ class CatalogService:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO products (
-                    id, sku, name, brand, category, price, cost_price, original_price,
+                    id, merchant_id, sku, name, brand, category, price, cost_price, original_price,
                     currency, stock_quantity, reorder_threshold, stock_status, inventory_status,
                     rating, reviews_count, image_url, tagline, description,
                     features, specs, in_stock, delivery_time, gst_rate_pct, hsn_sac_code,
                     offer_id, offer_text, offer_discount_pct, offer_badge, price_tiers_json,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                pid, sku, data.name, data.brand or "Acme Direct", data.category, data.price, cost_price, data.original_price,
+                pid, merchant_id, sku, data.name, data.brand or "Acme Direct", data.category, data.price, cost_price, data.original_price,
                 "INR", stock_qty, reorder_th, stock_status, inv_status,
                 4.8, 1, image_url, data.tagline or "", data.description,
                 features_json, specs_json, in_stock, data.delivery_time or "2-3 business days",
@@ -797,10 +810,13 @@ class CatalogService:
             conn.commit()
             return cursor.rowcount > 0
 
-    def get_catalog_stats(self) -> CatalogStatsDTO:
+    def get_catalog_stats(self, merchant_id: Optional[str] = None) -> CatalogStatsDTO:
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            where_clause = "WHERE merchant_id = ?" if merchant_id else ""
+            params = (merchant_id,) if merchant_id else ()
+
+            cursor.execute(f"""
                 SELECT 
                     COUNT(*) as total_prods,
                     SUM(stock_quantity) as total_units,
@@ -809,21 +825,23 @@ class CatalogService:
                     SUM(CASE WHEN stock_status = 'Out of Stock' THEN 1 ELSE 0 END) as out_of_stock,
                     COUNT(DISTINCT category) as cat_count
                 FROM products
-            """)
+                {where_clause}
+            """, params)
             r = cursor.fetchone()
             total_prods = r["total_prods"] or 0
             total_units = r["total_units"] or 0
             total_val = float(r["total_val"] or 0.0)
             low_stock = r["low_stock"] or 0
             out_stock = r["out_of_stock"] or 0
-            in_stock_rate = round(((total_prods - out_stock) / max(1, total_prods)) * 100, 1)
+            in_stock_rate = round(((total_prods - out_stock) / max(1, total_prods)) * 100, 1) if total_prods > 0 else 100.0
 
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT category, COUNT(*) as cnt, SUM(stock_quantity) as units
                 FROM products
+                {where_clause}
                 GROUP BY category
                 ORDER BY cnt DESC
-            """)
+            """, params)
             categories_list = [
                 {"name": cat_row["category"], "count": cat_row["cnt"], "total_units": cat_row["units"] or 0}
                 for cat_row in cursor.fetchall()
@@ -836,20 +854,23 @@ class CatalogService:
                 low_stock_count=low_stock,
                 out_of_stock_count=out_stock,
                 in_stock_rate_pct=in_stock_rate,
-                categories_count=r["cat_count"] or 7,
-                active_offers_count=5,
+                categories_count=r["cat_count"] or (0 if total_prods == 0 else 7),
+                active_offers_count=0 if total_prods == 0 else 5,
                 categories=categories_list
             )
 
-    def get_category_counts(self) -> List[CategoryCountDTO]:
+    def get_category_counts(self, merchant_id: Optional[str] = None) -> List[CategoryCountDTO]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            where_clause = "WHERE merchant_id = ?" if merchant_id else ""
+            params = (merchant_id,) if merchant_id else ()
+            cursor.execute(f"""
                 SELECT category, COUNT(*) as cnt, SUM(stock_quantity) as units
                 FROM products
+                {where_clause}
                 GROUP BY category
                 ORDER BY cnt DESC
-            """)
+            """, params)
             rows = cursor.fetchall()
             return [
                 CategoryCountDTO(

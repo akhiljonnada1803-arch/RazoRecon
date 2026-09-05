@@ -170,11 +170,32 @@ class MerchantGrowthService:
     # =========================================================================
     # 1. UPSELL & CROSS-SELL ENGINE
     # =========================================================================
-    def get_upsell_cross_sell(self) -> Dict[str, Any]:
+    def get_upsell_cross_sell(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Calculates machine learning association rules (Apriori Support, Confidence, Lift)
         for frequently bought together pairings, bundle recommendations, cross-sell, and upsell.
         """
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.catalog_service import catalog_service
+                stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
+                if stats.total_products == 0:
+                    return {
+                        "summary": {
+                            "active_pairings_count": 0,
+                            "published_bundles_count": 0,
+                            "active_cross_sells_count": 0,
+                            "active_upsell_triggers_count": 0,
+                            "total_revenue_opportunity_inr": 0.0,
+                            "avg_association_confidence_pct": 0.0
+                        },
+                        "frequently_bought_together": [],
+                        "bundle_recommendations": [],
+                        "cross_sell_opportunities": [],
+                        "upsell_suggestions": []
+                    }
+
         frequently_bought_together = [
             {
                 "id": "fbt_pos_paper",
@@ -379,10 +400,39 @@ class MerchantGrowthService:
     # =========================================================================
     # 2. AGENT ANALYTICS
     # =========================================================================
-    def get_agent_analytics(self) -> Dict[str, Any]:
+    def get_agent_analytics(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Deep-dive telemetry into AI Agent Commerce vs Human Manual Shopping.
         """
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                if not orders:
+                    return {
+                        "overview": {
+                            "total_orders": 0,
+                            "ai_orders_count": 0,
+                            "human_orders_count": 0,
+                            "ai_order_share_pct": 0.0,
+                            "total_revenue_inr": 0.0,
+                            "ai_revenue_inr": 0.0,
+                            "human_revenue_inr": 0.0,
+                            "ai_revenue_share_pct": 0.0,
+                            "agent_conversion_rate_pct": 0.0,
+                            "human_conversion_rate_pct": 0.0,
+                            "conversion_multiplier": 0.0,
+                            "autopay_success_rate_pct": 0.0,
+                            "manual_checkout_abandonment_pct": 0.0,
+                            "avg_ai_decision_seconds": 0.0,
+                            "avg_human_browse_minutes": 0.0
+                        },
+                        "revenue_split_history": [],
+                        "top_ai_purchased_products": [],
+                        "autonomous_triggers": []
+                    }
+
         return {
             "overview": {
                 "total_orders": 1280,
@@ -462,10 +512,31 @@ class MerchantGrowthService:
     # =========================================================================
     # 3. CUSTOMER INTELLIGENCE
     # =========================================================================
-    def get_customer_intelligence(self) -> Dict[str, Any]:
+    def get_customer_intelligence(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Customer lifetime value, repeat rates, cohort retention, churn risks, and VIP clients.
         """
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                customers = merchant_service.get_customers(merchant_id=merchant_id)
+                if not customers:
+                    return {
+                        "metrics": {
+                            "total_active_customers": 0,
+                            "repeat_purchase_rate_pct": 0.0,
+                            "avg_customer_lifetime_value_inr": 0.0,
+                            "net_revenue_retention_nrr_pct": 0.0,
+                            "monthly_churn_rate_pct": 0.0,
+                            "at_risk_customers_count": 0,
+                            "vip_enterprise_accounts": 0
+                        },
+                        "clv_distribution": [],
+                        "retention_cohorts": [],
+                        "vip_customers": []
+                    }
+
         vip_customers = [
             {
                 "id": "cust_vip_01",
@@ -499,7 +570,7 @@ class MerchantGrowthService:
                 "id": "cust_vip_03",
                 "name": "Urban Brew Cafes Franchise",
                 "contact": "supplies@urbanbrew.co",
-                "clv_tier": "TIER 2 (GROWTH VIP)",
+                "clv_tier": "TIER 2 (GROWVIP)",
                 "total_spend_inr": 345000.0,
                 "total_orders": 16,
                 "repeat_frequency_days": 21,
@@ -570,10 +641,37 @@ class MerchantGrowthService:
     # =========================================================================
     # 4. REVENUE DASHBOARD
     # =========================================================================
-    def get_revenue_dashboard(self) -> Dict[str, Any]:
+    def get_revenue_dashboard(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Revenue Today, MTD, Orders Velocity, AOV, Growth %, and AI Commerce Revenue %.
         """
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                if not orders:
+                    return {
+                        "kpis": {
+                            "revenue_today_inr": 0.0,
+                            "revenue_today_growth_pct": 0.0,
+                            "revenue_mtd_inr": 0.0,
+                            "revenue_mtd_target_inr": 0.0,
+                            "target_achievement_pct": 0.0,
+                            "orders_today": 0,
+                            "orders_today_growth_pct": 0.0,
+                            "average_order_value_aov_inr": 0.0,
+                            "aov_growth_pct": 0.0,
+                            "yoy_annual_growth_pct": 0.0,
+                            "ai_commerce_revenue_pct": 0.0,
+                            "ai_commerce_gmv_mtd_inr": 0.0
+                        },
+                        "hourly_velocity_today": [],
+                        "monthly_trend": [],
+                        "payment_channel_breakdown": [],
+                        "category_revenue_breakdown": []
+                    }
+
         return {
             "kpis": {
                 "revenue_today_inr": 184500.0,
@@ -621,8 +719,27 @@ class MerchantGrowthService:
     # =========================================================================
     # 5. CAMPAIGN MANAGER
     # =========================================================================
-    def get_campaigns(self) -> Dict[str, Any]:
+    def get_campaigns(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """List all AI and merchant marketing campaigns with live ROI tracking."""
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                merchant_campaigns = [c for c in self.campaigns if c.get("merchant_id") == merchant_id]
+                total_spend = sum(c["spend_inr"] for c in merchant_campaigns)
+                total_attributed_rev = sum(c["attributed_revenue_inr"] for c in merchant_campaigns)
+                overall_roi = round(total_attributed_rev / total_spend, 1) if total_spend > 0 else 0.0
+                return {
+                    "summary": {
+                        "active_campaigns": sum(1 for c in merchant_campaigns if c["status"] == "ACTIVE"),
+                        "total_campaigns": len(merchant_campaigns),
+                        "total_spend_inr": total_spend,
+                        "total_attributed_revenue_inr": total_attributed_rev,
+                        "blended_roi_multiplier": overall_roi,
+                        "total_conversions": sum(c["conversions"] for c in merchant_campaigns)
+                    },
+                    "campaigns": merchant_campaigns
+                }
+
         total_spend = sum(c["spend_inr"] for c in self.campaigns)
         total_attributed_rev = sum(c["attributed_revenue_inr"] for c in self.campaigns)
         overall_roi = round(total_attributed_rev / total_spend, 1) if total_spend > 0 else 0.0
@@ -639,11 +756,12 @@ class MerchantGrowthService:
             "campaigns": self.campaigns
         }
 
-    def launch_campaign(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def launch_campaign(self, data: Dict[str, Any], merchant_id: str = "rzp_live_acme_8842") -> Dict[str, Any]:
         """Create and immediately launch an AI-generated or custom campaign."""
         new_id = f"cmp_{uuid.uuid4().hex[:8]}"
         camp = {
             "id": new_id,
+            "merchant_id": merchant_id,
             "title": data.get("title", "AI Smart Growth Campaign"),
             "type": data.get("type", "AI_AUTONOMOUS_TRIGGER"),
             "status": "ACTIVE",
@@ -679,8 +797,35 @@ class MerchantGrowthService:
     # =========================================================================
     # 6. AGENT READINESS SCORE
     # =========================================================================
-    def get_agent_readiness(self) -> Dict[str, Any]:
+    def get_agent_readiness(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         """Returns the 5-dimension Agent Readiness scorecard."""
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.catalog_service import catalog_service
+                stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
+                if stats.total_products == 0:
+                    return {
+                        "overall_score": 15.0,
+                        "status": "ONBOARDING_REQUIRED",
+                        "rating_label": "Catalog & Store Setup Pending",
+                        "last_evaluated": datetime.now().isoformat(),
+                        "dimensions": {
+                            "catalog_quality": {"score": 0.0, "weight": 0.25, "status": "PENDING", "metrics": {"high_res_images_pct": 0.0, "structured_descriptions_pct": 0.0, "markdown_features_pct": 0.0, "seo_metadata_pct": 0.0}, "recommendation": "Add your first product to activate AI Commerce catalog indexing."},
+                            "inventory_accuracy": {"score": 0.0, "weight": 0.20, "status": "PENDING", "metrics": {"real_time_sync_pct": 0.0, "buffer_stock_accuracy": 0.0, "stockout_prevention_rate": 0.0}, "recommendation": "Set inventory counts and reorder thresholds."},
+                            "pricing_completeness": {"score": 25.0, "weight": 0.20, "status": "PENDING", "metrics": {"gst_inclusive_clarity": 100.0, "mrp_transparency_pct": 0.0, "volume_tier_pricing_pct": 0.0}, "recommendation": "Configure GST rates and pricing."},
+                            "specification_coverage": {"score": 0.0, "weight": 0.20, "status": "PENDING", "metrics": {"technical_specs_depth": 0.0, "comparison_attributes_pct": 0.0, "compatibility_tags_pct": 0.0}, "recommendation": "Add specification bullets for AI comparison engines."},
+                            "delivery_reliability": {"score": 50.0, "weight": 0.15, "status": "READY", "metrics": {"courier_sla_adherence": 100.0, "same_day_dispatch_pct": 100.0, "return_rate_pct": 0.0}, "recommendation": "Logistics network ready to fulfill orders."}
+                        },
+                        "checklist": [
+                            {"id": "chk_1", "title": "Add First Product to Storefront", "category": "Catalog", "passed": False, "impact": "+25 pts"},
+                            {"id": "chk_2", "title": "Complete Store & GST Profile", "category": "Profile", "passed": True, "impact": "+20 pts"},
+                            {"id": "chk_3", "title": "Connect Razorpay Payments Account", "category": "Payments", "passed": True, "impact": "+20 pts"},
+                            {"id": "chk_4", "title": "Publish Catalog to Live Agents", "category": "Agentic Commerce", "passed": False, "impact": "+20 pts"},
+                            {"id": "chk_5", "title": "Enable AI Commerce Agent Autonomy", "category": "AI Agents", "passed": False, "impact": "+15 pts"}
+                        ]
+                    }
+
         return self.readiness_state
 
     def optimize_agent_readiness(self) -> Dict[str, Any]:
