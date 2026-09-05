@@ -1090,6 +1090,23 @@ class CommerceService:
             "why_bullets": why_bullets
         }
 
+    def _resolve_prod(self, item: Any) -> Optional[ProductDTO]:
+        if not item:
+            return None
+        if isinstance(item, ProductDTO):
+            return item
+        p_id = getattr(item, "id", None) or (item.get("id") if isinstance(item, dict) else None)
+        if p_id:
+            found = self.get_product_by_id(p_id)
+            if found:
+                return found
+        p_name = getattr(item, "name", None) or (item.get("name") if isinstance(item, dict) else None)
+        if p_name:
+            for p in self.products:
+                if p.name.lower() == p_name.lower():
+                    return p
+        return None
+
     # =========================================================================
     # 10-STEP CONVERSATIONAL ADVISOR STATE MACHINE
     # =========================================================================
@@ -1152,6 +1169,147 @@ class CommerceService:
             "payment_method": payment_method_name,
             "autopay_status": "ACTIVE" if autopay_enabled else "PAUSED"
         }
+
+        # ---------------------------------------------------------------------
+        # CONVERSATION CONTEXT PARSER: Extract previous assistant state
+        # ---------------------------------------------------------------------
+        last_assistant = None
+        for m in reversed(history or []):
+            role = getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else None)
+            if role == "assistant":
+                last_assistant = m
+                break
+
+        prev_flow_step = None
+        prev_prod = None
+        prev_addr = None
+        prev_requires_approval = False
+        prev_recs = []
+
+        if last_assistant:
+            prev_flow_step = getattr(last_assistant, "flow_step", None) or (last_assistant.get("flow_step") if isinstance(last_assistant, dict) else None)
+            prev_prod = getattr(last_assistant, "selected_product", None) or (last_assistant.get("selected_product") if isinstance(last_assistant, dict) else None)
+            prev_addr = getattr(last_assistant, "selected_address", None) or (last_assistant.get("selected_address") if isinstance(last_assistant, dict) else None)
+            prev_requires_approval = bool(getattr(last_assistant, "requires_approval", False) or (last_assistant.get("requires_approval") if isinstance(last_assistant, dict) else False))
+            prev_recs = getattr(last_assistant, "recommended_products", []) or (last_assistant.get("recommended_products") if isinstance(last_assistant, dict) else [])
+
+        is_affirmative = (
+            q in ["yes", "y", "yeah", "yep", "sure", "ok", "okay", "approve", "approved", "proceed", "buy", "buy it", "confirm", "confirm it", "i approve", "authorize", "i authorize", "charge it", "continue", "do it", "place order", "yes please", "yes approve", "order now"] or
+            any(w in q for w in ["approve purchase", "confirm purchase", "authorize this", "proceed with", "buy with autopay", "place my order", "yes please", "approve order"])
+        )
+
+        is_negative = (
+            q in ["no", "n", "nope", "cancel", "don't", "dont", "stop", "abort", "reject", "nevermind", "go back"] or
+            any(w in q for w in ["cancel order", "don't buy", "do not buy", "cancel purchase", "reject order"])
+        )
+
+        # Handle user responding to APPROVAL_REQUIRED (e.g. limit check prompt)
+        if (prev_flow_step == "APPROVAL_REQUIRED" or prev_requires_approval) and not action:
+            if is_negative:
+                return CommerceChatResponseDTO(
+                    message="👍 **Purchase Cancelled.**\n\nI have cancelled this order authorization. You have not been charged. What other products would you like to explore or compare?",
+                    flow_step="CANCELLED",
+                    action_triggered="CANCELLED",
+                    suggested_prompts=["Recommend POS machines", "Find laptops under ₹60,000", "View AutoPay budget status"]
+                )
+            if is_affirmative or any(w in q for w in ["approve", "buy", "proceed", "confirm", "charge", "order"]):
+                target_prod = self.get_product_by_id(selected_product_id or "") or self._resolve_prod(prev_prod) or self.products[0]
+                chosen_addr = selected_address or prev_addr or (active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0])
+                order_qty = max(1, quantity or 1)
+                total_price = float(target_prod.price * order_qty)
+
+                buy_res = ai_autopay_service.direct_one_click_buy(
+                    product_id=target_prod.id,
+                    quantity=order_qty,
+                    user_id=user_id or "usr_customer_demo",
+                    custom_reason=f"Customer Manual 1-Click Approval of {target_prod.name}",
+                    product_name=target_prod.name,
+                    unit_price=target_prod.price,
+                    category=target_prod.category,
+                    is_autonomous_agent=True
+                )
+                order_id = buy_res.get("order_id", f"ord_{uuid.uuid4().hex[:10]}")
+                order_conf = buy_res.get("confirmation", {})
+                tracking_id = f"DELHIVERY-{uuid.uuid4().hex[:8].upper()}"
+
+                message = (
+                    f"🎉 **Order #{order_id} Approved & Placed Successfully!**\n\n"
+                    f"• **Product**: {target_prod.name} × {order_qty}\n"
+                    f"• **Delivery Address**: {chosen_addr.get('address_line')}, {chosen_addr.get('city')}, {chosen_addr.get('state')} - {chosen_addr.get('pincode')}\n"
+                    f"• **Payment Method**: {payment_method_name}\n"
+                    f"• **Total Charged**: **₹{total_price:,.2f}** (Inclusive of 18% GST)\n"
+                    f"• **Authorization**: Customer Manual 1-Click Approval Granted\n"
+                    f"• **Carrier**: Delhivery Express | **Tracking ID**: `{tracking_id}`\n"
+                    f"• **Estimated Delivery**: {target_prod.delivery_eta or 'Tomorrow by 5:00 PM'}\n\n"
+                    f"Your tax invoice and shipping dossier have been generated and archived in your account."
+                )
+
+                return CommerceChatResponseDTO(
+                    message=message,
+                    flow_step="AUTONOMOUS_PURCHASE",
+                    action_triggered="AUTONOMOUS_PURCHASE",
+                    selected_product=target_prod,
+                    selected_address=chosen_addr,
+                    autonomous_order=order_conf,
+                    autopay_guardrail_info=autopay_guardrail_info,
+                    suggested_prompts=[
+                        f"Track order #{order_id}",
+                        "View AutoPay Purchase History",
+                        "View spending budget balance",
+                        "Ask shopping advice for accessories"
+                    ]
+                )
+
+        # Handle user responding to ORDER_CONFIRMATION
+        if prev_flow_step == "ORDER_CONFIRMATION" and not action:
+            if is_negative:
+                return CommerceChatResponseDTO(
+                    message="👍 **Order Cancelled.**\n\nI have cancelled this order. What else can I help you find?",
+                    flow_step="CANCELLED",
+                    action_triggered="CANCELLED",
+                    suggested_prompts=["Recommend POS machines", "Find laptops", "View spending limits"]
+                )
+            if is_affirmative:
+                action = "confirm_autopay_purchase"
+
+        # Handle user responding to ADDRESS_SELECTION
+        if prev_flow_step == "ADDRESS_SELECTION" and not action:
+            target_prod = self.get_product_by_id(selected_product_id or "") or self._resolve_prod(prev_prod) or self.products[0]
+            chosen_addr = None
+            if is_affirmative or any(w in q for w in ["1", "first", "default", "home", "office", "bangalore", "ship here", "deliver here", "use this"]):
+                chosen_addr = active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0]
+            elif "2" in q and len(active_saved_addresses) > 1:
+                chosen_addr = active_saved_addresses[1]
+            elif "3" in q and len(active_saved_addresses) > 2:
+                chosen_addr = active_saved_addresses[2]
+
+            if chosen_addr:
+                action = "select_address"
+                selected_address = chosen_addr
+                selected_product_id = target_prod.id
+
+        # Handle user responding to TOP_RECOMMENDATIONS with product choice
+        if prev_flow_step == "TOP_RECOMMENDATIONS" and not action:
+            picked_prod = None
+            if any(q == w or q.startswith(w) for w in ["1", "first", "first one", "option 1", "pick 1", "select 1", "choose 1", "buy 1", "the first"]):
+                if prev_recs:
+                    picked_prod = self._resolve_prod(prev_recs[0])
+            elif any(q == w or q.startswith(w) for w in ["2", "second", "second one", "option 2", "pick 2", "select 2", "choose 2", "buy 2", "the second"]):
+                if len(prev_recs) > 1:
+                    picked_prod = self._resolve_prod(prev_recs[1])
+            elif any(q == w or q.startswith(w) for w in ["3", "third", "third one", "option 3", "pick 3", "select 3", "choose 3", "buy 3", "the third"]):
+                if len(prev_recs) > 2:
+                    picked_prod = self._resolve_prod(prev_recs[2])
+            elif prev_recs:
+                for p in prev_recs:
+                    p_name = getattr(p, "name", "") or (p.get("name") if isinstance(p, dict) else "")
+                    if p_name and any(token in p_name.lower() for token in q.split() if len(token) > 3):
+                        picked_prod = self._resolve_prod(p)
+                        break
+
+            if picked_prod:
+                action = "select_product"
+                selected_product_id = picked_prod.id
 
         # ---------------------------------------------------------------------
         # STEP 10: PURCHASE EXECUTION (Confirm & Execute AutoPay)

@@ -81,3 +81,57 @@ def test_commerce_chat_endpoint_with_groq_integration():
             assert "Groq LLM Shopping Assistant" in data["message"]
             assert len(data["recommended_products"]) > 0
             assert data["comparison_data"] is not None
+
+
+def test_commerce_chat_user_replies_yes_to_approval_prompt():
+    """When user replies with 'yes' to an APPROVAL_REQUIRED limit check, it executes order instead of showing products again."""
+    prev_assistant_message = {
+        "role": "assistant",
+        "content": "⚠️ AutoPay Purchase Limit Check:\n• Product Price: ₹14,999.00\nThis purchase exceeds your configured AutoPay limits. Would you like to authorize this manually or complete checkout?",
+        "flow_step": "APPROVAL_REQUIRED",
+        "requires_approval": True,
+        "selected_product": {
+            "id": "prod_pos_smart_v3",
+            "name": "Razorpay Smart POS Terminal V3 Pro",
+            "price": 14999.0,
+            "category": "Payment Terminals"
+        },
+        "selected_address": {
+            "address_line": "123 Tech Park Alpha",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pincode": "560100"
+        }
+    }
+
+    # User simply replies 'yes'
+    resp = client.post("/api/v1/commerce/chat", json={
+        "query": "yes",
+        "history": [prev_assistant_message]
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    # It must NOT search the catalog for 'yes' and show recommendations again!
+    assert data["flow_step"] == "AUTONOMOUS_PURCHASE"
+    assert "Approved & Placed Successfully" in data["message"]
+    assert "Razorpay Smart POS Terminal V3 Pro" in data["message"]
+
+
+def test_commerce_chat_user_replies_no_to_cancel():
+    """When user replies 'no' or 'cancel' to an approval prompt, it cleanly cancels."""
+    prev_assistant_message = {
+        "role": "assistant",
+        "content": "⚠️ AutoPay Purchase Limit Check",
+        "flow_step": "APPROVAL_REQUIRED",
+        "requires_approval": True
+    }
+
+    resp = client.post("/api/v1/commerce/chat", json={
+        "query": "no",
+        "history": [prev_assistant_message]
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["flow_step"] == "CANCELLED"
+    assert "Cancelled" in data["message"]
+

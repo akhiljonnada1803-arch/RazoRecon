@@ -74,13 +74,13 @@ class ChatMessageDTO(BaseModel):
     role: str # "user" | "assistant"
     content: str
     timestamp: Optional[str] = None
-    recommended_products: Optional[List[ProductDTO]] = None
+    recommended_products: Optional[List[Any]] = None
     comparison_data: Optional[ComparisonDataDTO] = None
     suggested_prompts: Optional[List[str]] = None
     action_type: Optional[str] = None # "add_to_cart" | "view_cart" | "compare" | "checkout" | "select_product" | "select_address"
     flow_step: Optional[str] = None
     ai_recommendation_reason: Optional[Dict[str, Any]] = None
-    selected_product: Optional[ProductDTO] = None
+    selected_product: Optional[Any] = None
     selected_address: Optional[Dict[str, Any]] = None
     order_summary: Optional[Dict[str, Any]] = None
     saved_addresses: Optional[List[Dict[str, Any]]] = None

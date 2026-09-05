@@ -30,10 +30,14 @@ class GroqService:
         return bool(key and len(key.strip()) > 5 and not key.strip().startswith("your_"))
 
     def _get_active_key(self) -> Optional[str]:
-        return os.getenv("GROQ_API_KEY") or settings.GROQ_API_KEY
+        if "GROQ_API_KEY" in os.environ:
+            return os.environ["GROQ_API_KEY"]
+        return settings.GROQ_API_KEY
 
     def _get_active_model(self) -> str:
-        return os.getenv("GROQ_MODEL") or settings.GROQ_MODEL or "openai/gpt-oss-120b"
+        if "GROQ_MODEL" in os.environ:
+            return os.environ["GROQ_MODEL"]
+        return settings.GROQ_MODEL or "openai/gpt-oss-120b"
 
     def generate_commerce_response(
         self,
