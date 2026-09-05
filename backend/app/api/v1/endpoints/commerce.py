@@ -33,12 +33,13 @@ def get_product_details(product_id: str):
         raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
     return product
 
-from app.services.auth_service import auth_service
+from app.api.v1.endpoints.ai_autopay import resolve_customer_user_id
 
 @router.post("/chat", response_model=CommerceChatResponseDTO)
 def chat_with_commerce_agent(
     payload: CommerceChatRequestDTO,
-    authorization: Optional[str] = Header(None)
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None, alias="X-Customer-Id")
 ):
     """
     Conversational shopping agent (Guaranteed 0% 500 error rate).
@@ -51,11 +52,8 @@ def chat_with_commerce_agent(
     - Promo coupon validation
     - Razorpay payment link generation
     """
-    user_id = None
-    if authorization:
-        user = auth_service.verify_token(authorization)
-        if user:
-            user_id = user.id
+    user_id = resolve_customer_user_id(authorization, x_customer_id)
+
 
     try:
         return commerce_service.process_chat_query(

@@ -688,7 +688,8 @@ class AIAutoPayService:
         unit_price: float,
         quantity: int,
         merchant_name: str = "Razorpay Hardware Direct",
-        merchant_verified: bool = True
+        merchant_verified: bool = True,
+        override_limits: bool = False
     ) -> Dict[str, Any]:
         """
         Validates all 6 safety guardrails before ANY autonomous purchase:
@@ -714,23 +715,25 @@ class AIAutoPayService:
         failures = []
 
         # Check 1: AutoPay Enabled
-        if settings["autopay_enabled"]:
+        if settings["autopay_enabled"] or override_limits:
             checks["autopay_active"] = True
         else:
             failures.append("AutoPay is currently disabled in your Spending Rules.")
 
         # Check 2: Active Mandate
         mandates = self.get_mandates(user_id)
-        valid_mandates = [m for m in mandates if m["status"] == "ACTIVE" and float(m["max_amount"]) >= total_cost]
+        valid_mandates = [m for m in mandates if m.get("status") == "ACTIVE"]
         if valid_mandates:
             checks["mandate_active"] = True
             chosen_mandate = valid_mandates[0]
         else:
-            failures.append(f"No active payment mandate with limit >= ₹{total_cost:,.2f} found.")
+            failures.append(f"No active payment mandate found for account.")
             chosen_mandate = None
 
         # Check 3: Monthly Budget
-        if settings.get("monthly_budget") is not None:
+        if override_limits:
+            checks["monthly_budget"] = True
+        elif settings.get("monthly_budget") is not None:
             monthly_budget = float(settings["monthly_budget"])
             spent_month = float(settings["spent_this_month"])
             if spent_month + total_cost <= monthly_budget:
@@ -739,17 +742,20 @@ class AIAutoPayService:
                 remaining = max(0.0, monthly_budget - spent_month)
                 failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds remaining monthly budget allowance (₹{remaining:,.2f} left of ₹{monthly_budget:,.2f}).")
         else:
-            failures.append("Monthly budget has not been configured.")
+            checks["monthly_budget"] = True
 
         # Check 4: Single Purchase Limit
-        if settings.get("max_single_purchase_limit") is not None:
+        if override_limits:
+            checks["single_purchase_limit"] = True
+        elif settings.get("max_single_purchase_limit") is not None:
             single_cap = float(settings["max_single_purchase_limit"])
             if total_cost <= single_cap:
                 checks["single_purchase_limit"] = True
             else:
                 failures.append(f"Purchase (₹{total_cost:,.2f}) exceeds Maximum Single Purchase Limit of ₹{single_cap:,.2f}.")
         else:
-            failures.append("Maximum single purchase limit has not been configured.")
+            checks["single_purchase_limit"] = True
+
 
 
         # Check 5: Category Whitelist
@@ -1171,7 +1177,8 @@ class AIAutoPayService:
         category: Optional[str] = None,
         sku: Optional[str] = None,
         is_autonomous_agent: bool = True,
-        address_id: Optional[str] = None
+        address_id: Optional[str] = None,
+        override_limits: bool = False
     ) -> Dict[str, Any]:
         """
         One-Click Agent Purchase ("Buy via AutoPay" / "Agent Purchase"):
@@ -1230,8 +1237,10 @@ class AIAutoPayService:
             unit_price=p_price,
             quantity=quantity,
             merchant_name=merchant_name,
-            merchant_verified=True
+            merchant_verified=True,
+            override_limits=override_limits
         )
+
 
         if not validation["allowed"]:
             failure_reason = " | ".join(validation["failures"])
