@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ChatMessage } from '@/components/copilot/ChatMessage';
 import { CopilotMessageDTO } from '@/types/copilot';
+import { apiClient } from '@/lib/api-client';
 
 const MERCHANT_INITIAL_MESSAGE: CopilotMessageDTO = {
   id: 'init-merchant',
@@ -103,22 +104,13 @@ export default function CommerceCopilotPage() {
     setMessages([...newMessages, initialAssistantMsg]);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/copilot/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+      const json = await apiClient.post<any>('/copilot/query', {
+        messages: newMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
       });
 
-      if (!response.ok) {
-        throw new Error(`Copilot API error: ${response.status}`);
-      }
-
-      const json = await response.json();
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId

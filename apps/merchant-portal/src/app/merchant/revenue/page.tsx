@@ -38,6 +38,8 @@ import {
   Line
 } from 'recharts';
 
+import { apiClient } from '@/lib/api-client';
+
 const CHANNEL_COLORS = ['#10b981', '#0B72E7', '#8b5cf6', '#f59e0b'];
 const CATEGORY_COLORS = ['#0B72E7', '#10b981', '#f59e0b', '#ec4899'];
 
@@ -47,8 +49,7 @@ export default function RevenueDashboardPage() {
   const [hourlyViewMode, setHourlyViewMode] = useState<'revenue' | 'orders'>('revenue');
 
   useEffect(() => {
-    fetch('/api/v1/merchant/growth/revenue-dashboard')
-      .then((res) => res.json())
+    apiClient.get<any>('/merchant/growth/revenue-dashboard')
       .then((res) => {
         setData(res);
         setLoading(false);
@@ -74,12 +75,7 @@ export default function RevenueDashboardPage() {
   const hourly = data.hourly_velocity_today || [];
   const monthly = data.monthly_trend || [];
   const channels = data.payment_channel_breakdown || [];
-  const categories = data.category_revenue_breakdown || [
-    { category: 'Smart POS Terminals', amount_inr: 1845000, share_pct: 43.3, orders: 142 },
-    { category: 'Voice Soundboxes', amount_inr: 1280000, share_pct: 30.0, orders: 850 },
-    { category: 'Billing Paper & Rolls', amount_inr: 720000, share_pct: 16.9, orders: 1240 },
-    { category: 'Scanners & QR Stands', amount_inr: 420000, share_pct: 9.8, orders: 310 }
-  ];
+  const categories = data.category_revenue_breakdown || [];
 
   // Formatted hourly data for ComposedChart
   const formattedHourly = hourly.map((h: any) => ({
@@ -339,53 +335,63 @@ export default function RevenueDashboardPage() {
           </div>
 
           {/* Recharts Pie / Donut Chart */}
-          <div className="h-56 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Tooltip
-                  formatter={(val: any, name: any) => [`${val}%`, name]}
-                  contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
-                />
-                <Pie
-                  data={channels}
-                  dataKey="share_pct"
-                  nameKey="channel"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={4}
-                >
-                  {channels.map((_: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={CHANNEL_COLORS[index % CHANNEL_COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Interactive Legend with values */}
-          <div className="space-y-2 border-t border-slate-100 pt-3">
-            {channels.map((ch: any, i: number) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-md shrink-0"
-                    style={{ backgroundColor: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
-                  />
-                  <span className="font-semibold text-slate-700 truncate max-w-[140px]">{ch.channel}</span>
-                </div>
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="text-slate-500 text-[11px]">₹{(ch.amount_inr / 100000).toFixed(1)}L</span>
-                  <span className="font-bold text-slate-900">{ch.share_pct}%</span>
-                </div>
+          {channels.length === 0 ? (
+            <div className="h-56 w-full flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-200 rounded-2xl">
+              <CreditCard className="w-8 h-8 text-slate-300 mb-2" />
+              <p className="text-xs font-semibold text-slate-500">No payment channel activity yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Transactions processed through Razorpay checkout will appear here.</p>
+            </div>
+          ) : (
+            <>
+              <div className="h-56 w-full flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip
+                      formatter={(val: any, name: any) => [`${val}%`, name]}
+                      contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
+                    />
+                    <Pie
+                      data={channels}
+                      dataKey="share_pct"
+                      nameKey="channel"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={4}
+                    >
+                      {channels.map((_: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={CHANNEL_COLORS[index % CHANNEL_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
 
-          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-[11px] text-emerald-900 font-medium">
-            💡 <strong>UPI AutoPay Mandates</strong> drive <strong>43.2%</strong> of total volume with near-instant settlement.
-          </div>
+              {/* Interactive Legend with values */}
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                {channels.map((ch: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-md shrink-0"
+                        style={{ backgroundColor: CHANNEL_COLORS[i % CHANNEL_COLORS.length] }}
+                      />
+                      <span className="font-semibold text-slate-700 truncate max-w-[140px]">{ch.channel}</span>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-slate-500 text-[11px]">₹{(ch.amount_inr / 100000).toFixed(1)}L</span>
+                      <span className="font-bold text-slate-900">{ch.share_pct}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-[11px] text-emerald-900 font-medium">
+                💡 <strong>UPI AutoPay Mandates</strong> drive highest volume with near-instant settlement.
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -408,67 +414,83 @@ export default function RevenueDashboardPage() {
             </Badge>
           </div>
 
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={formattedMonthly} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="aiRevGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.6} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="humanRevGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0B72E7" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#0B72E7" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#64748b" />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  stroke="#64748b"
-                  tickFormatter={(val) => `₹${val}L`}
-                />
-                <Tooltip
-                  formatter={(val: any, name: any) => [`₹${val} Lakhs`, name]}
-                  contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Area
-                  type="monotone"
-                  dataKey="human_lakhs"
-                  name="Traditional Commerce Revenue"
-                  stroke="#0B72E7"
-                  strokeWidth={2}
-                  stackId="1"
-                  fill="url(#humanRevGradient)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="ai_lakhs"
-                  name="AI Agent Autonomous Revenue"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  stackId="1"
-                  fill="url(#aiRevGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {formattedMonthly.length === 0 ? (
+            <div className="h-72 w-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-slate-200 rounded-2xl">
+              <BarChart3 className="w-10 h-10 text-slate-300 mb-2" />
+              <p className="text-sm font-semibold text-slate-600">No historical revenue data recorded</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm">Monthly GMV and AI autonomous commerce trends will populate as orders are processed.</p>
+            </div>
+          ) : (
+            <>
+              <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={formattedMonthly} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="aiRevGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.6} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="humanRevGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0B72E7" stopOpacity={0.5} />
+                        <stop offset="95%" stopColor="#0B72E7" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#64748b" />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      stroke="#64748b"
+                      tickFormatter={(val) => `₹${val}L`}
+                    />
+                    <Tooltip
+                      formatter={(val: any, name: any) => [`₹${val} Lakhs`, name]}
+                      contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area
+                      type="monotone"
+                      dataKey="human_lakhs"
+                      name="Traditional Commerce Revenue"
+                      stroke="#0B72E7"
+                      strokeWidth={2}
+                      stackId="1"
+                      fill="url(#humanRevGradient)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="ai_lakhs"
+                      name="AI Agent Autonomous Revenue"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      stackId="1"
+                      fill="url(#aiRevGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Latest Month Total</span>
-              <strong className="text-sm font-mono text-slate-900 font-black">₹42.50 Lakhs</strong>
-            </div>
-            <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100">
-              <span className="text-emerald-800 block text-[10px] uppercase font-bold">AI Commerce Lift</span>
-              <strong className="text-sm font-mono text-emerald-700 font-black">+245.2% Growth</strong>
-            </div>
-            <div className="bg-purple-50/70 p-3 rounded-xl border border-purple-100">
-              <span className="text-purple-800 block text-[10px] uppercase font-bold">Forecast Runrate</span>
-              <strong className="text-sm font-mono text-purple-700 font-black">₹48.20L Next Month</strong>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Latest Month Total</span>
+                  <strong className="text-sm font-mono text-slate-900 font-black">
+                    ₹{formattedMonthly[formattedMonthly.length - 1]?.total_lakhs || 0} Lakhs
+                  </strong>
+                </div>
+                <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-100">
+                  <span className="text-emerald-800 block text-[10px] uppercase font-bold">AI Commerce Lift</span>
+                  <strong className="text-sm font-mono text-emerald-700 font-black">
+                    +{kpis.ai_commerce_revenue_pct || 0}% Share
+                  </strong>
+                </div>
+                <div className="bg-purple-50/70 p-3 rounded-xl border border-purple-100">
+                  <span className="text-purple-800 block text-[10px] uppercase font-bold">MTD Target Pace</span>
+                  <strong className="text-sm font-mono text-purple-700 font-black">
+                    {kpis.target_achievement_pct || 0}% Achieved
+                  </strong>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right (1 col): Product Category Revenue Distribution Pie Chart */}
@@ -487,53 +509,63 @@ export default function RevenueDashboardPage() {
           </div>
 
           {/* Pie Chart */}
-          <div className="h-56 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Tooltip
-                  formatter={(val: any, name: any) => [`${val}%`, name]}
-                  contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
-                />
-                <Pie
-                  data={categories}
-                  dataKey="share_pct"
-                  nameKey="category"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  innerRadius={45}
-                  paddingAngle={3}
-                >
-                  {categories.map((_: any, index: number) => (
-                    <Cell key={`cat-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Category List */}
-          <div className="space-y-2 border-t border-slate-100 pt-3">
-            {categories.map((cat: any, i: number) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-md shrink-0"
-                    style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
-                  />
-                  <span className="font-semibold text-slate-700 truncate max-w-[130px]">{cat.category}</span>
-                </div>
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="text-slate-500 text-[11px]">₹{(cat.amount_inr / 100000).toFixed(1)}L</span>
-                  <span className="font-bold text-slate-900">{cat.share_pct}%</span>
-                </div>
+          {categories.length === 0 ? (
+            <div className="h-56 w-full flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-200 rounded-2xl">
+              <Layers className="w-8 h-8 text-slate-300 mb-2" />
+              <p className="text-xs font-semibold text-slate-500">No product categories sales yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Category share will be calculated dynamically once products receive orders.</p>
+            </div>
+          ) : (
+            <>
+              <div className="h-56 w-full flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip
+                      formatter={(val: any, name: any) => [`${val}%`, name]}
+                      contentStyle={{ borderRadius: '12px', borderColor: '#cbd5e1' }}
+                    />
+                    <Pie
+                      data={categories}
+                      dataKey="share_pct"
+                      nameKey="category"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      innerRadius={45}
+                      paddingAngle={3}
+                    >
+                      {categories.map((_: any, index: number) => (
+                        <Cell key={`cat-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
 
-          <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[11px] text-blue-900 font-medium">
-            🚀 <strong>Smart POS Terminals</strong> generate <strong>₹18.45 Lakhs</strong> with the highest Average Order Value.
-          </div>
+              {/* Category List */}
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                {categories.map((cat: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-md shrink-0"
+                        style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
+                      />
+                      <span className="font-semibold text-slate-700 truncate max-w-[130px]">{cat.category}</span>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="text-slate-500 text-[11px]">₹{(cat.amount_inr / 100000).toFixed(1)}L</span>
+                      <span className="font-bold text-slate-900">{cat.share_pct}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[11px] text-blue-900 font-medium">
+                🚀 Top category: <strong>{categories[0]?.category}</strong> generating <strong>{categories[0]?.share_pct}%</strong> of volume.
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

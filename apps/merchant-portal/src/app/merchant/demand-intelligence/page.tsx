@@ -201,7 +201,7 @@ export default function DemandIntelligencePage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-slate-900 font-mono">
-            {summary?.average_demand_score || 71}<span className="text-sm font-sans font-medium text-slate-400">/100</span>
+            {summary?.average_demand_score ?? 0}<span className="text-sm font-sans font-medium text-slate-400">/100</span>
           </div>
           <span className="text-[11px] text-emerald-600 font-semibold block flex items-center gap-1">
             <TrendingUp className="h-3 w-3 inline" /> +4.2 pts growth this month
@@ -229,9 +229,9 @@ export default function DemandIntelligencePage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-amber-600 font-mono">
-            {formatCurrency(summary?.dead_inventory_tied_capital_inr || 142000)}
+            {formatCurrency(summary?.dead_inventory_tied_capital_inr || 0)}
           </div>
-          <span className="text-[11px] text-amber-700 font-medium block">Tied up in {summary?.dead_inventory_count || 2} stagnant SKUs</span>
+          <span className="text-[11px] text-amber-700 font-medium block">Tied up in {summary?.dead_inventory_count || 0} stagnant SKUs</span>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs space-y-2">
@@ -242,11 +242,23 @@ export default function DemandIntelligencePage() {
             </div>
           </div>
           <div className="text-3xl font-extrabold text-[#0B72E7] font-mono">
-            {formatCurrency(summary?.projected_revenue_lift_inr || 384000)}
+            {formatCurrency(summary?.projected_revenue_lift_inr || 0)}
           </div>
           <span className="text-[11px] text-emerald-600 font-semibold block">Via AI dynamic markdowns & bundles</span>
         </div>
       </div>
+
+      {((data as any)?.status === 'INSUFFICIENT_DATA' || products.length === 0) && (
+        <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 font-medium space-y-1">
+          <div className="flex items-center gap-2 font-bold text-amber-950">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            Insufficient data for forecasting.
+          </div>
+          <p className="text-amber-800">
+            {(data as any)?.message || "Demand intelligence, velocity telemetry, and liquidation markdowns require catalog products with active search and purchase history."}
+          </p>
+        </div>
+      )}
 
       {/* Proactive Growth Alerts Widget Bar */}
       <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl space-y-3">

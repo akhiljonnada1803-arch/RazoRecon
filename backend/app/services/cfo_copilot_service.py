@@ -24,14 +24,29 @@ class CommerceCopilotService:
         self.forecast_service = ForecastService()
         self.fraud_service = FraudService()
 
-    async def execute_tools(self, tool_name: str, args: Dict[str, Any]) -> Any:
+    async def execute_tools(self, tool_name: str, args: Dict[str, Any], merchant_id: Optional[str] = None) -> Any:
         if tool_name == "get_demand_intelligence":
-            return demand_intelligence_service.get_demand_intelligence()
+            return demand_intelligence_service.get_demand_intelligence(merchant_id=merchant_id)
 
         elif tool_name == "get_inventory_optimization":
-            return demand_intelligence_service.get_inventory_optimization()
+            return demand_intelligence_service.get_inventory_optimization(merchant_id=merchant_id)
 
         elif tool_name == "analyze_sales_and_revenue":
+            if merchant_id:
+                from app.services.auth_service import auth_service
+                if not auth_service.is_demo_merchant(merchant_id):
+                    from app.services.merchant_service import merchant_service
+                    dash = merchant_service.get_dashboard_metrics(merchant_id=merchant_id)
+                    return {
+                        "total_gmv_inr": dash["gross_revenue"],
+                        "annualized_runrate_inr": dash["gross_revenue"] * 12,
+                        "gmv_growth_pct": dash["growth_percentage"],
+                        "total_orders": dash["total_orders"],
+                        "agent_purchases_count": 0,
+                        "agent_gmv_inr": 0.0,
+                        "top_products": []
+                    }
+
             comm_summary = reconciliation_service.get_commerce_transaction_summary()
             merchant_intel = vendor_risk_service.get_merchant_intelligence()
             return {
@@ -48,8 +63,8 @@ class CommerceCopilotService:
             }
 
         elif tool_name == "get_inventory_alerts":
-            stats = catalog_service.get_catalog_stats()
-            low_stock_items = [p for p in catalog_service.get_all_products(limit=50).items if "Low" in p.stock_status or p.stock_quantity < 10]
+            stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
+            low_stock_items = [p for p in catalog_service.get_all_products(limit=50, merchant_id=merchant_id).items if "Low" in p.stock_status or p.stock_quantity < 10]
             return {
                 "total_skus": stats.total_products,
                 "in_stock_rate_pct": stats.in_stock_rate_pct,
@@ -172,7 +187,30 @@ class CommerceCopilotService:
 
         return {"status": "Tool executed successfully", "tool": tool_name}
 
-    async def generate_response(self, messages: List[CopilotMessageDTO]) -> CopilotQueryResponseDTO:
+    async def generate_response(self, messages: List[CopilotMessageDTO], merchant_id: Optional[str] = None) -> CopilotQueryResponseDTO:
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                from app.services.catalog_service import catalog_service
+                stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                if stats.total_products == 0 and len(orders) == 0:
+                    answer = (
+                        "### 🚀 Welcome to Your Store Setup Copilot!\n\n"
+                        "Your merchant storefront is currently in **Onboarding Mode** with 0 active products and 0 orders.\n\n"
+                        "Here is your recommended launch checklist:\n"
+                        "1. **[Add Products](/merchant/catalog)**: Upload your first product SKU with price and GST rate.\n"
+                        "2. **[Configure Store Profile](/merchant/settings)**: Verify your business profile, GSTIN, and warehouse address.\n"
+                        "3. **[Link Gateway](/merchant/payments)**: Connect your Razorpay API Keys for instant checkout & settlement.\n\n"
+                        "Once you add your first product, I will unlock autonomous agent recommendations, demand intelligence, and AI growth triggers!"
+                    )
+                    return CopilotQueryResponseDTO(
+                        answer=answer,
+                        trace=[{"action": "checked_storefront_status", "status": "ONBOARDING_REQUIRED", "products": 0, "orders": 0}],
+                        citations=[{"doc_id": "kb-0001", "title": "RazorCommerce Store Launch & Onboarding Guide"}]
+                    )
+
         user_message = messages[-1].content if messages else "Hello"
         q = user_message.lower().strip()
         trace = []
@@ -180,7 +218,7 @@ class CommerceCopilotService:
 
         # 1. AI Discount Recommendations & Declining/Dead Inventory
         if "discount" in q or "markdown" in q or "price drop" in q or "declining" in q or "dead inventory" in q or "need discounts" in q:
-            res = await self.execute_tools("get_demand_intelligence", {})
+            res = await self.execute_tools("get_demand_intelligence", {}, merchant_id=merchant_id)
             trace.append({"tool": "get_demand_intelligence", "args": {}, "result": res["summary"]})
             declining = res.get("declining_products", [])
             dead = res.get("dead_inventory", [])

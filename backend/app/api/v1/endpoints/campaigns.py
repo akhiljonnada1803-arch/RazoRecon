@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query, Body, Depends
 from typing import List, Optional
 from app.schemas.campaign import (
     CustomerSegmentDTO,
@@ -9,22 +9,27 @@ from app.schemas.campaign import (
     CampaignListResponseDTO
 )
 from app.services.campaign_service import campaign_service
+from app.core.auth_dependency import get_authenticated_merchant_context, MerchantContext
 
 router = APIRouter()
 
 @router.get("", response_model=CampaignListResponseDTO)
-def get_campaigns_overview():
+def get_campaigns_overview(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """
     Get full Campaign Orchestrator overview with KPIs, active campaigns, and customer segments.
     """
-    return campaign_service.get_campaigns_overview()
+    return campaign_service.get_campaigns_overview(merchant_id=context.merchant_id)
 
 @router.get("/segments", response_model=List[CustomerSegmentDTO])
-def get_customer_segments():
+def get_customer_segments(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """
     Get list of RFM behavioral customer segments.
     """
-    return campaign_service.get_all_segments()
+    return campaign_service.get_all_segments(merchant_id=context.merchant_id)
 
 @router.post("/simulate", response_model=CampaignSimulationResponseDTO)
 def simulate_discount_campaign(payload: CampaignSimulationRequestDTO):
@@ -34,14 +39,19 @@ def simulate_discount_campaign(payload: CampaignSimulationRequestDTO):
     return campaign_service.simulate_discount(payload)
 
 @router.post("/generate", response_model=CampaignDTO)
-def generate_ai_campaign(payload: CampaignGenerateRequestDTO):
+def generate_ai_campaign(
+    payload: CampaignGenerateRequestDTO,
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """
     AI generate a tailored campaign with copywriting, multi-channel rollout, and forecasted payoff.
     """
-    return campaign_service.generate_campaign_with_ai(payload)
+    camp = campaign_service.generate_campaign_with_ai(payload)
+    camp.merchant_id = context.merchant_id
+    return camp
 
 @router.patch("/{campaign_id}/status", response_model=CampaignDTO)
-def update_campaign_status(campaign_id: str, status: str = Query(..., regex="^(active|scheduled|draft|completed)$")):
+def update_campaign_status(campaign_id: str, status: str = Query(..., pattern="^(active|scheduled|draft|completed)$")):
     """
     Update campaign lifecycle status.
     """

@@ -21,6 +21,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+import { apiClient } from '@/lib/api-client';
+
 export default function CampaignManagerPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -30,8 +32,7 @@ export default function CampaignManagerPage() {
   const [newGoal, setNewGoal] = useState('Revenue Expansion');
 
   const fetchCampaigns = () => {
-    fetch('/api/v1/merchant/growth/campaigns')
-      .then(res => res.json())
+    apiClient.get<any>('/merchant/growth/campaigns')
       .then(res => {
         setData(res);
         setLoading(false);
@@ -48,12 +49,7 @@ export default function CampaignManagerPage() {
 
   const handleToggleStatus = (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-    fetch(`/api/v1/merchant/growth/campaigns/${id}/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus })
-    })
-      .then(res => res.json())
+    apiClient.post<any>(`/merchant/growth/campaigns/${id}/toggle`, { status: nextStatus })
       .then(() => fetchCampaigns())
       .catch(err => console.error('Failed to toggle campaign', err));
   };
@@ -62,17 +58,12 @@ export default function CampaignManagerPage() {
     e.preventDefault();
     if (!newTitle) return;
 
-    fetch('/api/v1/merchant/growth/campaigns/launch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: newTitle,
-        goal: newGoal,
-        discount_offer: newOffer || '10% OFF 1st Autonomous Reorder',
-        channels: ['WhatsApp AutoPay Push', 'Storefront Banner', 'SMS']
-      })
+    apiClient.post<any>('/merchant/growth/campaigns/launch', {
+      title: newTitle,
+      goal: newGoal,
+      discount_offer: newOffer || '10% OFF 1st Autonomous Reorder',
+      channels: ['WhatsApp AutoPay Push', 'Storefront Banner', 'SMS']
     })
-      .then(res => res.json())
       .then(() => {
         setIsModalOpen(false);
         setNewTitle('');
@@ -145,27 +136,27 @@ export default function CampaignManagerPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attributed Revenue</span>
           <div className="text-2xl font-black text-emerald-600 font-mono">
-            ₹{(summary.total_attributed_revenue_inr / 100000).toFixed(2)} L
+            ₹{((summary.total_attributed_revenue_inr || 0) / 100000).toFixed(2)} L
           </div>
           <span className="text-[11px] font-semibold text-emerald-600">
-            From ₹{summary.total_spend_inr?.toLocaleString('en-IN')} total spend
+            From ₹{(summary.total_spend_inr || 0).toLocaleString('en-IN')} total spend
           </span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Blended ROI Multiplier</span>
           <div className="text-2xl font-black text-[#0B72E7] font-mono">
-            {summary.blended_roi_multiplier}x
+            {summary.blended_roi_multiplier || 0}x
           </div>
           <span className="text-[11px] font-semibold text-slate-400">
-            Every ₹1 spend returns ₹{summary.blended_roi_multiplier}
+            Every ₹1 spend returns ₹{summary.blended_roi_multiplier || 0}
           </span>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-1">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Campaign Conversions</span>
           <div className="text-2xl font-black text-purple-600 font-mono">
-            {summary.total_conversions}
+            {summary.total_conversions || 0}
           </div>
           <span className="text-[11px] font-semibold text-purple-600">
             Verified completed purchases
@@ -174,7 +165,25 @@ export default function CampaignManagerPage() {
       </div>
 
       {/* 3. CAMPAIGNS GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {campaigns.length === 0 ? (
+        <div className="bg-white rounded-3xl p-12 border border-slate-200/80 text-center space-y-4">
+          <Megaphone className="w-12 h-12 text-slate-300 mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-800">{data.message || "No campaigns created."}</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Launch targeted customer incentive and autonomous AutoPay campaigns to boost store GMV.
+            </p>
+          </div>
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-[#0B72E7] hover:bg-blue-600 text-white font-bold rounded-2xl px-5 py-2.5 text-xs inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create First Campaign
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {campaigns.map((c: any) => {
           const isActive = c.status === 'ACTIVE';
           return (
@@ -260,7 +269,8 @@ export default function CampaignManagerPage() {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* 4. MODAL: LAUNCH NEW CAMPAIGN */}
       {isModalOpen && (

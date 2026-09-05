@@ -41,6 +41,7 @@ class CampaignDTO(BaseModel):
     ai_copy_body: str
     channels: List[str] = ["WhatsApp Business", "Email"]
     forecast_days: List[DailyForecastPointDTO] = []
+    merchant_id: Optional[str] = "rzp_live_acme_8842"
     created_at: str
     start_date: str
     end_date: str

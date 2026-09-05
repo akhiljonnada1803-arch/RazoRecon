@@ -40,6 +40,8 @@ class ForecastInsightDTO(BaseModel):
     actionable_step: str
 
 class CashForecastResponseDTO(BaseModel):
+    status: Optional[str] = "SUCCESS" # "SUCCESS" | "INSUFFICIENT_DATA"
+    message: Optional[str] = None
     executive_summary: str
     current_cash_balance: float
     forecast_7d: HorizonForecastDTO

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from app.services.demand_intelligence_service import demand_intelligence_service
+from app.core.auth_dependency import get_authenticated_merchant_context, MerchantContext
 
 router = APIRouter()
 
@@ -17,7 +18,9 @@ class GenerateCampaignRequest(BaseModel):
     featured_product_ids: Optional[list] = None
 
 @router.get("/demand-intelligence")
-def get_demand_intelligence():
+def get_demand_intelligence(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """
     Retrieve holistic Demand Intelligence metrics:
     - Demand Score (0-100) using 5-factor weighting
@@ -26,7 +29,7 @@ def get_demand_intelligence():
     - Dynamic discount & bundle recommendations
     - Category demand heatmaps
     """
-    return demand_intelligence_service.get_demand_intelligence()
+    return demand_intelligence_service.get_demand_intelligence(merchant_id=context.merchant_id)
 
 @router.post("/discounts/apply")
 def apply_product_discount(payload: ApplyDiscountRequest):
@@ -55,11 +58,13 @@ def generate_autonomous_campaign(payload: GenerateCampaignRequest):
     }
 
 @router.get("/insights-widget")
-def get_growth_insights_widget():
+def get_growth_insights_widget(
+    context: MerchantContext = Depends(get_authenticated_merchant_context)
+):
     """
     Summary Growth & Demand insights for Merchant Dashboard widget.
     """
-    intel = demand_intelligence_service.get_demand_intelligence()
+    intel = demand_intelligence_service.get_demand_intelligence(merchant_id=context.merchant_id)
     return {
         "summary": intel["summary"],
         "insights": intel["growth_insights"],

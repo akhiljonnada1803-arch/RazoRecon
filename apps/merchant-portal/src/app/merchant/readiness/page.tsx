@@ -19,6 +19,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
+import { apiClient } from '@/lib/api-client';
+
 export default function AgentReadinessScorePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -26,8 +28,7 @@ export default function AgentReadinessScorePage() {
   const [optimizedSuccess, setOptimizedSuccess] = useState(false);
 
   const fetchReadiness = () => {
-    fetch('/api/v1/merchant/growth/agent-readiness')
-      .then(res => res.json())
+    apiClient.get<any>('/merchant/growth/agent-readiness')
       .then(res => {
         setData(res);
         setLoading(false);
@@ -44,10 +45,7 @@ export default function AgentReadinessScorePage() {
 
   const handleAutoOptimize = () => {
     setOptimizing(true);
-    fetch('/api/v1/merchant/growth/agent-readiness/optimize', {
-      method: 'POST'
-    })
-      .then(res => res.json())
+    apiClient.post<any>('/merchant/growth/agent-readiness/optimize')
       .then(res => {
         setData(res.readiness);
         setOptimizing(false);
@@ -71,7 +69,7 @@ export default function AgentReadinessScorePage() {
     );
   }
 
-  const score = data.overall_score || 92.5;
+  const score = typeof data.overall_score === 'number' ? data.overall_score : 0;
   const dimensions = data.dimensions || {};
   const checklist = data.checklist || [];
 
@@ -140,6 +138,18 @@ export default function AgentReadinessScorePage() {
         <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-900 font-semibold flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           AI Autonomous Optimization successfully elevated your store to 99.5/100 Agent Readiness!
+        </div>
+      )}
+
+      {(score === 0 || data.status === 'ONBOARDING_REQUIRED') && (
+        <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 font-medium space-y-1">
+          <div className="flex items-center gap-2 font-bold text-amber-950">
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
+            Catalog Setup Required for Autonomous AI Readiness
+          </div>
+          <p className="text-amber-800">
+            Add products to your catalog to generate your real-time Agent Readiness score. Readiness is computed from product images, structured descriptions, GST-inclusive pricing, technical specs, and courier SLA connections.
+          </p>
         </div>
       )}
 

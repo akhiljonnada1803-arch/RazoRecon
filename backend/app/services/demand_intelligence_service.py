@@ -159,12 +159,24 @@ class DemandIntelligenceService:
 
     def get_demand_intelligence(self, merchant_id: Optional[str] = None) -> Dict[str, Any]:
         catalog_res = catalog_service.get_all_products(limit=100, merchant_id=merchant_id)
-        if not catalog_res.products:
+        
+        is_insufficient = not catalog_res.products
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                if not catalog_res.products or len(orders) == 0:
+                    is_insufficient = True
+
+        if is_insufficient:
             now_iso = utcnow_iso()
             return {
+                "status": "INSUFFICIENT_DATA",
+                "message": "Insufficient data for forecasting.",
                 "summary": {
                     "average_demand_score": 0,
-                    "total_products_tracked": 0,
+                    "total_products_tracked": len(catalog_res.products or []),
                     "trending_count": 0,
                     "growing_count": 0,
                     "stable_count": 0,

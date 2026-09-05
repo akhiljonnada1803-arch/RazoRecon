@@ -230,23 +230,42 @@ class CampaignService:
             )
         ]
 
-    def get_all_segments(self) -> List[CustomerSegmentDTO]:
+    def get_all_segments(self, merchant_id: Optional[str] = None) -> List[CustomerSegmentDTO]:
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                customers = merchant_service.get_customers(merchant_id=merchant_id)
+                if not customers:
+                    return []
         return self.segments
 
-    def get_campaigns_overview(self) -> CampaignListResponseDTO:
-        active = [c for c in self.campaigns if c.status == "active"]
-        total_lift = sum(c.expected_revenue_lift for c in self.campaigns)
-        total_orders = sum(c.projected_orders for c in self.campaigns)
-        avg_lift_pct = round(sum(c.expected_revenue_lift_pct for c in self.campaigns) / max(1, len(self.campaigns)), 1)
+    def get_campaigns_overview(self, merchant_id: Optional[str] = None) -> CampaignListResponseDTO:
+        target_campaigns = self.campaigns
+        target_segments = self.segments
+
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                target_campaigns = [c for c in self.campaigns if getattr(c, "merchant_id", None) == merchant_id]
+                from app.services.merchant_service import merchant_service
+                customers = merchant_service.get_customers(merchant_id=merchant_id)
+                if not customers:
+                    target_segments = []
+
+        active = [c for c in target_campaigns if c.status == "active"]
+        total_lift = sum(c.expected_revenue_lift for c in target_campaigns)
+        total_orders = sum(c.projected_orders for c in target_campaigns)
+        avg_lift_pct = round(sum(c.expected_revenue_lift_pct for c in target_campaigns) / max(1, len(target_campaigns)), 1) if target_campaigns else 0.0
 
         return CampaignListResponseDTO(
-            total_campaigns=len(self.campaigns),
+            total_campaigns=len(target_campaigns),
             active_campaigns=len(active),
             aggregate_expected_revenue_lift=round(total_lift, 2),
             total_projected_orders=total_orders,
             avg_expected_lift_pct=avg_lift_pct,
-            campaigns=self.campaigns,
-            segments=self.segments
+            campaigns=target_campaigns,
+            segments=target_segments
         )
 
     def simulate_discount(self, req: CampaignSimulationRequestDTO) -> CampaignSimulationResponseDTO:

@@ -179,19 +179,28 @@ class MerchantGrowthService:
             from app.services.auth_service import auth_service
             if not auth_service.is_demo_merchant(merchant_id):
                 from app.services.catalog_service import catalog_service
+                from app.services.merchant_service import merchant_service
                 stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
-                if stats.total_products == 0:
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                if stats.total_products < 2 or len(orders) < 2:
                     return {
+                        "message": "No transactions available yet.",
                         "summary": {
                             "active_pairings_count": 0,
                             "published_bundles_count": 0,
                             "active_cross_sells_count": 0,
                             "active_upsell_triggers_count": 0,
                             "total_revenue_opportunity_inr": 0.0,
-                            "avg_association_confidence_pct": 0.0
+                            "avg_association_confidence_pct": 0.0,
+                            "total_active_rules": 0,
+                            "total_published_bundles": 0,
+                            "avg_aov_lift_pct": 0.0,
+                            "total_predicted_monthly_revenue_lift_inr": 0.0,
+                            "ai_recommendation_adoption_rate": 0.0
                         },
                         "frequently_bought_together": [],
                         "bundle_recommendations": [],
+                        "bundles": [],
                         "cross_sell_opportunities": [],
                         "upsell_suggestions": []
                     }
@@ -411,6 +420,7 @@ class MerchantGrowthService:
                 orders = merchant_service.get_orders(merchant_id=merchant_id)
                 if not orders:
                     return {
+                        "message": "No agent interactions yet.",
                         "overview": {
                             "total_orders": 0,
                             "ai_orders_count": 0,
@@ -523,6 +533,7 @@ class MerchantGrowthService:
                 customers = merchant_service.get_customers(merchant_id=merchant_id)
                 if not customers:
                     return {
+                        "message": "No customer activity.",
                         "metrics": {
                             "total_active_customers": 0,
                             "repeat_purchase_rate_pct": 0.0,
@@ -729,6 +740,7 @@ class MerchantGrowthService:
                 total_attributed_rev = sum(c["attributed_revenue_inr"] for c in merchant_campaigns)
                 overall_roi = round(total_attributed_rev / total_spend, 1) if total_spend > 0 else 0.0
                 return {
+                    "message": "No campaigns created." if not merchant_campaigns else None,
                     "summary": {
                         "active_campaigns": sum(1 for c in merchant_campaigns if c["status"] == "ACTIVE"),
                         "total_campaigns": len(merchant_campaigns),
@@ -806,23 +818,63 @@ class MerchantGrowthService:
                 stats = catalog_service.get_catalog_stats(merchant_id=merchant_id)
                 if stats.total_products == 0:
                     return {
-                        "overall_score": 15.0,
+                        "overall_score": 0.0,
                         "status": "ONBOARDING_REQUIRED",
-                        "rating_label": "Catalog & Store Setup Pending",
+                        "rating_label": "0% - Catalog Setup Required",
                         "last_evaluated": datetime.now().isoformat(),
                         "dimensions": {
                             "catalog_quality": {"score": 0.0, "weight": 0.25, "status": "PENDING", "metrics": {"high_res_images_pct": 0.0, "structured_descriptions_pct": 0.0, "markdown_features_pct": 0.0, "seo_metadata_pct": 0.0}, "recommendation": "Add your first product to activate AI Commerce catalog indexing."},
                             "inventory_accuracy": {"score": 0.0, "weight": 0.20, "status": "PENDING", "metrics": {"real_time_sync_pct": 0.0, "buffer_stock_accuracy": 0.0, "stockout_prevention_rate": 0.0}, "recommendation": "Set inventory counts and reorder thresholds."},
-                            "pricing_completeness": {"score": 25.0, "weight": 0.20, "status": "PENDING", "metrics": {"gst_inclusive_clarity": 100.0, "mrp_transparency_pct": 0.0, "volume_tier_pricing_pct": 0.0}, "recommendation": "Configure GST rates and pricing."},
+                            "pricing_completeness": {"score": 0.0, "weight": 0.20, "status": "PENDING", "metrics": {"gst_inclusive_clarity": 0.0, "mrp_transparency_pct": 0.0, "volume_tier_pricing_pct": 0.0}, "recommendation": "Configure GST rates and pricing."},
                             "specification_coverage": {"score": 0.0, "weight": 0.20, "status": "PENDING", "metrics": {"technical_specs_depth": 0.0, "comparison_attributes_pct": 0.0, "compatibility_tags_pct": 0.0}, "recommendation": "Add specification bullets for AI comparison engines."},
-                            "delivery_reliability": {"score": 50.0, "weight": 0.15, "status": "READY", "metrics": {"courier_sla_adherence": 100.0, "same_day_dispatch_pct": 100.0, "return_rate_pct": 0.0}, "recommendation": "Logistics network ready to fulfill orders."}
+                            "delivery_reliability": {"score": 0.0, "weight": 0.15, "status": "PENDING", "metrics": {"courier_sla_adherence": 0.0, "same_day_dispatch_pct": 0.0, "return_rate_pct": 0.0}, "recommendation": "Logistics network ready to fulfill orders."}
                         },
                         "checklist": [
                             {"id": "chk_1", "title": "Add First Product to Storefront", "category": "Catalog", "passed": False, "impact": "+25 pts"},
-                            {"id": "chk_2", "title": "Complete Store & GST Profile", "category": "Profile", "passed": True, "impact": "+20 pts"},
-                            {"id": "chk_3", "title": "Connect Razorpay Payments Account", "category": "Payments", "passed": True, "impact": "+20 pts"},
+                            {"id": "chk_2", "title": "Complete Store & GST Profile", "category": "Profile", "passed": False, "impact": "+20 pts"},
+                            {"id": "chk_3", "title": "Connect Razorpay Payments Account", "category": "Payments", "passed": False, "impact": "+20 pts"},
                             {"id": "chk_4", "title": "Publish Catalog to Live Agents", "category": "Agentic Commerce", "passed": False, "impact": "+20 pts"},
                             {"id": "chk_5", "title": "Enable AI Commerce Agent Autonomy", "category": "AI Agents", "passed": False, "impact": "+15 pts"}
+                        ]
+                    }
+
+                prods_res = catalog_service.get_all_products(limit=100, merchant_id=merchant_id)
+                prods = prods_res.items
+                if prods:
+                    n = len(prods)
+                    img_score = round((sum(1 for p in prods if p.image_url and len(p.image_url) > 5) / n) * 100, 1)
+                    desc_score = round((sum(1 for p in prods if p.description and len(p.description) >= 15) / n) * 100, 1)
+                    stock_score = round((sum(1 for p in prods if p.stock_quantity > 0) / n) * 100, 1)
+                    price_score = round((sum(1 for p in prods if p.price > 0 and (p.gst_rate_pct or 0) > 0) / n) * 100, 1)
+                    spec_score = round((sum(1 for p in prods if len(p.specs or []) > 0 or len(p.features or []) > 0) / n) * 100, 1)
+                    delivery_score = round((sum(1 for p in prods if p.delivery_time) / n) * 100, 1)
+
+                    cat_quality = round((img_score + desc_score) / 2, 1)
+                    inv_acc = stock_score
+                    pricing_comp = price_score
+                    spec_cov = spec_score
+                    deliv_rel = delivery_score
+
+                    overall = round(0.25 * cat_quality + 0.20 * inv_acc + 0.20 * pricing_comp + 0.20 * spec_cov + 0.15 * deliv_rel, 1)
+                    status = "HIGH_READINESS" if overall >= 80 else ("MODERATE_READINESS" if overall >= 50 else "BUILDING_CATALOG")
+                    return {
+                        "overall_score": overall,
+                        "status": status,
+                        "rating_label": f"{overall}% - Agentic Catalog Quality",
+                        "last_evaluated": datetime.now().isoformat(),
+                        "dimensions": {
+                            "catalog_quality": {"score": cat_quality, "weight": 0.25, "status": "EXCELLENT" if cat_quality > 70 else "MODERATE", "metrics": {"high_res_images_pct": img_score, "structured_descriptions_pct": desc_score, "markdown_features_pct": desc_score, "seo_metadata_pct": img_score}, "recommendation": "Maintain structured descriptions and high-resolution images."},
+                            "inventory_accuracy": {"score": inv_acc, "weight": 0.20, "status": "EXCELLENT" if inv_acc > 70 else "MODERATE", "metrics": {"real_time_sync_pct": inv_acc, "buffer_stock_accuracy": inv_acc, "stockout_prevention_rate": inv_acc}, "recommendation": "Inventory counts synced with fulfillment centers."},
+                            "pricing_completeness": {"score": pricing_comp, "weight": 0.20, "status": "EXCELLENT" if pricing_comp > 70 else "MODERATE", "metrics": {"gst_inclusive_clarity": pricing_comp, "mrp_transparency_pct": pricing_comp, "volume_tier_pricing_pct": pricing_comp}, "recommendation": "GST rates configured for automatic invoice generation."},
+                            "specification_coverage": {"score": spec_cov, "weight": 0.20, "status": "EXCELLENT" if spec_cov > 70 else "MODERATE", "metrics": {"technical_specs_depth": spec_cov, "comparison_attributes_pct": spec_cov, "compatibility_tags_pct": spec_cov}, "recommendation": "Technical specifications available for AI comparison engine."},
+                            "delivery_reliability": {"score": deliv_rel, "weight": 0.15, "status": "EXCELLENT" if deliv_rel > 70 else "MODERATE", "metrics": {"courier_sla_adherence": deliv_rel, "same_day_dispatch_pct": deliv_rel, "return_rate_pct": 0.0}, "recommendation": "Delivery timelines configured for buyer expectation."}
+                        },
+                        "checklist": [
+                            {"id": "chk_1", "title": "Add First Product to Storefront", "category": "Catalog", "passed": True, "impact": "+25 pts"},
+                            {"id": "chk_2", "title": "Complete Store & GST Profile", "category": "Profile", "passed": True, "impact": "+20 pts"},
+                            {"id": "chk_3", "title": "Connect Razorpay Payments Account", "category": "Payments", "passed": True, "impact": "+20 pts"},
+                            {"id": "chk_4", "title": "Publish Catalog to Live Agents", "category": "Agentic Commerce", "passed": spec_cov > 50, "impact": "+20 pts"},
+                            {"id": "chk_5", "title": "Enable AI Commerce Agent Autonomy", "category": "AI Agents", "passed": overall >= 60, "impact": "+15 pts"}
                         ]
                     }
 

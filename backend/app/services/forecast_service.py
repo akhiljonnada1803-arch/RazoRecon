@@ -30,17 +30,94 @@ class ForecastService:
                 continue
         return date(2026, 3, 1)
 
-    async def generate_forecast(self) -> CashForecastResponseDTO:
-        if not data_state_service.has_data():
+    async def generate_forecast(self, merchant_id: Optional[str] = None) -> CashForecastResponseDTO:
+        if merchant_id:
+            from app.services.auth_service import auth_service
+            if not auth_service.is_demo_merchant(merchant_id):
+                from app.services.merchant_service import merchant_service
+                orders = merchant_service.get_orders(merchant_id=merchant_id)
+                paid_orders = [o for o in orders if o.get("payment_status") == "PAID"]
+                if len(paid_orders) < 3:
+                    zero_horizon_7d = HorizonForecastDTO(
+                        horizon_days=7,
+                        horizon_label="7-Day Projection",
+                        expected_inflow=0.0,
+                        expected_outflow=0.0,
+                        net_cash_flow=0.0,
+                        projected_closing_balance=0.0,
+                        confidence_score=0,
+                        burn_rate_daily=0.0,
+                        runway_days=0
+                    )
+                    zero_horizon_30d = HorizonForecastDTO(
+                        horizon_days=30,
+                        horizon_label="30-Day Projection",
+                        expected_inflow=0.0,
+                        expected_outflow=0.0,
+                        net_cash_flow=0.0,
+                        projected_closing_balance=0.0,
+                        confidence_score=0,
+                        burn_rate_daily=0.0,
+                        runway_days=0
+                    )
+                    zero_horizon_90d = HorizonForecastDTO(
+                        horizon_days=90,
+                        horizon_label="90-Day Projection",
+                        expected_inflow=0.0,
+                        expected_outflow=0.0,
+                        net_cash_flow=0.0,
+                        projected_closing_balance=0.0,
+                        confidence_score=0,
+                        burn_rate_daily=0.0,
+                        runway_days=0
+                    )
+                    return CashForecastResponseDTO(
+                        status="INSUFFICIENT_DATA",
+                        message="Insufficient data for forecasting. At least 3 settled orders are required.",
+                        executive_summary="INSUFFICIENT_DATA: A minimum of 3 settled customer orders is required to compute moving averages and predictive liquidity horizons.",
+                        current_cash_balance=0.0,
+                        forecast_7d=zero_horizon_7d,
+                        forecast_30d=zero_horizon_30d,
+                        forecast_90d=zero_horizon_90d,
+                        daily_timeline=[],
+                        risk_indicators=[],
+                        insights=[
+                            ForecastInsightDTO(
+                                id="ins_insufficient_data",
+                                category="Working Capital",
+                                title="Insufficient Data for Forecasting",
+                                detail="Receive at least 3 customer transactions to unlock real-time cash flow and liquidity forecasting.",
+                                impact_amount=0.0,
+                                actionable_step="Complete catalog setup, link payment gateway, and process your initial store orders."
+                            )
+                        ]
+                    )
+
+        from app.services.auth_service import auth_service
+        is_demo = bool(merchant_id and auth_service.is_demo_merchant(merchant_id))
+        if not data_state_service.has_data() and not is_demo:
+            zero_h = HorizonForecastDTO(
+                horizon_days=30,
+                horizon_label="30-Day Projection",
+                expected_inflow=0.0,
+                expected_outflow=0.0,
+                net_cash_flow=0.0,
+                projected_closing_balance=0.0,
+                confidence_score=0,
+                burn_rate_daily=0.0,
+                runway_days=0
+            )
             return CashForecastResponseDTO(
-                current_cash=0.0,
-                runway_days=0,
-                burn_rate=0.0,
-                forecast_horizons=[],
-                daily_projections=[],
-                risks=[],
-                insights=[],
-                recommendations=[]
+                status="INSUFFICIENT_DATA",
+                message="No financial data available.",
+                executive_summary="No data available to generate forecast.",
+                current_cash_balance=0.0,
+                forecast_7d=zero_h,
+                forecast_30d=zero_h,
+                forecast_90d=zero_h,
+                daily_timeline=[],
+                risk_indicators=[],
+                insights=[]
             )
 
         ledger_rows = ledger.load_ledger()

@@ -126,41 +126,122 @@ def test_multi_tenant_isolation_between_merchants():
     assert f"Tenant A Exclusive Gadget {suffix_a}" not in prod_names_b, "Merchant B should NOT see Merchant A's product!"
 
 
-def test_merchant_growth_and_campaigns_isolated():
-    """Verify growth analytics and campaigns return empty zero-state for new real merchants."""
+def test_all_9_modules_fresh_merchant_isolation():
+    """
+    Exhaustively verify all 9 merchant modules return tenant-isolated zero/onboarding
+    states for a brand-new merchant with 0 products, 0 orders, 0 customers, and 0 campaigns.
+    
+    1. Revenue Dashboard
+    2. Upsell & Cross-Sell
+    3. Agent Analytics
+    4. Campaign Manager
+    5. Customer Intelligence
+    6. Demand Intelligence
+    7. Agent Readiness Score
+    8. CFO Copilot
+    9. Forecast Service
+    """
     suffix = uuid.uuid4().hex[:8]
     reg = client.post("/api/v1/auth/register", json={
-        "business_name": f"Growth Test {suffix}",
-        "email": f"growth_{suffix}@testing.io",
-        "password": "Password#2026",
+        "business_name": f"Isolated Merchant {suffix} Ltd",
+        "email": f"isolated_{suffix}@testcompany.in",
+        "password": "StrongPassword#2026",
         "gstin": "29AAAAA0000A1Z5"
     }).json()
-    headers = {"Authorization": f"Bearer {reg['access_token']}", "x-merchant-id": reg["merchant_id"]}
+    mid = reg["merchant_id"]
+    headers = {"Authorization": f"Bearer {reg['access_token']}", "x-merchant-id": mid}
 
-    # Revenue dashboard
+    # 1. Revenue Dashboard
     rev_resp = client.get("/api/v1/merchant/growth/revenue-dashboard", headers=headers)
     assert rev_resp.status_code == 200
     rev_data = rev_resp.json()
     assert rev_data["kpis"]["revenue_today_inr"] == 0.0
+    assert rev_data["kpis"]["revenue_mtd_inr"] == 0.0
     assert rev_data["kpis"]["orders_today"] == 0
+    assert rev_data["kpis"]["average_order_value_aov_inr"] == 0.0
+    assert rev_data["hourly_velocity_today"] == []
+    assert rev_data["payment_channel_breakdown"] == []
 
-    # Campaigns list
+    # 2. Upsell & Cross-Sell
+    upsell_resp = client.get("/api/v1/merchant/growth/upsell-cross-sell", headers=headers)
+    assert upsell_resp.status_code == 200
+    upsell_data = upsell_resp.json()
+    assert upsell_data["message"] == "No transactions available yet."
+    assert upsell_data["bundles"] == []
+    assert upsell_data["frequently_bought_together"] == []
+    assert upsell_data["cross_sell_opportunities"] == []
+    assert upsell_data["upsell_suggestions"] == []
+    assert upsell_data["summary"]["total_active_rules"] == 0
+    assert upsell_data["summary"]["total_published_bundles"] == 0
+
+    # 3. Agent Analytics
+    agent_resp = client.get("/api/v1/merchant/growth/agent-analytics", headers=headers)
+    assert agent_resp.status_code == 200
+    agent_data = agent_resp.json()
+    assert agent_data["message"] == "No agent interactions yet."
+    assert agent_data["overview"]["total_orders"] == 0
+    assert agent_data["overview"]["ai_orders_count"] == 0
+    assert agent_data["overview"]["total_revenue_inr"] == 0.0
+    assert agent_data["top_ai_purchased_products"] == []
+    assert agent_data["revenue_split_history"] == []
+
+    # 4. Campaign Manager
     camp_resp = client.get("/api/v1/merchant/growth/campaigns", headers=headers)
     assert camp_resp.status_code == 200
     camp_data = camp_resp.json()
-    assert camp_data.get("campaigns") == []
-    assert camp_data.get("summary", {}).get("active_campaigns") == 0
+    assert camp_data["message"] == "No campaigns created."
+    assert camp_data["campaigns"] == []
+    assert camp_data["summary"]["active_campaigns"] == 0
+    assert camp_data["summary"]["total_campaigns"] == 0
 
-    # Agent readiness
+    # 5. Customer Intelligence
+    cust_resp = client.get("/api/v1/merchant/growth/customer-intelligence", headers=headers)
+    assert cust_resp.status_code == 200
+    cust_data = cust_resp.json()
+    assert cust_data["message"] == "No customer activity."
+    assert cust_data["metrics"]["total_active_customers"] == 0
+    assert cust_data["metrics"]["avg_customer_lifetime_value_inr"] == 0.0
+    assert cust_data["clv_distribution"] == []
+    assert cust_data["vip_customers"] == []
+
+    # 6. Demand Intelligence
+    demand_resp = client.get("/api/v1/growth/demand-intelligence", headers=headers)
+    assert demand_resp.status_code == 200
+    demand_data = demand_resp.json()
+    assert demand_data["status"] == "INSUFFICIENT_DATA"
+    assert demand_data["message"] == "Insufficient data for forecasting."
+    assert demand_data["products"] == []
+    assert demand_data["trending_products"] == []
+    assert demand_data["dead_inventory"] == []
+
+    # 7. Agent Readiness Score
     readiness_resp = client.get("/api/v1/merchant/growth/agent-readiness", headers=headers)
     assert readiness_resp.status_code == 200
     readiness = readiness_resp.json()
-    assert readiness["overall_score"] == 15.0
+    assert readiness["overall_score"] == 0.0
     assert readiness["status"] == "ONBOARDING_REQUIRED"
+    assert all(chk["passed"] is False for chk in readiness["checklist"])
+
+    # 8. CFO Copilot
+    copilot_resp = client.post("/api/v1/copilot/query", json={
+        "messages": [{"role": "user", "content": "How is my business doing today?"}]
+    }, headers=headers)
+    assert copilot_resp.status_code == 200
+    copilot_data = copilot_resp.json()
+    assert "launch" in copilot_data["answer"].lower() or "catalog" in copilot_data["answer"].lower() or "0 products" in copilot_data["answer"].lower()
+
+    # 9. Forecast Service
+    forecast_resp = client.get("/api/v1/forecast", headers=headers)
+    assert forecast_resp.status_code == 200
+    forecast_data = forecast_resp.json()
+    assert forecast_data["status"] == "INSUFFICIENT_DATA"
+    assert forecast_data["current_cash_balance"] == 0.0
+    assert forecast_data["daily_timeline"] == []
+    assert forecast_data["forecast_7d"]["confidence_score"] == 0
 
 
 def test_demo_merchant_retains_demo_data():
-    """Verify demo account rzp_live_acme_8842 still returns demo data when requested."""
+    """Verify demo account rzp_live_acme_8842 still returns seeded demo data."""
     demo_headers = {
         "x-merchant-id": "rzp_live_acme_8842"
     }
@@ -168,6 +249,18 @@ def test_demo_merchant_retains_demo_data():
     dash_resp = client.get("/api/v1/merchant/dashboard", headers=demo_headers)
     assert dash_resp.status_code == 200
     metrics = dash_resp.json()
-    # Demo merchant has seeded metrics
     assert metrics["total_orders"] > 0
     assert metrics["gross_revenue"] > 0
+
+    # Forecast endpoint retains seeded data for demo merchant
+    forecast_resp = client.get("/api/v1/forecast", headers=demo_headers)
+    assert forecast_resp.status_code == 200
+    forecast_data = forecast_resp.json()
+    assert forecast_data["status"] == "SUCCESS"
+    assert forecast_data["current_cash_balance"] > 0
+    assert forecast_data["forecast_30d"]["expected_inflow"] > 0
+
+    # Readiness score retains high score for demo merchant
+    readiness_resp = client.get("/api/v1/merchant/growth/agent-readiness", headers=demo_headers)
+    assert readiness_resp.status_code == 200
+    assert readiness_resp.json()["overall_score"] > 80.0
