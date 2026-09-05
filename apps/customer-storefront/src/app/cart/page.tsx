@@ -31,25 +31,29 @@ export default function CustomerCartPage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
 
-  // Demo Cart items
-  const [items, setItems] = useState([
-    {
-      id: 'prod_13bd8715df',
-      name: 'Razorpay Smart POS Terminal V3 Pro',
-      price: 14999,
-      quantity: 1,
-      image_url: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=500&auto=format&fit=crop&q=60',
-      category: 'Fintech Hardware',
-    },
-    {
-      id: 'prod_4g_soundbox',
-      name: 'Razorpay 4G Soundbox with Dynamic QR Display',
-      price: 2499,
-      quantity: 2,
-      image_url: 'https://images.unsplash.com/photo-1543512214-318c7553f230?w=500&auto=format&fit=crop&q=60',
-      category: 'Soundboxes',
+  // Cart items dynamically loaded from customer session
+  const [items, setItems] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('razorcommerce_cart');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+          if (parsed && Array.isArray(parsed.items)) {
+            return parsed.items.map((i: any) => ({
+              id: i.product_id || i.id,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity || 1,
+              image_url: i.image_url,
+              category: i.category || 'Commerce Hardware'
+            }));
+          }
+        }
+      } catch (e) {}
     }
-  ]);
+    return [];
+  });
 
   const updateQuantity = (id: string, delta: number) => {
     setItems(prev => prev.map(item => {

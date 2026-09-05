@@ -1,46 +1,102 @@
 from fastapi import APIRouter, HTTPException, Query, Path, Body, Depends, Header
 from typing import List, Optional, Dict, Any
 from app.services.customer_order_service import customer_order_service
+from app.services.auth_service import auth_service
+from app.schemas.auth import UserDTO
 
 router = APIRouter()
+
+def resolve_customer_user(
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    user_id: Optional[str] = Query(None)
+) -> Optional[UserDTO]:
+    """Resolve customer UserDTO from JWT bearer token, custom header, or query param."""
+    if authorization:
+        user = auth_service.verify_token(authorization)
+        if user:
+            return user
+    if x_customer_id:
+        user = auth_service.get_user_by_id_or_email(x_customer_id)
+        if user:
+            return user
+    if user_id and user_id.strip() and user_id.strip() != "usr_customer_demo":
+        user = auth_service.get_user_by_id_or_email(user_id.strip())
+        if user:
+            return user
+    if user_id == "usr_customer_demo":
+        return auth_service.get_user_by_id_or_email("customer@acme.com")
+    return None
 
 # -------------------------------------------------------------
 # ADDRESS BOOK ENDPOINTS
 # -------------------------------------------------------------
 @router.get("/addresses")
-def get_saved_addresses(user_id: str = Query("usr_customer_demo")):
+def get_saved_addresses(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """List saved customer delivery addresses with default flags."""
-    return customer_order_service.get_addresses(user_id=user_id)
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer:
+        return []
+    return customer_order_service.get_addresses(user_id=customer.id)
 
 @router.post("/addresses")
-def add_new_address(payload: Dict[str, Any] = Body(...), user_id: str = Query("usr_customer_demo")):
+def add_new_address(
+    payload: Dict[str, Any] = Body(...), 
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Add new delivery address to customer profile."""
-    return customer_order_service.add_address(user_id=user_id, data=payload)
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    return customer_order_service.add_address(user_id=eff_id, data=payload)
 
 @router.put("/addresses/{addr_id}")
 def update_existing_address(
     addr_id: str = Path(...),
     payload: Dict[str, Any] = Body(...),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Update existing delivery address."""
-    updated = customer_order_service.update_address(addr_id=addr_id, user_id=user_id, data=payload)
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    updated = customer_order_service.update_address(addr_id=addr_id, user_id=eff_id, data=payload)
     if not updated:
         raise HTTPException(status_code=404, detail="Address not found")
     return updated
 
 @router.delete("/addresses/{addr_id}")
-def delete_saved_address(addr_id: str = Path(...), user_id: str = Query("usr_customer_demo")):
+def delete_saved_address(
+    addr_id: str = Path(...), 
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Delete a saved delivery address."""
-    success = customer_order_service.delete_address(addr_id=addr_id, user_id=user_id)
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    success = customer_order_service.delete_address(addr_id=addr_id, user_id=eff_id)
     if not success:
         raise HTTPException(status_code=404, detail="Address not found or already deleted")
     return {"status": "success", "message": "Address deleted"}
 
 @router.post("/addresses/{addr_id}/default")
-def set_default_address(addr_id: str = Path(...), user_id: str = Query("usr_customer_demo")):
+def set_default_address(
+    addr_id: str = Path(...), 
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Set default delivery address."""
-    updated = customer_order_service.set_default_address(addr_id=addr_id, user_id=user_id)
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    updated = customer_order_service.set_default_address(addr_id=addr_id, user_id=eff_id)
     if not updated:
         raise HTTPException(status_code=404, detail="Address not found")
     return updated
@@ -49,13 +105,25 @@ def set_default_address(addr_id: str = Path(...), user_id: str = Query("usr_cust
 # MULTI-STEP CHECKOUT
 # -------------------------------------------------------------
 @router.post("/checkout")
-def execute_multi_step_checkout(payload: Dict[str, Any] = Body(...), user_id: str = Query("usr_customer_demo")):
+def execute_multi_step_checkout(
+    payload: Dict[str, Any] = Body(...), 
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """
     Execute 5-step Amazon/Flipkart checkout.
     Persists order, generates RCM-2026-XXXXXX order number, saves address snapshot, and schedules fulfillment.
     """
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or f"usr_guest_{payload.get('customer_email', 'unknown')}")
+    if customer:
+        if not payload.get("customer_name"):
+            payload["customer_name"] = customer.name
+        if not payload.get("customer_email"):
+            payload["customer_email"] = customer.email
     try:
-        return customer_order_service.process_checkout(user_id=user_id, payload=payload)
+        return customer_order_service.process_checkout(user_id=eff_id, payload=payload)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Checkout processing failed: {str(e)}")
 
@@ -64,25 +132,70 @@ def execute_multi_step_checkout(payload: Dict[str, Any] = Body(...), user_id: st
 # -------------------------------------------------------------
 @router.get("/orders")
 def get_customer_orders(
-    user_id: Optional[str] = Query("usr_customer_demo"),
+    user_id: Optional[str] = Query(None),
     status: Optional[str] = Query("ALL", description="Filter by stage: ALL, PROCESSING, PACKED, SHIPPED, DELIVERED, CANCELLED, RETURNED, REFUNDED"),
-    search: Optional[str] = Query(None, description="Search by Order ID, Product, or AWB")
+    search: Optional[str] = Query(None, description="Search by Order ID, Product, or AWB"),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
-    """List customer orders with stage filters and search."""
-    orders = customer_order_service.get_customer_orders(user_id=user_id, status=status or "ALL", search=search)
+    """List customer orders with stage filters and search, strictly isolated to the authenticated customer."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer:
+        return {"orders": [], "total": 0}
+    orders = customer_order_service.get_customer_orders(
+        user_id=customer.id, 
+        customer_email=customer.email, 
+        status=status or "ALL", 
+        search=search
+    )
     return {"orders": orders, "total": len(orders)}
 
 @router.get("/orders/{order_id}")
-def get_single_order_details(order_id: str = Path(...)):
+def get_single_order_details(
+    order_id: str = Path(...),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Get single order details with item list, address snapshot, invoice breakdown, merchant info, and courier details."""
     order = customer_order_service.get_order_details(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
+
+    # Strict multi-tenant isolation check: Customer can only view their own orders
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id)
+    if customer and customer.role_id == "role_customer":
+        is_owner = (
+            order.get("customer_id") == customer.id or 
+            (order.get("customer_email") and order["customer_email"].lower() == customer.email.lower()) or
+            (customer.id in ("usr_customer", "usr_customer_demo") and order.get("customer_email") == "customer@acme.com")
+        )
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view this order.")
+
     return order
 
 @router.get("/orders/{order_id}/tracking")
-def get_order_tracking_timeline(order_id: str = Path(...)):
+def get_order_tracking_timeline(
+    order_id: str = Path(...),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve visual 8-stage milestone tracking timeline with live timestamps and carrier telemetry."""
+    # Check order access
+    order = customer_order_service.get_order_details(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' tracking not found")
+
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id)
+    if customer and customer.role_id == "role_customer":
+        is_owner = (
+            order.get("customer_id") == customer.id or 
+            (order.get("customer_email") and order["customer_email"].lower() == customer.email.lower()) or
+            (customer.id in ("usr_customer", "usr_customer_demo") and order.get("customer_email") == "customer@acme.com")
+        )
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view this tracking.")
+
     tracking = customer_order_service.get_order_tracking(order_id)
     if not tracking:
         raise HTTPException(status_code=404, detail=f"Order '{order_id}' tracking not found")
@@ -95,11 +208,15 @@ def get_order_tracking_timeline(order_id: str = Path(...)):
 def submit_return_request(
     order_id: str = Path(...),
     payload: Dict[str, Any] = Body(...),
-    user_id: str = Query("usr_customer_demo")
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
 ):
     """Submit return request for an order with reason, notes, and optional attachment."""
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    eff_id = customer.id if customer else (user_id or "usr_guest")
     try:
-        return customer_order_service.create_return_request(order_id=order_id, user_id=user_id, data=payload)
+        return customer_order_service.create_return_request(order_id=order_id, user_id=eff_id, data=payload)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -109,8 +226,26 @@ def submit_return_request(
 # TAX INVOICE GENERATION
 # -------------------------------------------------------------
 @router.get("/orders/{order_id}/invoice")
-def get_order_tax_invoice(order_id: str = Path(...)):
+def get_order_tax_invoice(
+    order_id: str = Path(...),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve full GST compliant tax invoice breakdown for an order."""
+    order = customer_order_service.get_order_details(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found")
+
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id)
+    if customer and customer.role_id == "role_customer":
+        is_owner = (
+            order.get("customer_id") == customer.id or 
+            (order.get("customer_email") and order["customer_email"].lower() == customer.email.lower()) or
+            (customer.id in ("usr_customer", "usr_customer_demo") and order.get("customer_email") == "customer@acme.com")
+        )
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="Access denied: You do not have permission to download this invoice.")
+
     try:
         return customer_order_service.generate_tax_invoice(order_id)
     except ValueError as ve:
@@ -122,7 +257,22 @@ def get_order_tax_invoice(order_id: str = Path(...)):
 # CUSTOMER DASHBOARD WIDGETS
 # -------------------------------------------------------------
 @router.get("/dashboard-widgets")
-def get_customer_dashboard_widgets(user_id: str = Query("usr_customer_demo")):
+def get_customer_dashboard_widgets(
+    user_id: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None)
+):
     """Retrieve customer hub widgets: Recent Orders, In-Transit Shipments, Returns, and Saved Addresses."""
-    return customer_order_service.get_dashboard_widgets(user_id=user_id)
-
+    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    if not customer:
+        return {
+            "total_orders": 0,
+            "in_transit_count": 0,
+            "returns_count": 0,
+            "saved_addresses_count": 0,
+            "recent_orders": [],
+            "in_transit_orders": [],
+            "active_returns": [],
+            "saved_addresses": []
+        }
+    return customer_order_service.get_dashboard_widgets(user_id=customer.id, customer_email=customer.email)

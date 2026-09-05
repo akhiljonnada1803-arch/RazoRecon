@@ -227,6 +227,12 @@ class AuthService:
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, ("rzp_live_acme_8842", "Acme Direct Corp", "29AAAAA0000A1Z5", "usr_merchant_owner", "ACTIVE", 1, "2026-01-01 00:00:00 UTC"))
 
+        # Ensure consumer organization exists
+        cursor.execute("""
+            INSERT OR IGNORE INTO organizations (id, name, industry, merchant_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, ("org_consumer_hub", "Consumer Commerce Network", "Retail & Consumer Goods", "rzp_live_cust_1010", "2026-01-01 00:00:00 UTC"))
+
         for p in PERMISSIONS_DEFINITIONS:
             cursor.execute("""
                 INSERT OR REPLACE INTO permissions (id, name, description)
@@ -285,7 +291,7 @@ class AuthService:
             ]
             for o in orgs:
                 cursor.execute("""
-                    INSERT OR REPLACE INTO organizations (id, name, industry, merchant_id, created_at)
+                    INSERT OR IGNORE INTO organizations (id, name, industry, merchant_id, created_at)
                     VALUES (?, ?, ?, ?, ?)
                 """, (o["id"], o["name"], o["industry"], o["merchant_id"], now_str))
 
@@ -326,12 +332,17 @@ class AuthService:
             ]
 
             for u in seed_users:
+                cursor.execute("SELECT id, password_hash FROM users WHERE id = ? OR LOWER(email) = ?", (u["id"], u["email"].lower()))
+                existing = cursor.fetchone()
+                if existing and existing["password_hash"]:
+                    continue
+
                 salt = secrets.token_hex(16)
                 pwd_hash = self._hash_password(u["password"], salt)
                 cursor.execute("""
-                    INSERT OR REPLACE INTO users (id, name, email, password_hash, salt, role_id, organization_id, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (u["id"], u["name"], u["email"], pwd_hash, salt, u["role_id"], u["org_id"], now_str))
+                    INSERT OR REPLACE INTO users (id, name, email, password_hash, hashed_password, salt, role_id, organization_id, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (u["id"], u["name"], u["email"], pwd_hash, pwd_hash, salt, u["role_id"], u["org_id"], now_str))
 
             # 6. Seed Initial Audit Logs
             cursor.execute("SELECT COUNT(*) as cnt FROM audit_logs")
@@ -518,6 +529,105 @@ class AuthService:
         return False
 
 
+    def register_customer(
+        self,
+        name: str,
+        email: str,
+        password: str,
+        company: Optional[str] = None
+    ) -> RegisterResponseDTO:
+        """Register a real customer in users table with role_customer."""
+        if not name or not name.strip():
+            raise ValueError("EMPTY_NAME")
+        name_clean = name.strip()
+
+        if not email or not email.strip():
+            raise ValueError("INVALID_EMAIL_FORMAT")
+        email_clean = email.strip().lower()
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, email_clean):
+            raise ValueError("INVALID_EMAIL_FORMAT")
+
+        if not password or len(password) < 6:
+            raise ValueError("WEAK_PASSWORD")
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email_clean,))
+            if cursor.fetchone():
+                raise ValueError("EMAIL_ALREADY_EXISTS")
+
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+            if company and company.strip():
+                company_clean = company.strip()
+                cursor.execute("SELECT id, merchant_id FROM organizations WHERE LOWER(name) = ?", (company_clean.lower(),))
+                existing_org = cursor.fetchone()
+                if existing_org:
+                    org_id = existing_org["id"]
+                    customer_merchant_id = existing_org["merchant_id"]
+                else:
+                    org_id = f"org_cust_{uuid.uuid4().hex[:8]}"
+                    customer_merchant_id = f"cust_mcht_{uuid.uuid4().hex[:8]}"
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO organizations (id, name, industry, merchant_id, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (org_id, company_clean, "Retail & Consumer Goods", customer_merchant_id, now_str))
+            else:
+                company_clean = "Consumer Commerce Network"
+                org_id = "org_consumer_hub"
+                customer_merchant_id = "rzp_live_cust_1010"
+                cursor.execute("""
+                    INSERT OR IGNORE INTO organizations (id, name, industry, merchant_id, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                """, ("org_consumer_hub", "Consumer Commerce Network", "Retail & Consumer Goods", "rzp_live_cust_1010", now_str))
+
+            user_id = f"usr_{uuid.uuid4().hex[:12]}"
+            salt = secrets.token_hex(16)
+            pwd_hash = self._hash_password(password, salt)
+
+            # Insert User with role_customer
+            cursor.execute("""
+                INSERT INTO users (id, name, email, password_hash, hashed_password, salt, role_id, organization_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, name_clean, email_clean, pwd_hash, pwd_hash, salt, "role_customer", org_id, now_str))
+
+            conn.commit()
+
+
+        perms = ROLE_PERMISSIONS_MAP.get("role_customer", [])
+        user_dto = UserDTO(
+            id=user_id,
+            name=name_clean,
+            email=email_clean,
+            company=company_clean,
+            role="Customer",
+            role_id="role_customer",
+            merchant_id=customer_merchant_id,
+            organization_id=org_id,
+            created_at=now_str,
+            permissions=perms
+        )
+
+        token = self._generate_jwt(user_dto)
+
+        self.log_audit_event(
+            user_name=name_clean,
+            role="Customer",
+            action=f"Registered customer account for '{name_clean}' ({email_clean})",
+            resource="Customer Registration Engine"
+        )
+
+        return RegisterResponseDTO(
+            merchant_id=customer_merchant_id,
+            email=email_clean,
+            status="ACTIVE",
+            business_name=company_clean,
+            access_token=token,
+            token_type="bearer",
+            user=user_dto
+        )
+
     def register_user(
         self, 
         name: Optional[str] = None, 
@@ -529,6 +639,13 @@ class AuthService:
         gstin: Optional[str] = None
     ) -> RegisterResponseDTO:
         """Backwards compatible alias for merchant registration."""
+        if role and role.strip().lower() in ("customer", "role_customer"):
+            return self.register_customer(
+                name=name or business_name or "Valued Customer",
+                email=email,
+                password=password,
+                company=org_name or business_name
+            )
         b_name = business_name or name or org_name or "Acme Merchant Corp"
         return self.register_merchant(
             business_name=b_name,

@@ -22,7 +22,7 @@ function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect') || '/';
-  const { login } = useAuth();
+  const { register } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -36,11 +36,27 @@ function RegisterForm() {
     setIsSubmitting(true);
     setErrorMsg(null);
 
-    const success = await login(email || 'customer@acme.com', password || 'demo123');
-    if (success) {
+    if (!name.trim()) {
+      setErrorMsg('Please enter your full name.');
+      setIsSubmitting(false);
+      return;
+    }
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address.');
+      setIsSubmitting(false);
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters long.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const res = await register(name.trim(), email.trim(), password, company.trim() || undefined);
+    if (res.success) {
       router.push(redirectParam);
     } else {
-      setErrorMsg('Could not register account. Please try again or use the demo login.');
+      setErrorMsg(res.error || 'Could not register account. Please try again or use the demo login.');
       setIsSubmitting(false);
     }
   };

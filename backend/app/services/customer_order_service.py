@@ -382,9 +382,23 @@ class CustomerOrderService:
             {"status": "Delivered", "time": None, "location": ship_addr_str, "completed": False}
         ]
 
-        cust_name = address_data.get("full_name") or payload.get("customer_name") or "Akhil Jonnada"
-        cust_email = payload.get("customer_email") or "akhil@example.com"
-        cust_phone = address_data.get("phone") or payload.get("customer_phone") or "+91 98765 43210"
+        cust_name = address_data.get("full_name") or payload.get("customer_name")
+        cust_email = payload.get("customer_email")
+        cust_phone = address_data.get("phone") or payload.get("customer_phone")
+
+        if not cust_name or not cust_email:
+            try:
+                from app.services.auth_service import auth_service
+                u = auth_service.get_user_by_id_or_email(user_id)
+                if u:
+                    cust_name = cust_name or u.name
+                    cust_email = cust_email or u.email
+            except Exception:
+                pass
+
+        cust_name = cust_name or "Valued Customer"
+        cust_email = cust_email or "customer@example.com"
+        cust_phone = cust_phone or "+91 98765 43210"
 
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -435,11 +449,47 @@ class CustomerOrderService:
     # =========================================================================
     # ORDERS LISTING, DETAILS & TRACKING
     # =========================================================================
-    def get_customer_orders(self, user_id: Optional[str] = None, status: str = "ALL", search: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_customer_orders(
+        self, 
+        user_id: Optional[str] = None, 
+        customer_email: Optional[str] = None,
+        status: str = "ALL", 
+        search: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        # Unauthenticated / guest visitors have zero customer orders - strict zero data leak
+        if not user_id and not customer_email:
+            return []
+
+        identifiers = []
+        if user_id:
+            identifiers.append(user_id)
+        if customer_email:
+            identifiers.append(customer_email.lower())
+
+        # Expand identifiers using auth_service if possible
+        try:
+            from app.services.auth_service import auth_service
+            lookup_val = customer_email or user_id
+            u = auth_service.get_user_by_id_or_email(lookup_val) if lookup_val else None
+            if u:
+                if u.id not in identifiers:
+                    identifiers.append(u.id)
+                if u.email.lower() not in identifiers:
+                    identifiers.append(u.email.lower())
+        except Exception:
+            pass
+
+        # Demo persona expansion for verified demo customer
+        if "usr_customer_demo" in identifiers or "customer@acme.com" in identifiers or "usr_customer" in identifiers:
+            for demo_id in ["usr_customer_demo", "customer@acme.com", "usr_customer"]:
+                if demo_id not in identifiers:
+                    identifiers.append(demo_id)
+
+        placeholders = ",".join(["?"] * len(identifiers))
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            query = "SELECT * FROM merchant_orders WHERE 1=1"
-            params: List[Any] = []
+            query = f"SELECT * FROM merchant_orders WHERE (customer_id IN ({placeholders}) OR LOWER(customer_email) IN ({placeholders}))"
+            params: List[Any] = list(identifiers) + [x.lower() for x in identifiers]
 
             if status and status.upper() != "ALL":
                 st = status.upper()
@@ -632,23 +682,35 @@ class CustomerOrderService:
     # =========================================================================
     # CUSTOMER DASHBOARD WIDGETS
     # =========================================================================
-    def get_dashboard_widgets(self, user_id: str = "usr_customer_demo") -> Dict[str, Any]:
+    def get_dashboard_widgets(self, user_id: Optional[str] = None, customer_email: Optional[str] = None) -> Dict[str, Any]:
+        if not user_id and not customer_email:
+            return {
+                "total_orders": 0,
+                "in_transit_count": 0,
+                "returns_count": 0,
+                "saved_addresses_count": 0,
+                "recent_orders": [],
+                "in_transit_orders": [],
+                "active_returns": [],
+                "saved_addresses": []
+            }
+
         with self._get_conn() as conn:
             cursor = conn.cursor()
 
             # 1. Recent Orders (limit 5)
-            orders = self.get_customer_orders(user_id=user_id, status="ALL")
+            orders = self.get_customer_orders(user_id=user_id, customer_email=customer_email, status="ALL")
             recent_orders = orders[:5]
 
             # 2. Orders In Transit
             in_transit = [o for o in orders if o.get("order_status") in ("PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY")]
 
             # 3. Active Returns & Refunds
-            cursor.execute("SELECT * FROM customer_returns WHERE user_id = ? ORDER BY created_at DESC LIMIT 5", (user_id,))
+            cursor.execute("SELECT * FROM customer_returns WHERE user_id = ? ORDER BY created_at DESC LIMIT 5", (user_id or "",))
             returns = [dict(r) for r in cursor.fetchall()]
 
             # 4. Saved Addresses
-            addresses = self.get_addresses(user_id=user_id)
+            addresses = self.get_addresses(user_id=user_id) if user_id else []
 
         return {
             "total_orders": len(orders),

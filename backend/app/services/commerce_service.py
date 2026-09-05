@@ -1101,7 +1101,8 @@ class CommerceService:
         action: Optional[str] = None,
         selected_product_id: Optional[str] = None,
         selected_address: Optional[Dict[str, Any]] = None,
-        quantity: Optional[int] = 1
+        quantity: Optional[int] = 1,
+        user_id: Optional[str] = None
     ) -> CommerceChatResponseDTO:
         from app.services.ai_autopay_service import ai_autopay_service
 
@@ -1109,8 +1110,31 @@ class CommerceService:
         active_cart = cart or CartDTO()
         active_cart = self.calculate_cart_totals(active_cart)
 
+        # Resolve customer addresses with zero demo leak for real registered customers
+        active_saved_addresses = self.saved_addresses
+        if user_id and user_id != "usr_customer_demo":
+            try:
+                from app.services.customer_order_service import customer_order_service
+                db_addrs = customer_order_service.get_addresses(user_id=user_id)
+                active_saved_addresses = [
+                    {
+                        "id": a.get("id"),
+                        "label": a.get("full_name") or "Saved Address",
+                        "recipient_name": a.get("full_name") or "Customer",
+                        "address_line": f"{a.get('address_line1', '')} {a.get('address_line2', '')}".strip(),
+                        "city": a.get("city", "Bengaluru"),
+                        "state": a.get("state", "Karnataka"),
+                        "pincode": a.get("pincode", "560001"),
+                        "phone": a.get("phone", "+91 98765 43210"),
+                        "is_default": bool(a.get("is_default", 0))
+                    } for a in db_addrs
+                ]
+            except Exception:
+                active_saved_addresses = []
+
         # Get customer AutoPay rules
-        autopay_settings = ai_autopay_service.get_settings(user_id="usr_customer_demo")
+        effective_autopay_uid = user_id or "usr_customer_demo"
+        autopay_settings = ai_autopay_service.get_settings(user_id=effective_autopay_uid)
         single_limit = float(autopay_settings.get("max_single_purchase_limit", 20000.0))
         monthly_budget = float(autopay_settings.get("monthly_budget", 50000.0))
         spent_month = float(autopay_settings.get("spent_this_month", 0.0))
@@ -1133,7 +1157,7 @@ class CommerceService:
         # ---------------------------------------------------------------------
         if action == "confirm_autopay_purchase" or any(w in q for w in ["confirm purchase", "confirm autopay", "buy with autopay now", "execute order"]):
             target_prod = self.get_product_by_id(selected_product_id or "") or self.products[0]
-            chosen_addr = selected_address or self.saved_addresses[0]
+            chosen_addr = selected_address or (active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0])
             order_qty = max(1, quantity or 1)
             total_price = float(target_prod.price * order_qty)
 
@@ -1210,7 +1234,7 @@ class CommerceService:
         # ---------------------------------------------------------------------
         if action == "select_address" or any(w in q for w in ["ship to", "use address", "deliver to", "confirm address"]):
             target_prod = self.get_product_by_id(selected_product_id or "") or self.products[0]
-            chosen_addr = selected_address or self.saved_addresses[0]
+            chosen_addr = selected_address or (active_saved_addresses[0] if active_saved_addresses else self.saved_addresses[0])
             order_qty = max(1, quantity or 1)
 
             unit_price = target_prod.price
@@ -1224,69 +1248,47 @@ class CommerceService:
                 "product_id": target_prod.id,
                 "product_name": target_prod.name,
                 "product_image": target_prod.image_url,
-                "brand": target_prod.brand,
                 "quantity": order_qty,
                 "unit_price": unit_price,
-                "base_subtotal": base_price,
+                "base_price": base_price,
                 "gst_amount": gst_amount,
                 "delivery_fee": delivery_fee,
                 "total_amount": total_amount,
-                "delivery_address": chosen_addr,
-                "expected_delivery": target_prod.delivery_eta or "Tomorrow by 5:00 PM via Delhivery",
-                "within_limit": total_amount <= single_limit,
-                "within_budget": (spent_month + total_amount) <= monthly_budget,
-                "payment_method": payment_method_name
+                "currency": "INR"
             }
 
             message = (
-                f"📋 **Order Summary & AutoPay Pre-Flight Verification**\n\n"
-                f"Please review your order details before final purchase execution:\n\n"
+                f"📋 **Order Summary & AutoPay Verification**\n\n"
                 f"• **Item**: {target_prod.name} (Qty: {order_qty})\n"
-                f"• **Base Price**: ₹{base_price:,.2f}\n"
-                f"• **GST (18% ITC Eligible)**: ₹{gst_amount:,.2f}\n"
-                f"• **Delivery Fee**: **FREE Express Shipping (₹0.00)**\n"
-                f"• **Total Payable**: **₹{total_amount:,.2f}**\n\n"
-                f"📍 **Shipping To**: {chosen_addr.get('recipient_name')}, {chosen_addr.get('address_line')}, {chosen_addr.get('city')} - {chosen_addr.get('pincode')}\n"
-                f"🚚 **Estimated Delivery**: {target_prod.delivery_eta or 'Tomorrow by 5:00 PM'}\n\n"
-                f"⚡ **AutoPay Pre-Flight Guardrails**:\n"
-                f"• Mandate Status: `CONNECTED ({payment_method_name})`\n"
-                f"• Single Cap Check: {'✅ WITHIN LIMIT' if total_amount <= single_limit else '⚠️ EXCEEDS LIMIT'}\n"
-                f"• Monthly Budget Check: {'✅ WITHIN BUDGET' if (spent_month + total_amount) <= monthly_budget else '⚠️ EXCEEDS BUDGET'}\n\n"
-                f"Click **Buy via AutoPay** below to instantly authorize and execute this order."
+                f"• **Subtotal**: ₹{subtotal:,.2f} (Includes ₹{gst_amount:,.2f} GST)\n"
+                f"• **Delivery**: FREE Priority Delivery\n"
+                f"• **Total Payable**: ₹{total_amount:,.2f}\n"
+                f"• **Ship to**: {chosen_addr.get('label', 'Default Location')} ({chosen_addr.get('city')}, {chosen_addr.get('pincode')})\n"
+                f"• **AutoPay**: {payment_method_name}\n\n"
+                f"Ready to proceed? Say **'Confirm Purchase'** or click below to finalize your order autonomously."
             )
 
             return CommerceChatResponseDTO(
                 message=message,
-                flow_step="ORDER_SUMMARY",
-                action_triggered="ORDER_SUMMARY",
+                flow_step="ORDER_CONFIRMATION",
+                action_triggered="ORDER_CONFIRMATION",
                 selected_product=target_prod,
                 selected_address=chosen_addr,
                 order_summary=order_summary,
+                saved_addresses=active_saved_addresses,
                 autopay_guardrail_info=autopay_guardrail_info,
                 suggested_prompts=[
-                    f"Confirm & Buy {target_prod.name} via AutoPay",
-                    "Change delivery address",
-                    "Compare with other products"
+                    "Confirm Purchase with AutoPay",
+                    "Change shipping address",
+                    "Cancel and choose another product"
                 ]
             )
 
         # ---------------------------------------------------------------------
-        # STEP 6 & 7: PRODUCT SELECTED ➔ ADDRESS SELECTION
+        # STEP 7: SPECIFIC PRODUCT SELECTED ➔ SHOW SAVED ADDRESSES & AUTOPAY SUMMARY
         # ---------------------------------------------------------------------
-        if action == "select_product" or any(w in q for w in ["select product", "i choose", "select ", "pick "]):
-            # Identify target product
-            target_prod = None
-            if selected_product_id:
-                target_prod = self.get_product_by_id(selected_product_id)
-            
-            if not target_prod:
-                for p in self.products:
-                    if p.id.lower() in q or p.name.lower() in q or any(t in q for t in p.name.lower().split() if len(t) > 4):
-                        target_prod = p
-                        break
-            
-            if not target_prod:
-                target_prod = self.products[0]
+        if action == "select_product" or (selected_product_id and not action):
+            target_prod = self.get_product_by_id(selected_product_id or "") or self.products[0]
 
             message = (
                 f"🎯 **Great choice! You selected {target_prod.name}.**\n\n"
@@ -1295,19 +1297,19 @@ class CommerceService:
                 f"Where would you like us to ship this order? Select a saved delivery address below or add a new location:"
             )
 
+            if active_saved_addresses:
+                address_prompts = [f"Ship to {a['label']}" for a in active_saved_addresses[:3]] + ["Change product selection"]
+            else:
+                address_prompts = ["Add new delivery address", "Change product selection"]
+
             return CommerceChatResponseDTO(
                 message=message,
                 flow_step="ADDRESS_SELECTION",
                 action_triggered="ADDRESS_SELECTION",
                 selected_product=target_prod,
-                saved_addresses=self.saved_addresses,
+                saved_addresses=active_saved_addresses,
                 autopay_guardrail_info=autopay_guardrail_info,
-                suggested_prompts=[
-                    f"Ship to Acme Direct Corp - HQ (Bengaluru)",
-                    f"Ship to Mumbai Central Operations Hub",
-                    f"Ship to Delhi NCR Branch Office",
-                    "Change product selection"
-                ]
+                suggested_prompts=address_prompts
             )
 
         # ---------------------------------------------------------------------
@@ -1434,7 +1436,7 @@ class CommerceService:
             recommendation_reason=advisor_res.recommendation_reason,
             confidence_score=advisor_res.confidence_score,
             parsed_intent=advisor_res.parsed_intent.model_dump() if advisor_res.parsed_intent else None,
-            saved_addresses=self.saved_addresses,
+            saved_addresses=active_saved_addresses,
             autopay_guardrail_info=autopay_guardrail_info,
             review_intelligence=lead_intel,
             before_checkout_summary=lead_intel.before_checkout_summary if lead_intel else None,

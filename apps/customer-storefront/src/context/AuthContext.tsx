@@ -12,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   organizations: OrganizationDTO[];
   login: (email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, company?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   quickSwitchUser: (email: string) => Promise<void>;
   switchOrganization: (orgName: string) => Promise<void>;
@@ -159,6 +160,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    company?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const resp = await apiClient.post<any>('/auth/register', {
+        name,
+        email,
+        password,
+        organization_name: company,
+        business_name: company,
+        role: 'Customer'
+      });
+
+      if (resp && resp.access_token && resp.user) {
+        setToken(resp.access_token);
+        setUser(resp.user);
+        localStorage.setItem('razorcommerce_token', resp.access_token);
+        localStorage.setItem('razorcommerce_user', JSON.stringify(resp.user));
+        return { success: true };
+      }
+      return { success: false, error: 'Registration completed but session initialization failed.' };
+    } catch (err: any) {
+      const rawError = err?.message || 'Could not register account. Please try again.';
+      let friendlyError = rawError;
+      if (rawError.includes('EMAIL_ALREADY_EXISTS') || rawError.includes('409')) {
+        friendlyError = 'An account with this email address already exists. Please sign in instead.';
+      } else if (rawError.includes('WEAK_PASSWORD')) {
+        friendlyError = 'Password must be at least 6 characters long.';
+      } else if (rawError.includes('INVALID_EMAIL_FORMAT')) {
+        friendlyError = 'Please enter a valid email address.';
+      } else if (rawError.includes('EMPTY_NAME')) {
+        friendlyError = 'Please provide your full name.';
+      }
+      return { success: false, error: friendlyError };
+    }
+  };
+
   const quickSwitchUser = async (email: string) => {
     try {
       const resp = await apiClient.post<LoginResponseDTO>('/auth/quick-switch', { email });
@@ -222,6 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const PUBLIC_ROUTES = [
     '/', 
     '/login', 
+    '/register',
     '/cart', 
     '/checkout',
     '/customer/products', 
@@ -265,6 +307,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         routePath.startsWith('/customer') || 
         routePath.startsWith('/shop') || 
         routePath === '/' || 
+        routePath === '/register' ||
         routePath === '/cart' || 
         routePath === '/checkout' || 
         routePath === '/hero-demo'
@@ -301,6 +344,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         organizations,
         login,
+        register,
         logout,
         quickSwitchUser,
         switchOrganization,

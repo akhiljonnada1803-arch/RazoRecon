@@ -87,14 +87,36 @@ def get_ai_agent_status():
 
 @router.post("/register", response_model=RegisterResponseDTO, status_code=201)
 def register(payload: RegisterRequestDTO):
-    """Register a new merchant account with genuine database persistence."""
+    """Register a new merchant or customer account with genuine database persistence."""
     try:
+        if payload.role and payload.role.strip().lower() in ("customer", "role_customer"):
+            return auth_service.register_customer(
+                name=payload.name or payload.business_name or "Valued Customer",
+                email=payload.email,
+                password=payload.password,
+                company=payload.organization_name or payload.business_name
+            )
         business_name = payload.business_name or payload.organization_name or payload.name or ""
         return auth_service.register_merchant(
             business_name=business_name,
             email=payload.email,
             password=payload.password,
             gstin=payload.gstin
+        )
+    except ValueError as e:
+        err_msg = str(e)
+        status_code = 409 if err_msg == "EMAIL_ALREADY_EXISTS" else 400
+        raise HTTPException(status_code=status_code, detail=err_msg)
+
+@router.post("/register-customer", response_model=RegisterResponseDTO, status_code=201)
+def register_customer(payload: RegisterRequestDTO):
+    """Register a new customer account with genuine database persistence."""
+    try:
+        return auth_service.register_customer(
+            name=payload.name or payload.business_name or "Valued Customer",
+            email=payload.email,
+            password=payload.password,
+            company=payload.organization_name or payload.business_name
         )
     except ValueError as e:
         err_msg = str(e)

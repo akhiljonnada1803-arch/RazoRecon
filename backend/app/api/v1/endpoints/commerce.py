@@ -33,8 +33,13 @@ def get_product_details(product_id: str):
         raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
     return product
 
+from app.services.auth_service import auth_service
+
 @router.post("/chat", response_model=CommerceChatResponseDTO)
-def chat_with_commerce_agent(payload: CommerceChatRequestDTO):
+def chat_with_commerce_agent(
+    payload: CommerceChatRequestDTO,
+    authorization: Optional[str] = Header(None)
+):
     """
     Conversational shopping agent (Guaranteed 0% 500 error rate).
     
@@ -46,6 +51,12 @@ def chat_with_commerce_agent(payload: CommerceChatRequestDTO):
     - Promo coupon validation
     - Razorpay payment link generation
     """
+    user_id = None
+    if authorization:
+        user = auth_service.verify_token(authorization)
+        if user:
+            user_id = user.id
+
     try:
         return commerce_service.process_chat_query(
             query=payload.query or "",
@@ -54,7 +65,8 @@ def chat_with_commerce_agent(payload: CommerceChatRequestDTO):
             action=payload.action,
             selected_product_id=payload.selected_product_id,
             selected_address=payload.selected_address,
-            quantity=payload.quantity or 1
+            quantity=payload.quantity or 1,
+            user_id=user_id
         )
     except Exception as exc:
         import traceback

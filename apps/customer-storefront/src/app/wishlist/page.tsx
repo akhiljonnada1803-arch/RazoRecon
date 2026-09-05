@@ -28,8 +28,23 @@ export default function CustomerWishlistPage() {
   });
 
   const products: Product[] = Array.isArray(productsData) ? productsData : [];
-  // Take sample items for wishlist demonstration
-  const [wishlistItems, setWishlistItems] = useState<string[]>(['SKU-POS-001', 'SKU-SND-002', 'SKU-KBD-006']);
+  
+  // Dynamically loaded customer wishlist items
+  const [wishlistItems, setWishlistItems] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('razorcommerce_wishlist');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('razorcommerce_wishlist', JSON.stringify(wishlistItems));
+    } catch (e) {}
+  }, [wishlistItems]);
 
   const activeWishlist = products.filter((p) => wishlistItems.includes(p.id) || wishlistItems.includes(p.sku || ''));
 
