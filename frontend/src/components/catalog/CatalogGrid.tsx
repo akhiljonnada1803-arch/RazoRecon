@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   XCircle,
-  Truck
+  Truck,
+  Layers,
+  Percent
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,7 @@ interface CatalogGridProps {
   onDeleteProduct: (product: CatalogProduct) => void;
   onAdjustStock: (product: CatalogProduct) => void;
   onViewProduct: (product: CatalogProduct) => void;
+  onManageVolumeTiers?: (product: CatalogProduct) => void;
 }
 
 export function CatalogGrid({
@@ -29,6 +32,7 @@ export function CatalogGrid({
   onDeleteProduct,
   onAdjustStock,
   onViewProduct,
+  onManageVolumeTiers,
 }: CatalogGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -103,12 +107,32 @@ export function CatalogGrid({
                     ₹{prod.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </div>
                   <div className="text-[10px] text-slate-500 font-mono">
-                    Cost: ₹{prod.cost_price.toLocaleString('en-IN')} (18% GST)
+                    Cost: ₹{prod.cost_price.toLocaleString('en-IN')} ({prod.gst_rate_pct}% GST)
                   </div>
+                  {prod.price_tiers && prod.price_tiers.length > 0 && onManageVolumeTiers && (
+                    <button
+                      onClick={() => onManageVolumeTiers(prod)}
+                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-md"
+                    >
+                      <Layers className="h-2.5 w-2.5 text-[#0B72E7]" />
+                      <span>{prod.price_tiers.length} Volume Tiers</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Card Action Buttons */}
                 <div className="flex items-center gap-1">
+                  {onManageVolumeTiers && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onManageVolumeTiers(prod)}
+                      className="h-8 px-2 text-xs border-blue-200 text-[#0B72E7] hover:bg-blue-50 rounded-xl"
+                      title="Manage Volume Tier Pricing"
+                    >
+                      <Layers className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

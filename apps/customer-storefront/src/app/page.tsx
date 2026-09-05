@@ -9,6 +9,7 @@ import { Product, CartItem, CartState } from '@/types/commerce';
 import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
+import { AgentConfirmationModal } from '@/components/commerce/AgentConfirmationModal';
 import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { 
   Sparkles, 
@@ -78,6 +79,23 @@ export default function PublicHomePage() {
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [agentConfirmation, setAgentConfirmation] = useState<any | null>(null);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+
+  // Fetch customer AutoPay configuration
+  const { data: autopayData } = useQuery({
+    queryKey: ['customer-autopay'],
+    queryFn: async () => {
+      try {
+        return await apiClient.get<any>('/customer/autopay');
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: isAuthenticated,
+  });
+
+  const isAutoPayEnabled = Boolean(autopayData?.autopay_enabled && autopayData?.connected_payment_method);
 
   // Fetch catalog products from API
   const { data: catalogData, isLoading } = useQuery({
@@ -97,6 +115,31 @@ export default function PublicHomePage() {
       localStorage.setItem('razorcommerce_cart', JSON.stringify(cart));
     } catch (e) {}
   }, [cart]);
+
+  const handleBuyAutoPay = async (product: Product) => {
+    if (!isAuthenticated) {
+      setPendingProduct(product);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!isAutoPayEnabled) {
+      router.push('/customer/autopay');
+      return;
+    }
+    try {
+      const res = await apiClient.post<any>('/customer/autopay/one-click-buy', {
+        product_id: product.id,
+        quantity: 1
+      });
+      if (res?.confirmation) {
+        setAgentConfirmation(res.confirmation);
+        setIsConfirmationModalOpen(true);
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'AutoPay purchase could not be completed.';
+      alert(`⚠️ AutoPay Error: ${detail}`);
+    }
+  };
 
   const handleAddToCart = (product: Product) => {
     // GUEST GATING: If not authenticated, open login modal and do NOT add item immediately
@@ -149,41 +192,32 @@ export default function PublicHomePage() {
     // GUEST GATING: If not authenticated, redirect to login with redirect to checkout
     if (!isAuthenticated) {
       try {
-        localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify(product));
+        localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify({
+          product_id: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: 1,
+          image_url: product.image_url,
+          sku: product.sku || `SKU-${product.id.toUpperCase()}`
+        }));
       } catch (e) {}
       router.push('/login?redirect=/checkout');
       return;
     }
 
-    const singleCart: CartState = {
-      items: [{
+    try {
+      localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify({
         product_id: product.id,
         name: product.name,
         price: product.price,
         quantity: 1,
         image_url: product.image_url,
-        category: product.category,
-        product
-      }],
-      items_total: product.price,
-      subtotal: product.price,
-      gst_included: round2(product.price - product.price / 1.18),
-      tax_gst: round2(product.price - product.price / 1.18),
-      delivery_fee: 0,
-      platform_fee: 0,
-      shipping: 0,
-      discount: 0,
-      coupon_applied: null,
-      total: product.price,
-      currency: 'INR'
-    };
-
-    try {
-      const res: any = await apiClient.post('/commerce/checkout', { cart: singleCart });
-      setCheckoutResult(res);
-      setIsCheckoutModalOpen(true);
+        sku: product.sku || `SKU-${product.id.toUpperCase()}`
+      }));
+      router.push('/checkout');
     } catch (e) {
-      handleAddToCart(product);
+      console.error(e);
+      router.push('/checkout');
     }
   };
 
@@ -565,8 +599,9 @@ export default function PublicHomePage() {
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-emerald-700 font-bold">
-                            Inclusive of GST
+                          <span className="text-emerald-700 font-bold flex items-center gap-0.5">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>Inclusive of all taxes</span>
                           </span>
                           <span className="text-slate-500 flex items-center gap-0.5">
                             <Truck className="w-3 h-3 text-emerald-600" />
@@ -576,22 +611,35 @@ export default function PublicHomePage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 pt-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAddToCart(product)}
-                          className="text-xs font-bold border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-800 rounded-xl h-9"
-                        >
-                          Add to Cart
-                        </Button>
+                        {isAutoPayEnabled ? (
+                          <Button
+                            size="sm"
+                            onClick={() => handleBuyAutoPay(product)}
+                            className="col-span-2 text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl h-9 shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                            <span>⚡ Buy via AutoPay</span>
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAddToCart(product)}
+                              className="text-xs font-bold border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-800 rounded-xl h-9"
+                            >
+                              Add to Cart
+                            </Button>
 
-                        <Button
-                          size="sm"
-                          onClick={() => handleBuyNow(product)}
-                          className="text-xs font-bold bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl h-9 shadow-xs"
-                        >
-                          Buy Now
-                        </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleBuyNow(product)}
+                              className="text-xs font-bold bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl h-9 shadow-xs"
+                            >
+                              Buy Now
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -936,7 +984,7 @@ export default function PublicHomePage() {
             total: Math.max(0, round2(prev.subtotal - disc))
           }));
         }}
-        onCheckout={async () => {
+        onCheckout={() => {
           if (cart.items.length === 0) return;
           if (!isAuthenticated) {
             setIsCartOpen(false);
@@ -944,12 +992,21 @@ export default function PublicHomePage() {
             return;
           }
           try {
-            const res: any = await apiClient.post('/commerce/checkout', { cart });
-            setCheckoutResult(res);
+            localStorage.setItem('razorcommerce_cart', JSON.stringify(cart.items.map(i => ({
+              product_id: i.product_id,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              image_url: i.image_url,
+              sku: i.product?.sku || `SKU-${i.product_id.toUpperCase()}`
+            }))));
+            localStorage.removeItem('razorcommerce_staged_buy_now');
             setIsCartOpen(false);
-            setIsCheckoutModalOpen(true);
+            router.push('/checkout');
           } catch (e) {
             console.error(e);
+            setIsCartOpen(false);
+            router.push('/checkout');
           }
         }}
         isCheckingOut={false}
@@ -968,6 +1025,13 @@ export default function PublicHomePage() {
         onClose={() => setIsAuthModalOpen(false)}
         redirectPath="/cart"
         pendingItemName={pendingProduct?.name}
+      />
+
+      {/* Autonomous Agent Purchase Confirmation Modal */}
+      <AgentConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        data={agentConfirmation}
       />
     </div>
   );

@@ -7,11 +7,13 @@ import base64
 import json
 import time
 import secrets
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from app.schemas.auth import (
     UserDTO, 
     LoginResponseDTO, 
+    RegisterResponseDTO,
     OrganizationDTO, 
     RoleDTO, 
     PermissionDTO, 
@@ -169,12 +171,24 @@ class AuthService:
                     name TEXT NOT NULL,
                     email TEXT NOT NULL UNIQUE,
                     password_hash TEXT NOT NULL,
+                    hashed_password TEXT,
                     salt TEXT NOT NULL,
                     role_id TEXT NOT NULL,
                     organization_id TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(role_id) REFERENCES roles(id),
                     FOREIGN KEY(organization_id) REFERENCES organizations(id)
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS merchants (
+                    merchant_id TEXT PRIMARY KEY,
+                    business_name TEXT NOT NULL,
+                    gstin TEXT,
+                    owner_user_id TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'ACTIVE',
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(owner_user_id) REFERENCES users(id)
                 )
             """)
             cursor.execute("""
@@ -188,58 +202,67 @@ class AuthService:
                     timestamp TEXT NOT NULL
                 )
             """)
+            # Migration check: ensure hashed_password column exists in users
+            cursor.execute("PRAGMA table_info(users)")
+            user_cols = [c["name"] for c in cursor.fetchall()]
+            if "hashed_password" not in user_cols:
+                cursor.execute("ALTER TABLE users ADD COLUMN hashed_password TEXT")
+
+            # Seed core security definitions so system is independent of demo seeds
+            self._init_core_security(cursor)
             conn.commit()
+
+    def _init_core_security(self, cursor: sqlite3.Cursor):
+        """Always ensure core permissions, roles, and bindings exist regardless of demo seed."""
+        for p in PERMISSIONS_DEFINITIONS:
+            cursor.execute("""
+                INSERT OR REPLACE INTO permissions (id, name, description)
+                VALUES (?, ?, ?)
+            """, (p["id"], p["name"], p["description"]))
+
+        roles_data = [
+            {
+                "id": "role_platform_admin",
+                "name": "Platform Admin",
+                "description": "Full platform administrator managing merchants, users, platform settings, delivery partners, and AI configurations."
+            },
+            {
+                "id": "role_merchant_owner",
+                "name": "Merchant Owner",
+                "description": "Merchant owner managing product catalog, inventory, pricing, promotions, order acceptance, and revenue analytics."
+            },
+            {
+                "id": "role_operations_manager",
+                "name": "Operations Manager",
+                "description": "Fulfillment operator viewing orders, packing, updating shipment statuses, and managing delivery logistics."
+            },
+            {
+                "id": "role_customer",
+                "name": "Customer",
+                "description": "AI-empowered customer browsing products, using conversational shopping assistant, placing orders, and tracking shipments."
+            },
+        ]
+        for r in roles_data:
+            cursor.execute("""
+                INSERT OR REPLACE INTO roles (id, name, description)
+                VALUES (?, ?, ?)
+            """, (r["id"], r["name"], r["description"]))
+
+        for role_id, perm_names in ROLE_PERMISSIONS_MAP.items():
+            for p_name in perm_names:
+                p_def = next((x for x in PERMISSIONS_DEFINITIONS if x["name"] == p_name), None)
+                if p_def:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO role_permissions (role_id, permission_id)
+                        VALUES (?, ?)
+                    """, (role_id, p_def["id"]))
 
     def _seed_default_data(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-            # 1. Seed Permissions
-            for p in PERMISSIONS_DEFINITIONS:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO permissions (id, name, description)
-                    VALUES (?, ?, ?)
-                """, (p["id"], p["name"], p["description"]))
-
-            # 2. Seed 4 Core Roles for Track 01
-            roles_data = [
-                {
-                    "id": "role_platform_admin",
-                    "name": "Platform Admin",
-                    "description": "Full platform administrator managing merchants, users, platform settings, delivery partners, and AI configurations."
-                },
-                {
-                    "id": "role_merchant_owner",
-                    "name": "Merchant Owner",
-                    "description": "Merchant owner managing product catalog, inventory, pricing, promotions, order acceptance, and revenue analytics."
-                },
-                {
-                    "id": "role_operations_manager",
-                    "name": "Operations Manager",
-                    "description": "Fulfillment operator viewing orders, packing, updating shipment statuses, and managing delivery logistics."
-                },
-                {
-                    "id": "role_customer",
-                    "name": "Customer",
-                    "description": "AI-empowered customer browsing products, using conversational shopping assistant, placing orders, and tracking shipments."
-                },
-            ]
-            for r in roles_data:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO roles (id, name, description)
-                    VALUES (?, ?, ?)
-                """, (r["id"], r["name"], r["description"]))
-
-            # 3. Seed Role-Permissions
-            for role_id, perm_names in ROLE_PERMISSIONS_MAP.items():
-                for p_name in perm_names:
-                    p_def = next((x for x in PERMISSIONS_DEFINITIONS if x["name"] == p_name), None)
-                    if p_def:
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO role_permissions (role_id, permission_id)
-                            VALUES (?, ?)
-                        """, (role_id, p_def["id"]))
+            # Core security is already in _init_core_security
 
             # 4. Seed Organizations
             orgs = [
@@ -344,18 +367,143 @@ class AuthService:
     def get_user_dto(self, user_row: sqlite3.Row) -> UserDTO:
         role_id = user_row["role_id"]
         perms = ROLE_PERMISSIONS_MAP.get(role_id, [])
+        role_str = "merchant_owner" if role_id == "role_merchant_owner" else user_row["role_name"]
 
+        user_dict = dict(user_row)
         return UserDTO(
-            id=user_row["id"],
-            name=user_row["name"],
-            email=user_row["email"],
-            role=user_row["role_name"],
+            id=user_dict.get("id", ""),
+            name=user_dict.get("name", ""),
+            email=user_dict.get("email", ""),
+            role=role_str,
             role_id=role_id,
-            organization_id=user_row["organization_id"],
-            company=user_row["company"],
-            merchant_id=user_row["merchant_id"],
-            created_at=user_row["created_at"],
+            organization_id=user_dict.get("organization_id", ""),
+            company=user_dict.get("company", ""),
+            merchant_id=user_dict.get("merchant_id", ""),
+            created_at=user_dict.get("created_at", ""),
             permissions=perms
+        )
+
+    def register_merchant(
+        self, 
+        business_name: str, 
+        email: str, 
+        password: str, 
+        gstin: Optional[str] = None
+    ) -> RegisterResponseDTO:
+        """Register a real merchant, creating records in users, merchants, and organizations tables."""
+        # 1. Empty business name validation
+        if not business_name or not business_name.strip():
+            raise ValueError("EMPTY_BUSINESS_NAME")
+
+        business_clean = business_name.strip()
+
+        # 2. Invalid email format validation
+        if not email or not email.strip():
+            raise ValueError("INVALID_EMAIL_FORMAT")
+        email_clean = email.strip().lower()
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, email_clean):
+            raise ValueError("INVALID_EMAIL_FORMAT")
+
+        # 3. Weak password validation
+        if not password or len(password) < 6:
+            raise ValueError("WEAK_PASSWORD")
+
+        # 4. Invalid GSTIN validation (if provided)
+        gstin_clean = None
+        if gstin and gstin.strip():
+            gstin_candidate = gstin.strip().upper()
+            gstin_regex = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
+            if not re.match(gstin_regex, gstin_candidate):
+                raise ValueError("INVALID_GSTIN")
+            gstin_clean = gstin_candidate
+
+        # 5. Duplicate email validation & database insertion
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email_clean,))
+            if cursor.fetchone():
+                raise ValueError("EMAIL_ALREADY_EXISTS")
+
+            merchant_id = f"mer_{uuid.uuid4().hex[:12]}"
+            user_id = f"usr_{uuid.uuid4().hex[:12]}"
+            org_id = f"org_{merchant_id}"
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+            salt = secrets.token_hex(16)
+            pwd_hash = self._hash_password(password, salt)
+
+            # Insert Organization
+            cursor.execute("""
+                INSERT OR REPLACE INTO organizations (id, name, industry, merchant_id, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (org_id, business_clean, "D2C E-Commerce & Retail", merchant_id, now_str))
+
+            # Insert User with both password_hash and hashed_password
+            cursor.execute("""
+                INSERT INTO users (id, name, email, password_hash, hashed_password, salt, role_id, organization_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, business_clean, email_clean, pwd_hash, pwd_hash, salt, "role_merchant_owner", org_id, now_str))
+
+            # Insert Merchant
+            cursor.execute("""
+                INSERT INTO merchants (merchant_id, business_name, gstin, owner_user_id, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (merchant_id, business_clean, gstin_clean, user_id, "ACTIVE", now_str))
+
+            conn.commit()
+
+        # Build User DTO and JWT Token for Auto-Login
+        perms = ROLE_PERMISSIONS_MAP.get("role_merchant_owner", [])
+        user_dto = UserDTO(
+            id=user_id,
+            name=business_clean,
+            email=email_clean,
+            company=business_clean,
+            role="merchant_owner",
+            role_id="role_merchant_owner",
+            merchant_id=merchant_id,
+            organization_id=org_id,
+            created_at=now_str,
+            permissions=perms
+        )
+
+        token = self._generate_jwt(user_dto)
+
+        self.log_audit_event(
+            user_name=business_clean,
+            role="merchant_owner",
+            action=f"Registered real merchant account for '{business_clean}' (Merchant ID: {merchant_id})",
+            resource="Merchant Onboarding Engine"
+        )
+
+        return RegisterResponseDTO(
+            merchant_id=merchant_id,
+            email=email_clean,
+            status="ACTIVE",
+            business_name=business_clean,
+            access_token=token,
+            token_type="bearer",
+            user=user_dto
+        )
+
+    def register_user(
+        self, 
+        name: Optional[str] = None, 
+        email: str = "", 
+        password: str = "", 
+        role: Optional[str] = None, 
+        org_name: Optional[str] = None,
+        business_name: Optional[str] = None,
+        gstin: Optional[str] = None
+    ) -> RegisterResponseDTO:
+        """Backwards compatible alias for merchant registration."""
+        b_name = business_name or name or org_name or "Acme Merchant Corp"
+        return self.register_merchant(
+            business_name=b_name,
+            email=email,
+            password=password,
+            gstin=gstin
         )
 
     def authenticate_user(self, email: str, password: str, remember_me: bool = False) -> Optional[LoginResponseDTO]:
@@ -363,10 +511,12 @@ class AuthService:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company,
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 WHERE LOWER(u.email) = ?
             """, (email_clean,))
             row = cursor.fetchone()
@@ -375,7 +525,8 @@ class AuthService:
                 return None
 
             expected_hash = self._hash_password(password, row["salt"])
-            if not hmac.compare_digest(expected_hash, row["password_hash"]):
+            stored_hash = row["password_hash"] if row["password_hash"] else row["hashed_password"]
+            if not hmac.compare_digest(expected_hash, stored_hash):
                 return None
 
             user_dto = self.get_user_dto(row)
@@ -392,10 +543,12 @@ class AuthService:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company,
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 WHERE LOWER(u.email) = ?
             """, (email_clean,))
             row = cursor.fetchone()
@@ -417,10 +570,12 @@ class AuthService:
             cursor = conn.cursor()
             target_email = email.strip().lower() if email else "owner@acme.com"
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company,
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 WHERE LOWER(u.email) = ?
             """, (target_email,))
             row = cursor.fetchone()
@@ -429,10 +584,12 @@ class AuthService:
                 return self.get_user_dto(row)
 
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company,
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 LIMIT 1
             """)
             fallback = cursor.fetchone()
@@ -442,10 +599,12 @@ class AuthService:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company,
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 ORDER BY u.created_at ASC
             """)
             rows = cursor.fetchall()
@@ -586,10 +745,12 @@ class AuthService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                    SELECT u.*, r.name as role_name, o.name as company, 
+                           COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                     FROM users u
                     JOIN roles r ON u.role_id = r.id
                     JOIN organizations o ON u.organization_id = o.id
+                    LEFT JOIN merchants m ON m.owner_user_id = u.id
                     WHERE u.id = ?
                 """, (user_id,))
                 row = cursor.fetchone()
@@ -605,10 +766,12 @@ class AuthService:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT u.*, r.name as role_name, o.name as company, o.merchant_id
+                SELECT u.*, r.name as role_name, o.name as company, 
+                       COALESCE(m.merchant_id, o.merchant_id) as merchant_id
                 FROM users u
                 JOIN roles r ON u.role_id = r.id
                 JOIN organizations o ON u.organization_id = o.id
+                LEFT JOIN merchants m ON m.owner_user_id = u.id
                 WHERE LOWER(u.id) = ? OR LOWER(u.email) = ?
             """, (clean_id, clean_id))
             row = cursor.fetchone()

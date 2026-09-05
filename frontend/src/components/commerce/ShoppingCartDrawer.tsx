@@ -18,6 +18,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { AIReviewIntelligenceCard } from '@/components/commerce/AIReviewIntelligenceCard';
+
 
 interface ShoppingCartDrawerProps {
   isOpen: boolean;
@@ -249,8 +251,17 @@ export function ShoppingCartDrawer({
                 </div>
               </div>
 
+              {/* Before Checkout AI Review Intelligence */}
+              {cart.items.length > 0 && (
+                <AIReviewIntelligenceCard
+                  productId={cart.items[0].product_id}
+                  compact={true}
+                />
+              )}
+
               {/* Checkout Action Button */}
               <Button
+
                 onClick={onCheckout}
                 disabled={isCheckingOut}
                 className="w-full h-11 bg-[#0B72E7] hover:bg-[#095bc0] text-white font-bold rounded-xl shadow-md shadow-blue-500/20 flex items-center justify-center gap-2"

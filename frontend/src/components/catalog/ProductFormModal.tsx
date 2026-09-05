@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { CatalogProduct, ProductFormData, ProductSpec } from '@/types/catalog';
+import { CatalogProduct, ProductFormData, ProductSpec, PriceTier } from '@/types/catalog';
 import { 
   X, 
   Plus, 
@@ -11,10 +11,13 @@ import {
   Package, 
   ShieldCheck,
   Tag,
-  Percent
+  Percent,
+  Layers,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -72,15 +75,33 @@ export function ProductFormModal({
     hsn_sac_code: '84705010',
     offer_text: '10% Off with RAZOR2026',
     offer_badge: 'BESTSELLER',
-    offer_discount_pct: 10.0
+    offer_discount_pct: 10.0,
+    price_tiers: []
   });
 
   const [newFeature, setNewFeature] = useState('');
   const [newSpecKey, setNewSpecKey] = useState('');
   const [newSpecVal, setNewSpecVal] = useState('');
 
+  // Tier builder state
+  const [newTierMin, setNewTierMin] = useState<number>(5);
+  const [newTierHasMax, setNewTierHasMax] = useState<boolean>(true);
+  const [newTierMax, setNewTierMax] = useState<number | null>(9);
+  const [newTierDiscount, setNewTierDiscount] = useState<number>(8);
+  const [tierError, setTierError] = useState<string | null>(null);
+
   useEffect(() => {
     if (product) {
+      let initialTiers: PriceTier[] = [];
+      if (product.price_tiers && Array.isArray(product.price_tiers)) {
+        initialTiers = [...product.price_tiers];
+      } else if (product.price_tiers_json) {
+        try {
+          const parsed = JSON.parse(product.price_tiers_json);
+          if (Array.isArray(parsed)) initialTiers = parsed;
+        } catch {}
+      }
+
       setFormData({
         sku: product.sku,
         name: product.name,
@@ -102,7 +123,8 @@ export function ProductFormModal({
         offer_id: product.offer_id,
         offer_text: product.offer_text || '',
         offer_badge: product.offer_badge || '',
-        offer_discount_pct: product.offer_discount_pct || 0
+        offer_discount_pct: product.offer_discount_pct || 0,
+        price_tiers: initialTiers
       });
     } else {
       setFormData({
@@ -125,10 +147,65 @@ export function ProductFormModal({
         hsn_sac_code: '84705010',
         offer_text: '10% Off with RAZOR2026',
         offer_badge: 'BESTSELLER',
-        offer_discount_pct: 10.0
+        offer_discount_pct: 10.0,
+        price_tiers: []
       });
     }
+    setTierError(null);
   }, [product, isOpen]);
+
+  const handleAddTier = () => {
+    setTierError(null);
+    const minQty = Number(newTierMin);
+    const maxQty = newTierHasMax ? (newTierMax !== null ? Number(newTierMax) : null) : null;
+    const discountPct = Number(newTierDiscount);
+
+    if (isNaN(minQty) || minQty < 1) {
+      setTierError('Minimum quantity must be at least 1 unit.');
+      return;
+    }
+    if (newTierHasMax) {
+      if (maxQty === null || isNaN(maxQty) || maxQty <= minQty) {
+        setTierError('Maximum quantity must be strictly greater than minimum quantity.');
+        return;
+      }
+    }
+    if (isNaN(discountPct) || discountPct <= 0 || discountPct > 100) {
+      setTierError('Discount percentage must be between 0% and 100%.');
+      return;
+    }
+
+    const currentTiers = formData.price_tiers || [];
+    const candMax = maxQty ?? Infinity;
+    for (const t of currentTiers) {
+      const existMax = t.max_qty ?? Infinity;
+      if (Math.max(minQty, t.min_qty) <= Math.min(candMax, existMax)) {
+        setTierError(`Tier overlaps with existing tier (${t.min_qty}-${t.max_qty ?? '+'} units @ ${t.discount_pct}%).`);
+        return;
+      }
+    }
+
+    const updated = [...currentTiers, { min_qty: minQty, max_qty: maxQty, discount_pct: discountPct }]
+      .sort((a, b) => a.min_qty - b.min_qty);
+
+    setFormData((prev) => ({ ...prev, price_tiers: updated }));
+    if (maxQty) {
+      setNewTierMin(maxQty + 1);
+      setNewTierMax(maxQty + 5);
+      setNewTierDiscount(Math.min(100, discountPct + 5));
+    } else {
+      setNewTierMin(minQty + 5);
+      setNewTierMax(null);
+      setNewTierHasMax(false);
+    }
+  };
+
+  const handleRemoveTier = (indexToRemove: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      price_tiers: (prev.price_tiers || []).filter((_, i) => i !== indexToRemove)
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -365,7 +442,180 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* Row 5: Stock Tracking */}
+          {/* Row 5: Dynamic Volume Tier Pricing */}
+          <div className="p-4 bg-gradient-to-br from-blue-50/50 via-slate-50 to-indigo-50/30 rounded-2xl border border-blue-100/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-blue-100/80 text-[#0B72E7] flex items-center justify-center">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-slate-800">Dynamic Volume Tier Pricing</h4>
+                    <Badge variant="outline" className="bg-white text-blue-700 text-[10px] font-semibold border-blue-200">
+                      {(formData.price_tiers || []).length} Tiers Active
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Incentivize bulk purchases with automatic quantity-based tiered discounts.
+                  </p>
+                </div>
+              </div>
+              <div className="text-[10px] font-mono text-slate-400 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200">
+                Base Price: ₹{(formData.price || 0).toLocaleString('en-IN')}
+              </div>
+            </div>
+
+            {/* Existing Tiers Table */}
+            {(formData.price_tiers && formData.price_tiers.length > 0) ? (
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="p-2.5 pl-3">Order Quantity</th>
+                      <th className="p-2.5">Discount</th>
+                      <th className="p-2.5">Effective Unit Price</th>
+                      <th className="p-2.5">Unit Savings</th>
+                      <th className="p-2.5 pr-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {formData.price_tiers.map((t, idx) => {
+                      const effPrice = (formData.price || 0) * (1 - t.discount_pct / 100);
+                      const savings = (formData.price || 0) - effPrice;
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-2.5 pl-3 font-semibold text-slate-800 font-mono">
+                            {t.min_qty} {t.max_qty !== null && t.max_qty !== undefined ? `- ${t.max_qty}` : '+'} units
+                          </td>
+                          <td className="p-2.5">
+                            <span className="inline-flex items-center gap-1 font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                              <Percent className="h-3 w-3" />
+                              {t.discount_pct}% off
+                            </span>
+                          </td>
+                          <td className="p-2.5 font-bold text-slate-900 font-mono">
+                            ₹{effPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-2.5 text-slate-500 font-mono text-[11px]">
+                            -₹{savings.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / unit
+                          </td>
+                          <td className="p-2.5 pr-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTier(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                              title="Delete Tier"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-white/60 p-3 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                <span>No volume pricing tiers configured yet. Standard price applies across all quantities.</span>
+              </div>
+            )}
+
+            {/* Quick Add Tier Controls */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                <span>Add Pricing Tier</span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  Example: 5-9 units = 8% off | 10+ units = 15% off
+                </span>
+              </div>
+
+              {tierError && (
+                <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-700 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  <span>{tierError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-slate-600">Min Quantity</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={newTierMin}
+                    onChange={(e) => {
+                      setTierError(null);
+                      setNewTierMin(parseInt(e.target.value) || 1);
+                    }}
+                    className="h-8 text-xs bg-slate-50 rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-semibold text-slate-600">Max Quantity</label>
+                    <label className="text-[9px] text-blue-600 cursor-pointer flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={!newTierHasMax}
+                        onChange={(e) => {
+                          setTierError(null);
+                          setNewTierHasMax(!e.target.checked);
+                          if (e.target.checked) setNewTierMax(null);
+                        }}
+                        className="h-3 w-3 rounded text-[#0B72E7]"
+                      />
+                      <span>No Max (+)</span>
+                    </label>
+                  </div>
+                  <Input
+                    type="number"
+                    disabled={!newTierHasMax}
+                    placeholder={!newTierHasMax ? 'Unbounded (∞)' : '9'}
+                    value={newTierHasMax ? (newTierMax ?? '') : ''}
+                    onChange={(e) => {
+                      setTierError(null);
+                      setNewTierMax(e.target.value ? parseInt(e.target.value) : null);
+                    }}
+                    className={`h-8 text-xs rounded-lg ${!newTierHasMax ? 'bg-slate-100 text-slate-400 italic' : 'bg-slate-50'}`}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-slate-600">Discount % (0-100)</label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min={0.1}
+                      max={100}
+                      value={newTierDiscount}
+                      onChange={(e) => {
+                        setTierError(null);
+                        setNewTierDiscount(parseFloat(e.target.value) || 0);
+                      }}
+                      className="h-8 text-xs bg-slate-50 pr-7 rounded-lg"
+                    />
+                    <Percent className="h-3 w-3 text-slate-400 absolute right-2 top-2.5" />
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddTier}
+                  className="h-8 text-xs bg-[#072654] hover:bg-[#0c3875] text-white hover:text-white rounded-lg border-0 font-semibold"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add Tier
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 6: Stock Tracking */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-700">Initial Stock Units *</label>

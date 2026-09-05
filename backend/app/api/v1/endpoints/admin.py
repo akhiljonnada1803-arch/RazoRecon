@@ -28,6 +28,26 @@ def list_merchants():
     """List onboarded merchants, GSTIN, tier, and Razorpay account connectivity."""
     return admin_service.get_merchants()
 
+@router.get("/disputes")
+def list_disputes():
+    """Retrieve buyer disputes, chargeback evidence, and arbitration queue."""
+    return admin_service.get_disputes()
+
+@router.get("/fraud")
+def list_fraud_cases():
+    """Retrieve ML risk engine alerts, card anomalies, and velocity triggers."""
+    return admin_service.get_fraud_cases()
+
+@router.get("/payments")
+def list_payments():
+    """Retrieve real-time payment capture stream with fee & GST breakdowns."""
+    return admin_service.get_payments_stream()
+
+@router.get("/analytics")
+def get_analytics():
+    """Retrieve executive platform GMV, conversion metrics, and channel trends."""
+    return admin_service.get_admin_analytics()
+
 @router.get("/integrations")
 def list_integrations():
     """List active payment gateways, webhooks, and ERP accounting connectors."""

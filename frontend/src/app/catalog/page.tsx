@@ -7,7 +7,8 @@ import {
   CatalogProduct, 
   ProductFormData, 
   CatalogStats, 
-  ProductListResponse 
+  ProductListResponse,
+  PriceTier
 } from '@/types/catalog';
 import { CatalogHeader } from '@/components/catalog/CatalogHeader';
 import { CatalogSummarySections } from '@/components/catalog/CatalogSummarySections';
@@ -17,6 +18,7 @@ import { CatalogGrid } from '@/components/catalog/CatalogGrid';
 import { ProductFormModal } from '@/components/catalog/ProductFormModal';
 import { StockAdjustmentModal } from '@/components/catalog/StockAdjustmentModal';
 import { AICatalogViewModal } from '@/components/catalog/AICatalogViewModal';
+import { VolumeTierPricingModal } from '@/components/catalog/VolumeTierPricingModal';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -41,6 +43,8 @@ export default function CatalogManagementPage() {
   const [selectedProduct, setSelectedProduct] = useState<CatalogProduct | null>(null);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [stockModalProduct, setStockModalProduct] = useState<CatalogProduct | null>(null);
+  const [isVolumeModalOpen, setIsVolumeModalOpen] = useState(false);
+  const [volumeModalProduct, setVolumeModalProduct] = useState<CatalogProduct | null>(null);
   const [isAISchemaOpen, setIsAISchemaOpen] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
@@ -124,6 +128,24 @@ export default function CatalogManagementPage() {
     }
   });
 
+  // 6. Volume Tier Pricing Mutation
+  const saveVolumeTiersMutation = useMutation({
+    mutationFn: ({ productId, tiers }: { productId: string; tiers: PriceTier[] }) => {
+      return apiClient.put(`/catalog/${productId}`, {
+        price_tiers: tiers
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog-products'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['catalog-ai-context'] });
+      queryClient.invalidateQueries({ queryKey: ['commerce-products'] });
+      setIsVolumeModalOpen(false);
+      setVolumeModalProduct(null);
+      showToast('Volume tier pricing rules saved successfully!');
+    }
+  });
+
   const handleAddNew = () => {
     setSelectedProduct(null);
     setIsFormOpen(true);
@@ -143,6 +165,11 @@ export default function CatalogManagementPage() {
   const handleAdjustStock = (prod: CatalogProduct) => {
     setStockModalProduct(prod);
     setIsStockModalOpen(true);
+  };
+
+  const handleManageVolumeTiers = (prod: CatalogProduct) => {
+    setVolumeModalProduct(prod);
+    setIsVolumeModalOpen(true);
   };
 
   const products = catalogData?.products || [];
@@ -219,6 +246,7 @@ export default function CatalogManagementPage() {
             onDeleteProduct={handleDelete}
             onAdjustStock={handleAdjustStock}
             onViewProduct={handleEdit}
+            onManageVolumeTiers={handleManageVolumeTiers}
           />
         ) : (
           <CatalogGrid
@@ -227,6 +255,7 @@ export default function CatalogManagementPage() {
             onDeleteProduct={handleDelete}
             onAdjustStock={handleAdjustStock}
             onViewProduct={handleEdit}
+            onManageVolumeTiers={handleManageVolumeTiers}
           />
         )}
       </section>
@@ -287,6 +316,19 @@ export default function CatalogManagementPage() {
       <AICatalogViewModal
         isOpen={isAISchemaOpen}
         onClose={() => setIsAISchemaOpen(false)}
+      />
+
+      <VolumeTierPricingModal
+        isOpen={isVolumeModalOpen}
+        onClose={() => {
+          setIsVolumeModalOpen(false);
+          setVolumeModalProduct(null);
+        }}
+        product={volumeModalProduct}
+        onSave={async (productId, tiers) => {
+          await saveVolumeTiersMutation.mutateAsync({ productId, tiers });
+        }}
+        isSaving={saveVolumeTiersMutation.isPending}
       />
     </div>
   );

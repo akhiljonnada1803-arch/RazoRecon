@@ -1,8 +1,25 @@
 from fastapi import APIRouter, Query, Body, HTTPException, Path
 from typing import Optional, List, Dict, Any
 from app.services.merchant_service import merchant_service
+from app.services.merchant_analytics_service import merchant_analytics_service
 
 router = APIRouter()
+
+@router.get("/analytics/advanced")
+def get_advanced_merchant_analytics(
+    merchant_id: Optional[str] = Query("all", description="Merchant ID for drilldown"),
+    date_range: Optional[str] = Query("30d", description="Timeframe filter: today, 7d, 30d, 90d, 1y, custom"),
+    from_date: Optional[str] = Query(None, description="Start date for custom range (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="End date for custom range (YYYY-MM-DD)")
+):
+    """Retrieve telemetry for 7 Recharts visualizations."""
+    return merchant_analytics_service.get_advanced_analytics(
+        merchant_id=merchant_id or "all",
+        date_range=date_range or "30d",
+        from_date=from_date,
+        to_date=to_date
+    )
+
 
 @router.get("/dashboard")
 def get_merchant_dashboard():
@@ -26,6 +43,26 @@ def list_orders(
 ):
     """List merchant orders with line items, customer details, and 11-stage status workflow."""
     return merchant_service.get_orders(status=status, search=search)
+
+@router.post("/orders")
+def create_order(payload: Dict[str, Any] = Body(...)):
+    """Create a new merchant order and record lifecycle timestamp."""
+    import uuid
+    order_id = payload.get("order_id") or payload.get("id") or f"ord_{uuid.uuid4().hex[:8]}"
+    return merchant_service.create_order(
+        order_id=order_id,
+        customer_name=payload.get("customer_name"),
+        customer_email=payload.get("customer_email"),
+        customer_phone=payload.get("customer_phone"),
+        shipping_address=payload.get("shipping_address") or payload.get("delivery_address"),
+        items=payload.get("items"),
+        gross_amount=float(payload.get("total_amount") or payload.get("total") or payload.get("gross_amount") or 0.0),
+        subtotal=float(payload.get("subtotal")) if payload.get("subtotal") is not None else None,
+        tax=float(payload.get("tax")) if payload.get("tax") is not None else None,
+        discount=float(payload.get("discount")) if payload.get("discount") is not None else None,
+        payment_id=payload.get("payment_id"),
+        payment_method=payload.get("payment_method") or "upi"
+    )
 
 @router.get("/orders/{order_id}")
 def get_order(order_id: str):

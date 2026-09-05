@@ -473,7 +473,8 @@ export default function MerchantCatalogInventoryHubPage() {
                   <th className="py-3.5 px-5 font-semibold">Product & SKU</th>
                   <th className="py-3.5 px-4 font-semibold">Category</th>
                   <th className="py-3.5 px-4 font-semibold">Pricing & Tax (Base + GST)</th>
-                  <th className="py-3.5 px-5 font-semibold">In-Line Stock Units</th>
+                  <th className="py-3.5 px-5 font-semibold">Current Stock & Adjustment</th>
+                  <th className="py-3.5 px-4 font-semibold">Inventory Insights & Reorder</th>
                   <th className="py-3.5 px-5 font-semibold">Inventory Status</th>
                   <th className="py-3.5 px-4 font-semibold">Valuation</th>
                   <th className="py-3.5 px-5 font-semibold text-right">Actions</th>
@@ -486,6 +487,12 @@ export default function MerchantCatalogInventoryHubPage() {
                   const stockQty = product.stock_quantity ?? product.stock ?? 0;
                   const isEditingThisStock = editingStockId === product.id;
                   const itemValuation = stockQty * product.price;
+
+                  // Inventory Insights calculations
+                  const price = product.price || 1000;
+                  const dailyVelocity = price > 40000 ? 0.6 : price > 15000 ? 1.2 : price > 5000 ? 2.4 : 3.6;
+                  const daysRemaining = stockQty === 0 ? 0 : Math.max(1, Math.round(stockQty / dailyVelocity));
+                  const suggestedReorder = Math.max(15, Math.round((dailyVelocity * 30) - stockQty));
 
                   return (
                     <tr key={product.id} className="hover:bg-slate-50/80 transition-colors">
@@ -607,6 +614,46 @@ export default function MerchantCatalogInventoryHubPage() {
                               }`}
                               style={{ width: `${Math.min(100, (stockQty / 50) * 100)}%` }}
                             />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* INVENTORY INSIGHTS & REORDER ANALYTICS */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          {/* Stock Warning Badge */}
+                          {stockQty === 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 w-fit">
+                              ⛔ Out of Stock
+                            </span>
+                          ) : stockQty <= 15 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 w-fit">
+                              ⚠️ Low Stock (&lt;15)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 w-fit">
+                              ✅ In Stock
+                            </span>
+                          )}
+
+                          {/* Estimated Days Remaining */}
+                          <div className="flex items-center gap-1 font-mono text-[11px]">
+                            <span className="text-slate-400">Est. Runway:</span>
+                            <span className={`font-bold ${
+                              daysRemaining === 0 ? 'text-rose-600' :
+                              daysRemaining <= 7 ? 'text-amber-600 font-extrabold' :
+                              'text-slate-700'
+                            }`}>
+                              {daysRemaining === 0 ? '0 days (Stockout)' : `${daysRemaining} days left`}
+                            </span>
+                          </div>
+
+                          {/* Suggested Reorder Quantity */}
+                          <div className="flex items-center gap-1 text-[10px] font-mono">
+                            <span className="text-slate-400">Reorder:</span>
+                            <span className="font-bold text-[#0B72E7] bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                              +{suggestedReorder} units
+                            </span>
                           </div>
                         </div>
                       </td>

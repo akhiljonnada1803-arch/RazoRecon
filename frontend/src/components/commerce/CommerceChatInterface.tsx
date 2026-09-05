@@ -8,6 +8,8 @@ import {
   CartState 
 } from '@/types/commerce';
 import { ProductRecommendationCard } from './ProductRecommendationCard';
+import { AIReviewIntelligenceCard } from './AIReviewIntelligenceCard';
+
 import { 
   Send, 
   Bot, 
@@ -99,6 +101,28 @@ export function CommerceChatInterface({
         </Button>
       </div>
 
+      {/* AI Product Advisor Quick Examples Strip */}
+      <div className="px-6 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs shrink-0">
+        <span className="text-[11px] font-bold text-[#072654] flex items-center gap-1 shrink-0">
+          <Sparkles className="h-3.5 w-3.5 text-[#0B72E7]" /> AI Advisor Searches:
+        </span>
+        {[
+          "Best laptop under ₹60,000",
+          "Smart TV under ₹40,000 with 4.5+ rating",
+          "POS machine for small retail shop",
+          "Printer with low maintenance cost",
+          "Pros and cons of Razorpay POS Terminal V3"
+        ].map((promptText, idx) => (
+          <button
+            key={idx}
+            onClick={() => handlePromptClick(promptText)}
+            className="px-2.5 py-1 bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#0B72E7] text-slate-700 hover:text-[#0B72E7] rounded-lg text-[11px] font-medium transition-all shrink-0 shadow-2xs cursor-pointer"
+          >
+            {promptText}
+          </button>
+        ))}
+      </div>
+
       {/* Chat Messages Stream */}
       <div className="flex-1 p-6 overflow-y-auto space-y-6">
         {messages.map((msg) => (
@@ -125,6 +149,41 @@ export function CommerceChatInterface({
                   {renderFormattedText(msg.content)}
                 </div>
               </div>
+
+              {/* AI Review Intelligence Card Banner */}
+              {msg.review_intelligence && (
+                <div className="w-full">
+                  <AIReviewIntelligenceCard
+                    initialIntelligence={msg.review_intelligence}
+                    compact={false}
+                  />
+                </div>
+              )}
+
+              {/* AI Product Advisor Decision Banner */}
+              {msg.recommendation_reason && (
+
+                <div className="p-3.5 bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200 rounded-2xl flex items-start gap-3 shadow-2xs w-full">
+                  <div className="h-7 w-7 rounded-xl bg-[#0B72E7] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-[#072654] text-xs">
+                        AI Product Advisor Decision
+                      </span>
+                      {msg.confidence_score && (
+                        <Badge className="bg-emerald-600 text-white text-[10px] font-bold border-0 shadow-2xs">
+                          {Math.round(msg.confidence_score * 100)}% Confidence
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-slate-700 leading-relaxed font-normal">
+                      {msg.recommendation_reason}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Embedded Product Recommendations */}
               {msg.recommended_products && msg.recommended_products.length > 0 && (

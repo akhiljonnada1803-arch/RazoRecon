@@ -36,6 +36,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { AuditActivityFeed } from '@/components/common/AuditActivityFeed';
+
+function formatTimestamp(isoStr?: string | null) {
+  if (!isoStr) return 'Live';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return isoStr;
+  }
+}
 
 export default function MerchantDashboardPage() {
   const { user, hasPermission } = useAuth();
@@ -43,10 +62,12 @@ export default function MerchantDashboardPage() {
 
   const activeRole = adminSimulatedRole || user?.role || 'Merchant Owner';
 
-  const { data: metrics, isLoading } = useQuery<MerchantDashboardMetrics>({
+  const { data: metrics, isLoading, dataUpdatedAt } = useQuery<MerchantDashboardMetrics>({
     queryKey: ['merchant', 'dashboard'],
     queryFn: () => apiClient.get('/merchant/dashboard'),
   });
+
+  const lastUpdatedFormatted = dataUpdatedAt ? formatTimestamp(new Date(dataUpdatedAt).toISOString()) : 'Live';
 
   const { data: growthData } = useQuery<any>({
     queryKey: ['growth', 'insights-widget'],
@@ -105,7 +126,7 @@ export default function MerchantDashboardPage() {
             <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <Badge className="bg-white/20 text-white border-white/30 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
                     <Store className="w-3.5 h-3.5 mr-1" />
                     Merchant Owner Hub
@@ -113,6 +134,10 @@ export default function MerchantDashboardPage() {
                   <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs font-mono">
                     <Zap className="w-3.5 h-3.5 mr-1" />
                     AI-Buyable Active
+                  </Badge>
+                  <Badge className="bg-blue-500/20 text-blue-200 border-blue-400/30 text-xs font-mono flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>Last Updated: {lastUpdatedFormatted}</span>
                   </Badge>
                 </div>
 
@@ -377,6 +402,9 @@ export default function MerchantDashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* Live Recent Audit & Activity Feed */}
+          <AuditActivityFeed limit={10} title="Live Merchant Action & Audit Feed" />
         </div>
       )}
 
@@ -686,30 +714,8 @@ export default function MerchantDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Recent Forensic Event Stream</h3>
-              <Link href="/audit/logs">
-                <Button size="sm" className="text-xs bg-[#0B72E7] text-white rounded-xl">View Audit Logs</Button>
-              </Link>
-            </div>
-            <div className="space-y-2 pt-1 text-xs">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-slate-900 block">PAYMENT_CAPTURED & ORDER_RECONCILED</span>
-                  <span className="text-slate-500 text-[11px]">Razorpay Payment `pay_test_9481` matched with Invoice `INV-2026-081`</span>
-                </div>
-                <Badge className="bg-emerald-50 text-emerald-700 font-mono text-[9px]">PASSED</Badge>
-              </div>
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-slate-900 block">CATALOG_PRICE_UPDATE_VERIFIED</span>
-                  <span className="text-slate-500 text-[11px]">Published SKU `PROD-50` with ₹42,500 active offer rate</span>
-                </div>
-                <Badge className="bg-emerald-50 text-emerald-700 font-mono text-[9px]">PASSED</Badge>
-              </div>
-            </div>
-          </div>
+          {/* Live Forensic Audit Activity Feed */}
+          <AuditActivityFeed limit={15} title="Forensic Regulatory Audit & Verification Feed" />
         </div>
       )}
     </div>

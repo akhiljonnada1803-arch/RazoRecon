@@ -255,7 +255,7 @@ class CommerceCopilotService:
                     f"- **{item['product_name']}**: Current stock **{item['current_stock']} units** $\\rightarrow$ **Runs out in {item['days_to_stockout']} days**.\n"
                     f"  - **Recommendation**: **Restock {item['recommended_restock_units']} units** (Est. Cost: ₹{item['estimated_reorder_cost_inr']:,.2f})\n"
                 )
-            answer += "\n> **Action**: View complete replenishment queue in **[Inventory Optimization](/merchant/inventory-optimization)**."
+            answer += "\n> **Action**: View complete replenishment queue and stock levels in **[Catalog & Inventory](/merchant/catalog)**."
             citations.append({"doc_id": "kb-0120", "title": "Predictive Stockout & Warehouse Working Capital Intelligence"})
 
         # 4. Increase Revenue & Growth Campaigns

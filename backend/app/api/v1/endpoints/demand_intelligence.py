@@ -28,17 +28,6 @@ def get_demand_intelligence():
     """
     return demand_intelligence_service.get_demand_intelligence()
 
-@router.get("/inventory-optimization")
-def get_inventory_optimization():
-    """
-    Retrieve Inventory Optimization telemetry:
-    - Fast Movers vs Slow Movers
-    - Understocked SKUs with days-to-stockout estimation
-    - Overstocked items with tied-up capital
-    - Automated reorder recommendation queue
-    """
-    return demand_intelligence_service.get_inventory_optimization()
-
 @router.post("/discounts/apply")
 def apply_product_discount(payload: ApplyDiscountRequest):
     """

@@ -68,3 +68,22 @@ table {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+/* Global Print Styles for Clean Single-Page Invoices */
+@media print {
+  header,
+  nav,
+  footer,
+  aside,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+

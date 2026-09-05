@@ -195,30 +195,116 @@ class ReconciliationService:
 
     def get_commerce_transactions(self) -> List[CommerceTransactionDTO]:
         dtos = []
-        for raw in SAMPLE_COMMERCE_ORDERS:
-            timeline = self._generate_timeline(raw["lifecycle_stage"], raw["created_at"])
-            dtos.append(
-                CommerceTransactionDTO(
-                    id=raw["id"],
-                    order_id=raw["order_id"],
-                    customer_name=raw["customer_name"],
-                    customer_email=raw["customer_email"],
-                    product_title=raw["product_title"],
-                    quantity=raw["quantity"],
-                    amount=raw["amount"],
-                    currency="INR",
-                    payment_method=raw["payment_method"],
-                    payment_status=raw["payment_status"],
-                    lifecycle_stage=raw["lifecycle_stage"],
-                    carrier=raw.get("carrier", "Delhivery Express"),
-                    tracking_number=raw.get("tracking_number"),
-                    is_agent_purchase=raw["is_agent_purchase"],
-                    agent_name=raw.get("agent_name"),
-                    created_at=raw["created_at"],
-                    updated_at=raw["updated_at"],
-                    timeline=timeline
+        seen_order_numbers = set()
+
+        # 1. Ingest real merchant orders (including A2A autonomous purchases)
+        try:
+            from app.services.merchant_service import merchant_service
+            real_orders = merchant_service.get_orders(limit=100)
+            for ro in real_orders:
+                order_num = ro.get("order_number") or ro.get("id")
+                if order_num in seen_order_numbers:
+                    continue
+                seen_order_numbers.add(order_num)
+
+                cust_name = ro.get("customer_name") or "Enterprise Client"
+                cust_id = ro.get("customer_id") or ""
+                # Check if this order was placed by an AI agent
+                is_agent = (
+                    "AI" in cust_name or
+                    "Agent" in cust_name or
+                    "Procurement" in cust_name or
+                    "Bot" in cust_name or
+                    cust_id == "usr_agent_buyer" or
+                    "A2A" in str(ro.get("timeline_json", ""))
                 )
-            )
+                agent_name = cust_name if is_agent else None
+
+                items = ro.get("items") or []
+                prod_title = items[0].get("name") if items else "Enterprise Commercial Solution"
+                qty = sum(int(it.get("quantity", 1)) for it in items) if items else 1
+
+                status_raw = (ro.get("order_status") or "PAYMENT_RECEIVED").upper()
+                stage_map = {
+                    "PAYMENT_RECEIVED": "Paid",
+                    "ACCEPTED": "Merchant Approved",
+                    "PICKING": "Packed",
+                    "PACKED": "Packed",
+                    "READY_FOR_PICKUP": "Packed",
+                    "PICKED_UP_BY_COURIER": "Shipped",
+                    "IN_TRANSIT": "Shipped",
+                    "OUT_FOR_DELIVERY": "Shipped",
+                    "DELIVERED": "Delivered",
+                    "RETURNED": "Returned/Refunded",
+                    "REFUNDED": "Returned/Refunded"
+                }
+                lifecycle = stage_map.get(status_raw, "Paid")
+
+                order_timeline = ro.get("timeline") or []
+                dto_timeline = []
+                for t in order_timeline:
+                    dto_timeline.append(OrderLifecycleDTO(
+                        stage=t.get("status", "Order Placed"),
+                        timestamp=t.get("time") or ro.get("created_at"),
+                        description=f"{t.get('status')} at {t.get('location', 'Logistics Center')}",
+                        completed=t.get("completed", True)
+                    ))
+                if not dto_timeline:
+                    dto_timeline = self._generate_timeline(lifecycle, ro.get("created_at"))
+
+                dtos.append(
+                    CommerceTransactionDTO(
+                        id=ro.get("id"),
+                        order_id=order_num,
+                        customer_name=cust_name,
+                        customer_email=ro.get("customer_email") or "procurement@enterprise.in",
+                        product_title=prod_title,
+                        quantity=qty,
+                        amount=float(ro.get("total_amount") or 0.0),
+                        currency="INR",
+                        payment_method=ro.get("payment_method") or "Razorpay UPI",
+                        payment_status="Captured" if ro.get("payment_status") == "PAID" else "Pending",
+                        lifecycle_stage=lifecycle,
+                        carrier=ro.get("delivery_partner") or "Delhivery Express",
+                        tracking_number=ro.get("tracking_id") or ro.get("awb_number"),
+                        is_agent_purchase=is_agent,
+                        agent_name=agent_name,
+                        created_at=ro.get("created_at") or datetime.now().isoformat(),
+                        updated_at=ro.get("updated_at") or datetime.now().isoformat(),
+                        timeline=dto_timeline
+                    )
+                )
+        except Exception:
+            pass
+
+        # 2. Add sample commerce orders that haven't been shadowed
+        for raw in SAMPLE_COMMERCE_ORDERS:
+            if raw["order_id"] not in seen_order_numbers:
+                seen_order_numbers.add(raw["order_id"])
+                timeline = self._generate_timeline(raw["lifecycle_stage"], raw["created_at"])
+                dtos.append(
+                    CommerceTransactionDTO(
+                        id=raw["id"],
+                        order_id=raw["order_id"],
+                        customer_name=raw["customer_name"],
+                        customer_email=raw["customer_email"],
+                        product_title=raw["product_title"],
+                        quantity=raw["quantity"],
+                        amount=raw["amount"],
+                        currency="INR",
+                        payment_method=raw["payment_method"],
+                        payment_status=raw["payment_status"],
+                        lifecycle_stage=raw["lifecycle_stage"],
+                        carrier=raw.get("carrier", "Delhivery Express"),
+                        tracking_number=raw.get("tracking_number"),
+                        is_agent_purchase=raw["is_agent_purchase"],
+                        agent_name=raw.get("agent_name"),
+                        created_at=raw["created_at"],
+                        updated_at=raw["updated_at"],
+                        timeline=timeline
+                    )
+                )
+
         return dtos
 
     def get_commerce_transaction_summary(self) -> CommerceTransactionSummaryDTO:

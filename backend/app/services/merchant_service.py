@@ -3,8 +3,11 @@ import os
 import uuid
 import json
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
+
+from app.core.timestamps import utcnow_iso, format_iso, parse_iso
+from app.services.audit_service import audit_service
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "merchant.db")
 
@@ -90,11 +93,20 @@ class MerchantService:
             
             cursor.execute("PRAGMA table_info(merchant_orders)")
             cols = [row[1] for row in cursor.fetchall()]
-            if cols and ("awb_number" not in cols or "current_location" not in cols):
+            if cols and ("order_placed_at" not in cols or "courier_assigned_at" not in cols):
                 cursor.execute("DROP TABLE IF EXISTS merchant_orders")
                 cursor.execute("DROP TABLE IF EXISTS merchant_customers")
 
-            # Orders Table (with realistic 11-stage e-commerce logistics lifecycle)
+            # Ensure invoice_number column exists if upgrading
+            cursor.execute("PRAGMA table_info(merchant_orders)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if cols and "invoice_number" not in cols:
+                try:
+                    cursor.execute("ALTER TABLE merchant_orders ADD COLUMN invoice_number TEXT")
+                except Exception:
+                    pass
+
+            # Orders Table with full 13 lifecycle timestamps
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS merchant_orders (
                     id TEXT PRIMARY KEY,
@@ -121,6 +133,20 @@ class MerchantService:
                     payment_id TEXT,
                     payment_method TEXT DEFAULT 'upi',
                     reconciled INTEGER DEFAULT 1,
+                    invoice_number TEXT,
+                    order_placed_at TEXT,
+                    payment_initiated_at TEXT,
+                    payment_completed_at TEXT,
+                    merchant_accepted_at TEXT,
+                    merchant_rejected_at TEXT,
+                    packed_at TEXT,
+                    ready_for_pickup_at TEXT,
+                    courier_assigned_at TEXT,
+                    shipped_at TEXT,
+                    out_for_delivery_at TEXT,
+                    delivered_at TEXT,
+                    cancelled_at TEXT,
+                    refunded_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -140,7 +166,8 @@ class MerchantService:
                     preferences_json TEXT NOT NULL,
                     ai_insights TEXT NOT NULL,
                     last_purchase_date TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
             """)
 
@@ -151,7 +178,7 @@ class MerchantService:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) as count FROM merchant_orders")
             if cursor.fetchone()["count"] < 10:
-                now = datetime.utcnow()
+                now_utc = datetime.now(timezone.utc)
                 
                 # 1. Seed 100 Customers
                 sample_cities = ["Bengaluru", "Mumbai", "Delhi NCR", "Hyderabad", "Chennai", "Pune", "Ahmedabad", "Kolkata"]
@@ -181,16 +208,17 @@ class MerchantService:
                         "credit_limit": 500000 if tier == "PLATINUM" else 150000
                     }
                     insights = f"Customer has high affinity for {prefs['favourite_categories'][0]}. SLA adherence sensitivity is High."
+                    c_created = (now_utc - timedelta(days=random.randint(60, 365))).strftime("%Y-%m-%dT%H:%M:%SZ")
 
                     cursor.execute("""
                         INSERT OR REPLACE INTO merchant_customers 
-                        (id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         cust_id, name, email, phone, tier, ltv, orders_count, aov,
                         json.dumps(prefs), insights,
-                        (now - timedelta(days=random.randint(1, 20))).strftime("%Y-%m-%d"),
-                        (now - timedelta(days=random.randint(60, 365))).strftime("%Y-%m-%d %H:%M:%S")
+                        (now_utc - timedelta(days=random.randint(1, 20))).strftime("%Y-%m-%d"),
+                        c_created, c_created
                     ))
 
                 # 2. Seed 100 Orders across realistic e-commerce lifecycle states
@@ -257,70 +285,95 @@ class MerchantService:
                     status = status_list[i - 1]
                     pay_status = "PAID"
 
-                    # Realistic Courier Logic:
-                    # AWBs and Tracking IDs ONLY generated upon courier pickup!
+                    # Calculate exact sequential milestones
+                    base_order_dt = now_utc - timedelta(days=random.randint(1, 8), hours=random.randint(1, 23), minutes=random.randint(5, 50))
+                    
+                    order_placed_at = base_order_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    payment_initiated_at = base_order_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    payment_completed_at = (base_order_dt + timedelta(seconds=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
+                    merchant_accepted_at = None
+                    merchant_rejected_at = None
+                    packed_at = None
+                    ready_for_pickup_at = None
+                    courier_assigned_at = None
+                    shipped_at = None
+                    out_for_delivery_at = None
+                    delivered_at = None
+                    cancelled_at = None
+                    refunded_at = None
+
+                    if status in ["ACCEPTED", "PICKING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
+                        merchant_accepted_at = (base_order_dt + timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
+                    if status in ["PACKED", "READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
+                        packed_at = (base_order_dt + timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
+                    if status in ["READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
+                        ready_for_pickup_at = (base_order_dt + timedelta(hours=1, minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    
                     courier = None
                     awb_num = None
                     tracking_id = None
                     curr_loc = "Merchant Central Warehouse"
                     est_delivery = None
 
-                    # If order is picked up or further, assign courier partner and generate AWB & tracking
                     if status in ["PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
                         partner = DELIVERY_PARTNERS[i % len(DELIVERY_PARTNERS)]
                         courier = partner["name"]
                         awb_num = f"AWB-{partner['prefix']}-{random.randint(1000000, 9999999)}"
                         tracking_id = f"{partner['prefix']}{random.randint(100000, 999999)}"
-                        est_delivery = (now + timedelta(days=random.randint(1, 3))).strftime("%d %b %Y, 6:00 PM")
+                        est_delivery = (base_order_dt + timedelta(days=2)).strftime("%d %b %Y, 6:00 PM")
+                        courier_assigned_at = (base_order_dt + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
                         
                         city_locs = LOCATIONS_BY_CITY.get(city, LOCATIONS_BY_CITY["Bengaluru"])
                         if status == "PICKED_UP_BY_COURIER":
                             curr_loc = city_locs[0]
                         elif status == "IN_TRANSIT":
                             curr_loc = city_locs[1]
+                            shipped_at = (base_order_dt + timedelta(hours=3, minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
                         elif status == "OUT_FOR_DELIVERY":
                             curr_loc = city_locs[2]
+                            shipped_at = (base_order_dt + timedelta(hours=3, minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                            out_for_delivery_at = (base_order_dt + timedelta(hours=18)).strftime("%Y-%m-%dT%H:%M:%SZ")
                         elif status == "DELIVERED":
                             curr_loc = shipping_addr
-                    elif status in ["PAYMENT_RECEIVED", "ACCEPTED", "PICKING", "PACKED", "READY_FOR_PICKUP"]:
-                        # Pre-pickup stages have NO AWB and NO tracking ID
-                        courier = None
-                        awb_num = None
-                        tracking_id = None
-                        curr_loc = "Fulfillment Center Dispatch Dock" if status == "READY_FOR_PICKUP" else "Central Warehouse"
+                            shipped_at = (base_order_dt + timedelta(hours=3, minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                            out_for_delivery_at = (base_order_dt + timedelta(hours=18)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                            delivered_at = (base_order_dt + timedelta(hours=22, minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-                    # Generate Chronological Timeline
-                    order_time = (now - timedelta(days=random.randint(1, 10))).strftime("%Y-%m-%d %H:%M:%S")
+                    # Generate Full Timeline Array
                     timeline = [
-                        {"status": "Payment Received", "time": order_time, "location": "Razorpay Payment Gateway (Instant)", "completed": True},
+                        {"status": "Order Placed", "time": order_placed_at, "location": "RazorCommerce Online Store", "completed": True},
+                        {"status": "Payment Completed", "time": payment_completed_at, "location": "Razorpay Payment Gateway", "completed": True},
                     ]
-                    if status in ["ACCEPTED", "PICKING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": "Order Accepted by Merchant", "time": order_time, "location": "Merchant Operations Hub", "completed": True})
-                    if status in ["PICKING", "PACKED", "READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": "Warehouse Picking In Progress", "time": order_time, "location": "Central Warehouse Bin #A4", "completed": True})
-                    if status in ["PACKED", "READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": "Order Packed & Barcoded", "time": order_time, "location": "Packaging & Quality Station", "completed": True})
-                    if status in ["READY_FOR_PICKUP", "PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": "Ready for Courier Pickup", "time": order_time, "location": "Outbound Dispatch Bay #3", "completed": True})
-                    if status in ["PICKED_UP_BY_COURIER", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": f"Picked up by {courier} (AWB: {awb_num})", "time": order_time, "location": f"{city} Dispatch Bay", "completed": True})
-                    if status in ["IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": f"In Transit • Hub Sort ({tracking_id})", "time": order_time, "location": curr_loc, "completed": True})
-                    if status in ["OUT_FOR_DELIVERY", "DELIVERED"]:
-                        timeline.append({"status": "Out for Delivery • Courier Agent Dispatched", "time": order_time, "location": f"Last-Mile Facility, {city}", "completed": True})
-                    if status == "DELIVERED":
-                        timeline.append({"status": "Delivered & Signed by Customer", "time": order_time, "location": shipping_addr, "completed": True})
+                    if merchant_accepted_at:
+                        timeline.append({"status": "Merchant Accepted", "time": merchant_accepted_at, "location": "Merchant Operations Hub", "completed": True})
+                    if packed_at:
+                        timeline.append({"status": "Packed", "time": packed_at, "location": "Packaging & Quality Station", "completed": True})
+                    if ready_for_pickup_at:
+                        timeline.append({"status": "Ready for Pickup", "time": ready_for_pickup_at, "location": "Outbound Dispatch Bay #3", "completed": True})
+                    if courier_assigned_at:
+                        timeline.append({"status": f"Courier Assigned ({courier})", "time": courier_assigned_at, "location": f"{city} Dispatch Hub", "completed": True})
+                    if shipped_at:
+                        timeline.append({"status": "Shipped", "time": shipped_at, "location": curr_loc, "completed": True})
+                    if out_for_delivery_at:
+                        timeline.append({"status": "Out For Delivery", "time": out_for_delivery_at, "location": f"Last-Mile Facility, {city}", "completed": True})
+                    if delivered_at:
+                        timeline.append({"status": "Delivered", "time": delivered_at, "location": shipping_addr, "completed": True})
 
                     cursor.execute("""
                         INSERT OR REPLACE INTO merchant_orders
-                        (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, merchant_accepted_at, merchant_rejected_at, packed_at, ready_for_pickup_at, courier_assigned_at, shipped_at, out_for_delivery_at, delivered_at, cancelled_at, refunded_at, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         order_id, order_num, cust_id, cust_name, cust_email, f"+91 98{random.randint(10000000, 99999999)}",
                         shipping_addr, json.dumps(items), subtotal, tax, discount, total_amount, "INR",
                         pay_status, status, courier, awb_num, tracking_id, curr_loc, est_delivery, json.dumps(timeline),
                         f"pay_rzp_{uuid.uuid4().hex[:10]}", "upi" if i % 2 == 0 else "card", 1,
-                        order_time, order_time
+                        order_placed_at, payment_initiated_at, payment_completed_at, merchant_accepted_at, merchant_rejected_at,
+                        packed_at, ready_for_pickup_at, courier_assigned_at, shipped_at, out_for_delivery_at, delivered_at,
+                        cancelled_at, refunded_at, order_placed_at, order_placed_at
                     ))
 
                 conn.commit()
@@ -385,11 +438,12 @@ class MerchantService:
                 "customer_growth_pct": 24.8,
                 "average_order_value": aov,
                 "recent_orders": recent_orders,
-                "revenue_trend": revenue_trend
+                "revenue_trend": revenue_trend,
+                "last_updated": utcnow_iso()
             }
 
-    # Purchase to Order Creation & Customer Association
-    def create_order_from_purchase(
+    # Order Creation
+    def create_order(
         self,
         order_id: str,
         customer_name: Optional[str] = None,
@@ -408,9 +462,8 @@ class MerchantService:
         if existing:
             return existing
 
-        now = datetime.utcnow()
-        now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-        order_num = f"RZP-ORD-{now.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+        now_str = utcnow_iso()
+        order_num = f"RZP-ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
 
         c_email = (customer_email or "customer@enterprise.in").strip().lower()
         c_name = (customer_name or "Valued Customer").strip()
@@ -419,7 +472,7 @@ class MerchantService:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             
-            # 1. Customer Association & Stats
+            # 1. Customer Association
             cursor.execute("SELECT * FROM merchant_customers WHERE LOWER(email) = ?", (c_email,))
             cust_row = cursor.fetchone()
             
@@ -433,9 +486,9 @@ class MerchantService:
                         lifetime_value = lifetime_value + ?,
                         average_order_value = round((lifetime_value + ?) / (orders_count + 1), 2),
                         last_purchase_date = ?,
-                        ai_insights = 'Recent active purchase confirmed. Customer loyalty affinity is High.'
+                        updated_at = ?
                     WHERE id = ?
-                """, (gross_amount, gross_amount, now.strftime("%Y-%m-%d"), cust_id))
+                """, (gross_amount, gross_amount, datetime.now().strftime("%Y-%m-%d"), now_str, cust_id))
             else:
                 cust_id = f"cust_{uuid.uuid4().hex[:6]}"
                 prefs = {
@@ -447,11 +500,11 @@ class MerchantService:
                 }
                 cursor.execute("""
                     INSERT INTO merchant_customers
-                    (id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at)
-                    VALUES (?, ?, ?, ?, 'SILVER', ?, 1, ?, ?, 'New customer purchase verified via Razorpay.', ?, ?)
+                    (id, name, email, phone, tier, lifetime_value, orders_count, average_order_value, preferences_json, ai_insights, last_purchase_date, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, 'SILVER', ?, 1, ?, ?, 'New customer purchase verified via Razorpay.', ?, ?, ?)
                 """, (
                     cust_id, c_name, c_email, c_phone, gross_amount, gross_amount,
-                    json.dumps(prefs), now.strftime("%Y-%m-%d"), now_str
+                    json.dumps(prefs), datetime.now().strftime("%Y-%m-%d"), now_str, now_str
                 ))
 
             # 2. Items processing
@@ -493,72 +546,46 @@ class MerchantService:
             
             # Initial Chronological Timeline
             timeline = [
-                {"status": "Payment Received", "time": now_str, "location": "Razorpay Payment Gateway (Instant)", "completed": True},
-                {"status": "Order Placed & Confirmed", "time": now_str, "location": "RazorRecon Commerce Engine", "completed": True}
+                {"status": "Order Placed", "time": now_str, "location": "RazorCommerce Online Store", "completed": True},
+                {"status": "Payment Completed", "time": now_str, "location": "Razorpay Payment Gateway", "completed": True}
             ]
 
             # 3. Database Persistence
             cursor.execute("""
                 INSERT INTO merchant_orders
-                (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?)
+                (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?)
             """, (
                 order_id, order_num, cust_id, c_name, c_email, c_phone,
                 ship_addr, json.dumps(items_clean), final_subtotal, final_tax, final_discount, final_total,
                 json.dumps(timeline), payment_id or f"pay_rzp_{uuid.uuid4().hex[:10]}", payment_method,
-                now_str, now_str
+                now_str, now_str, now_str, now_str, now_str
             ))
             conn.commit()
 
-        # 4. Inventory Deduction
+        # 4. Audit Logging
         try:
-            from app.services.catalog_service import catalog_service
-            from app.schemas.catalog import StockAdjustmentDTO
-            for it in items_clean:
-                p_id = it.get("product_id")
-                qty = it.get("quantity", 1)
-                if p_id:
-                    catalog_service.adjust_stock(p_id, StockAdjustmentDTO(
-                        adjustment_type="decrement",
-                        quantity=qty,
-                        reason="Customer purchase checkout verified"
-                    ))
-        except Exception as ex:
-            print(f"Warning: Could not adjust catalog stock: {ex}")
-
-        # 5. Audit Logging
-        try:
-            from app.services.audit_service import audit_service
-            audit_service.log_event(
-                event_type="ORDER_CREATED",
-                actor=c_name,
-                actor_role="Customer",
-                summary=f"Created Order '{order_num}' ({order_id}) totaling ₹{final_total:,.2f} with {len(items_clean)} item(s)",
+            audit_service.log_audit(
+                action="ORDER_PLACED",
                 entity_type="ORDER",
                 entity_id=order_id,
-                metadata={"order_id": order_id, "order_number": order_num, "amount": final_total, "items_count": len(items_clean)}
+                user_id=cust_id,
+                user_name=c_name,
+                role="Customer",
+                old_value=None,
+                new_value={"order_id": order_id, "order_number": order_num, "amount": final_total, "items_count": len(items_clean)}
             )
-            audit_service.log_event(
-                event_type="PAYMENT_RECEIVED",
-                actor="Razorpay Gateway Sentinel",
-                actor_role="Payment Gateway",
-                summary=f"Verified Razorpay payment '{payment_id or 'pay_instant'}' for Order '{order_num}' (₹{final_total:,.2f})",
+            audit_service.log_audit(
+                action="PAYMENT_COMPLETED",
                 entity_type="PAYMENT",
                 entity_id=payment_id or order_id,
-                metadata={"order_id": order_id, "payment_id": payment_id, "method": payment_method, "amount": final_total}
+                user_name="Razorpay Payment Gateway",
+                role="Payment Gateway",
+                old_value={"status": "INITIATED"},
+                new_value={"status": "CAPTURED", "method": payment_method, "amount": final_total, "order_id": order_id}
             )
-            for it in items_clean:
-                audit_service.log_event(
-                    event_type="INVENTORY_UPDATED",
-                    actor="Commerce Transaction Engine",
-                    actor_role="System",
-                    summary=f"Deducted {it['quantity']} unit(s) of '{it['name']}' (SKU: {it['sku']}) after purchase",
-                    entity_type="INVENTORY",
-                    entity_id=it.get("product_id"),
-                    metadata={"sku": it["sku"], "quantity_deducted": it["quantity"]}
-                )
         except Exception as ex:
-            print(f"Warning: Could not write audit log: {ex}")
+            print(f"Warning: Audit log failure: {ex}")
 
         return self.get_order_by_id(order_id)
 
@@ -602,36 +629,124 @@ class MerchantService:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM merchant_orders WHERE id = ? OR order_number = ? OR tracking_id = ? OR awb_number = ?", (order_id, order_id, order_id, order_id))
             row = cursor.fetchone()
-            if not row:
-                return None
-            d = dict(row)
-            d["items"] = json.loads(d["items_json"]) if d["items_json"] else []
-            d["timeline"] = json.loads(d["timeline_json"]) if d["timeline_json"] else []
-            return d
+            if row:
+                d = dict(row)
+                d["items"] = json.loads(d["items_json"]) if d["items_json"] else []
+                d["timeline"] = json.loads(d["timeline_json"]) if d["timeline_json"] else []
+                return d
+
+        # Fallback check in SAMPLE_COMMERCE_ORDERS for Admin/Reconciliation compatibility
+        try:
+            from app.services.reconciliation_service import SAMPLE_COMMERCE_ORDERS
+            for raw in SAMPLE_COMMERCE_ORDERS:
+                if raw.get("id") == order_id or raw.get("order_id") == order_id:
+                    order_num = raw.get("order_id")
+                    qty = int(raw.get("quantity", 1))
+                    amount = float(raw.get("amount", 0.0))
+                    subtotal = round(amount / 1.18, 2)
+                    tax = round(amount - subtotal, 2)
+
+                    items = [{
+                        "product_id": "HW-POS-001",
+                        "sku": f"SKU-{order_num[-4:]}",
+                        "name": raw.get("product_title", "Fintech Payment Hardware"),
+                        "quantity": qty,
+                        "price": round(amount / qty, 2) if qty else amount
+                    }]
+
+                    clean_suffix = order_num.replace("ORD-", "").replace("-", "")
+                    inv_num = f"INV-2026-{clean_suffix}"
+
+                    return {
+                        "id": raw.get("id"),
+                        "order_number": order_num,
+                        "customer_id": "cust_recon_enterprise",
+                        "customer_name": raw.get("customer_name", "Enterprise Customer"),
+                        "customer_email": raw.get("customer_email", "procurement@enterprise.in"),
+                        "customer_phone": "+91 98765 43210",
+                        "shipping_address": "Ground & 1st Floor, Tower B, Silicon Valley Corridor, Outer Ring Road, Bengaluru, Karnataka 560103",
+                        "items": items,
+                        "items_json": json.dumps(items),
+                        "subtotal": subtotal,
+                        "tax": tax,
+                        "discount": 0.0,
+                        "total_amount": amount,
+                        "currency": "INR",
+                        "payment_status": raw.get("payment_status", "PAID"),
+                        "order_status": raw.get("lifecycle_stage", "DELIVERED").upper().replace(" ", "_"),
+                        "delivery_partner": raw.get("carrier", "Delhivery Express"),
+                        "awb_number": raw.get("tracking_number", f"AWB-{order_num[-6:]}"),
+                        "tracking_id": raw.get("tracking_number", f"TRK-{order_num[-6:]}"),
+                        "current_location": "Delivered to recipient address",
+                        "estimated_delivery": "Delivered",
+                        "timeline": [],
+                        "payment_id": f"pay_{raw.get('id')}",
+                        "payment_method": raw.get("payment_method", "Razorpay UPI"),
+                        "invoice_number": inv_num,
+                        "order_placed_at": raw.get("created_at"),
+                        "created_at": raw.get("created_at"),
+                        "updated_at": raw.get("updated_at")
+                    }
+        except Exception:
+            pass
+
+        return None
+
+    def get_or_create_invoice_number(self, order_id: str) -> str:
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, order_number, invoice_number FROM merchant_orders WHERE id = ? OR order_number = ? OR tracking_id = ? OR awb_number = ?", (order_id, order_id, order_id, order_id))
+            row = cursor.fetchone()
+            if row:
+                if row["invoice_number"]:
+                    return row["invoice_number"]
+
+                order_num = row["order_number"] or row["id"]
+                if "RCM-" in order_num:
+                    clean_suffix = order_num.replace("RCM-", "").replace("-", "")
+                    inv_num = f"INV-{clean_suffix}"
+                else:
+                    clean_id = order_id.replace("ord_", "").replace("ORD-", "").replace("-", "").upper()[:6]
+                    inv_num = f"INV-2026-{clean_id}"
+
+                cursor.execute("UPDATE merchant_orders SET invoice_number = ? WHERE id = ?", (inv_num, row["id"]))
+                conn.commit()
+                return inv_num
+
+        clean = order_id.replace("ord_", "").replace("ORD-", "").replace("-", "").upper()[:6]
+        return f"INV-2026-{clean}"
 
     # Merchant Actions:
     # 1. Accept Order: PAYMENT_RECEIVED -> ACCEPTED
-    def accept_order(self, order_id: str) -> Optional[Dict[str, Any]]:
+    def accept_order(self, order_id: str, merchant_name: str = "Acme Direct Corp") -> Optional[Dict[str, Any]]:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
-        timeline.append({"status": "Order Accepted by Merchant", "time": now_str, "location": "Merchant Operations Hub", "completed": True})
+        timeline.append({"status": "Merchant Accepted", "time": now_str, "location": "Merchant Operations Hub", "completed": True})
 
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE merchant_orders SET
                     order_status = 'ACCEPTED',
-                    delivery_partner = NULL,
-                    awb_number = NULL,
-                    tracking_id = NULL,
+                    merchant_accepted_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (json.dumps(timeline), now_str, order_id, order_id))
+            """, (now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="ORDER_ACCEPTED",
+            entity_type="ORDER",
+            entity_id=order_id,
+            user_name=merchant_name,
+            role="Merchant Admin",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "ACCEPTED", "merchant_accepted_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -640,7 +755,7 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
         timeline.append({"status": "Warehouse Picking In Progress", "time": now_str, "location": "Central Warehouse Bin #A4", "completed": True})
 
@@ -650,9 +765,6 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'PICKING',
                     current_location = 'Central Warehouse Bin #A4',
-                    delivery_partner = NULL,
-                    awb_number = NULL,
-                    tracking_id = NULL,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
@@ -666,9 +778,9 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
-        timeline.append({"status": "Order Packed & Barcoded", "time": now_str, "location": "Packaging & Quality Station", "completed": True})
+        timeline.append({"status": "Packed", "time": now_str, "location": "Packaging & Quality Station", "completed": True})
 
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -676,14 +788,22 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'PACKED',
                     current_location = 'Packaging Station',
-                    delivery_partner = NULL,
-                    awb_number = NULL,
-                    tracking_id = NULL,
+                    packed_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (json.dumps(timeline), now_str, order_id, order_id))
+            """, (now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="ORDER_PACKED",
+            entity_type="ORDER",
+            entity_id=order_id,
+            user_name="Warehouse Fulfillment Station",
+            role="Warehouse Operator",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "PACKED", "packed_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -692,9 +812,9 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
-        timeline.append({"status": "Ready for Courier Pickup", "time": now_str, "location": "Outbound Dispatch Bay #3", "completed": True})
+        timeline.append({"status": "Ready for Pickup", "time": now_str, "location": "Outbound Dispatch Bay #3", "completed": True})
 
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -702,26 +822,32 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'READY_FOR_PICKUP',
                     current_location = 'Outbound Dispatch Bay #3',
-                    delivery_partner = NULL,
-                    awb_number = NULL,
-                    tracking_id = NULL,
+                    ready_for_pickup_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (json.dumps(timeline), now_str, order_id, order_id))
+            """, (now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="READY_FOR_PICKUP",
+            entity_type="ORDER",
+            entity_id=order_id,
+            user_name="Outbound Logistics Lead",
+            role="Merchant Operations",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "READY_FOR_PICKUP", "ready_for_pickup_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
-    # Courier Actions (Simulated):
-    # 1. Pickup Package: READY_FOR_PICKUP -> PICKED_UP_BY_COURIER
-    # GENERATES AWB NUMBER AND TRACKING ID STRICTLY HERE!
+    # Courier Actions:
+    # 1. Pickup Package & Assign Courier: READY_FOR_PICKUP -> PICKED_UP_BY_COURIER / SHIPPED
     def courier_pickup(self, order_id: str, courier_name: str = "Delhivery Express") -> Optional[Dict[str, Any]]:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now = datetime.utcnow()
-        now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         
         partner = next(
             (p for p in DELIVERY_PARTNERS if p["code"].lower() in courier_name.lower() or p["name"].lower() in courier_name.lower()),
@@ -729,12 +855,12 @@ class MerchantService:
         )
         awb_num = f"AWB-{partner['prefix']}-{random.randint(1000000, 9999999)}"
         tracking_id = f"{partner['prefix']}{random.randint(100000, 999999)}"
-        est_delivery = (now + timedelta(days=2)).strftime("%d %b %Y, 6:00 PM")
+        est_delivery = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%d %b %Y, 6:00 PM")
         pickup_loc = f"Dispatch Bay • Handed to {partner['name']}"
 
         timeline = order.get("timeline", [])
         timeline.append({
-            "status": f"Package Picked Up by {partner['name']} (AWB: {awb_num}, Tracking ID: {tracking_id})",
+            "status": f"Courier Assigned ({partner['name']})",
             "time": now_str,
             "location": pickup_loc,
             "completed": True
@@ -750,11 +876,23 @@ class MerchantService:
                     current_location = ?,
                     estimated_delivery = ?,
                     order_status = 'PICKED_UP_BY_COURIER',
+                    courier_assigned_at = ?,
+                    shipped_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (partner["name"], awb_num, tracking_id, pickup_loc, est_delivery, json.dumps(timeline), now_str, order_id, order_id))
+            """, (partner["name"], awb_num, tracking_id, pickup_loc, est_delivery, now_str, now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="COURIER_ASSIGNED",
+            entity_type="DELIVERY",
+            entity_id=order_id,
+            user_name=f"{partner['name']} Dispatcher",
+            role="Logistics Carrier Partner",
+            old_value={"delivery_partner": None, "awb_number": None},
+            new_value={"delivery_partner": partner["name"], "awb_number": awb_num, "tracking_id": tracking_id, "courier_assigned_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -763,13 +901,12 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        courier = order.get("delivery_partner") or "Courier"
+        now_str = utcnow_iso()
         tracking = order.get("tracking_id") or ""
 
         timeline = order.get("timeline", [])
         timeline.append({
-            "status": f"In Transit • Transshipment Scan ({tracking})",
+            "status": f"Shipped • In Transit ({tracking})",
             "time": now_str,
             "location": location,
             "completed": True
@@ -781,11 +918,22 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'IN_TRANSIT',
                     current_location = ?,
+                    shipped_at = COALESCE(shipped_at, ?),
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (location, json.dumps(timeline), now_str, order_id, order_id))
+            """, (location, now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="IN_TRANSIT",
+            entity_type="DELIVERY",
+            entity_id=order_id,
+            user_name=order.get("delivery_partner") or "Logistics Carrier",
+            role="Logistics Carrier Partner",
+            old_value={"current_location": order.get("current_location")},
+            new_value={"current_location": location, "order_status": "IN_TRANSIT", "shipped_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -794,12 +942,12 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         loc = agent_notes or f"Last-Mile Delivery Hub ({order.get('shipping_address', 'Destination Area')})"
 
         timeline = order.get("timeline", [])
         timeline.append({
-            "status": "Out for Delivery • Courier Agent Dispatched",
+            "status": "Out For Delivery",
             "time": now_str,
             "location": loc,
             "completed": True
@@ -811,11 +959,22 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'OUT_FOR_DELIVERY',
                     current_location = ?,
+                    out_for_delivery_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (loc, json.dumps(timeline), now_str, order_id, order_id))
+            """, (loc, now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="OUT_FOR_DELIVERY",
+            entity_type="DELIVERY",
+            entity_id=order_id,
+            user_name=f"{order.get('delivery_partner', 'Courier')} Field Agent",
+            role="Logistics Carrier Partner",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "OUT_FOR_DELIVERY", "out_for_delivery_at": now_str, "location": loc}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -824,12 +983,12 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         dest = order.get("shipping_address") or "Customer Doorstep"
 
         timeline = order.get("timeline", [])
         timeline.append({
-            "status": "Delivered • Package Received & Signed",
+            "status": "Delivered",
             "time": now_str,
             "location": dest,
             "completed": True
@@ -841,11 +1000,22 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'DELIVERED',
                     current_location = ?,
+                    delivered_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (dest, json.dumps(timeline), now_str, order_id, order_id))
+            """, (dest, now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="ORDER_DELIVERED",
+            entity_type="ORDER",
+            entity_id=order_id,
+            user_name=f"{order.get('delivery_partner', 'Courier')} Delivery Agent",
+            role="Logistics Carrier Partner",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "DELIVERED", "delivered_at": now_str, "recipient": order.get("customer_name")}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -854,7 +1024,7 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
 
         timeline = order.get("timeline", [])
         timeline.append({
@@ -876,17 +1046,27 @@ class MerchantService:
             """, (json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
 
+        audit_service.log_audit(
+            action="RETURN_INITIATED",
+            entity_type="DELIVERY",
+            entity_id=order_id,
+            user_name="Customer Service Desk",
+            role="Support Specialist",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "RETURNED", "reason": reason}
+        )
+
         return self.get_order_by_id(order_id)
 
     def mark_refunded(self, order_id: str) -> Optional[Dict[str, Any]]:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
 
         timeline = order.get("timeline", [])
         timeline.append({
-            "status": "Payment Refunded to Original Payment Source",
+            "status": "Payment Refunded",
             "time": now_str,
             "location": "Razorpay Settlement Gateway",
             "completed": True
@@ -898,11 +1078,22 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'REFUNDED',
                     payment_status = 'REFUNDED',
+                    refunded_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (json.dumps(timeline), now_str, order_id, order_id))
+            """, (now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="REFUND_PROCESSED",
+            entity_type="PAYMENT",
+            entity_id=order.get("payment_id") or order_id,
+            user_name="Finance Operations Controller",
+            role="CFO / Finance Controller",
+            old_value={"payment_status": order.get("payment_status"), "amount": order.get("total_amount")},
+            new_value={"payment_status": "REFUNDED", "refunded_at": now_str, "amount_refunded": order.get("total_amount")}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -910,7 +1101,7 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
         timeline.append({"status": f"Order Rejected ({reason})", "time": now_str, "location": "Merchant Hub", "completed": False})
 
@@ -920,11 +1111,23 @@ class MerchantService:
                 UPDATE merchant_orders SET
                     order_status = 'REJECTED',
                     payment_status = 'REFUNDED',
+                    merchant_rejected_at = ?,
+                    cancelled_at = ?,
                     timeline_json = ?,
                     updated_at = ?
                 WHERE id = ? OR order_number = ?
-            """, (json.dumps(timeline), now_str, order_id, order_id))
+            """, (now_str, now_str, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
+
+        audit_service.log_audit(
+            action="ORDER_REJECTED",
+            entity_type="ORDER",
+            entity_id=order_id,
+            user_name="Merchant Operations Hub",
+            role="Merchant Admin",
+            old_value={"order_status": order.get("order_status")},
+            new_value={"order_status": "REJECTED", "reason": reason, "merchant_rejected_at": now_str}
+        )
 
         return self.get_order_by_id(order_id)
 
@@ -958,7 +1161,7 @@ class MerchantService:
         order = self.get_order_by_id(order_id)
         if not order:
             return None
-        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = utcnow_iso()
         timeline = order.get("timeline", [])
         timeline.append({"status": st.replace("_", " ").title(), "time": now_str, "location": notes or "Hub Checkpoint", "completed": True})
 
@@ -980,7 +1183,6 @@ class MerchantService:
         return self.courier_pickup(order_id, courier_name)
 
     def get_delivery_partners(self) -> List[Dict[str, Any]]:
-        # Compute active shipment counts per partner dynamically
         with self._get_conn() as conn:
             cursor = conn.cursor()
             partners = []
@@ -1033,5 +1235,58 @@ class MerchantService:
             d = dict(row)
             d["preferences"] = json.loads(d["preferences_json"]) if d["preferences_json"] else {}
             return d
+
+    def create_order_from_purchase(
+        self,
+        order_id: str,
+        customer_name: str,
+        customer_email: str,
+        customer_phone: str,
+        shipping_address: str,
+        items: List[Dict[str, Any]],
+        gross_amount: float,
+        subtotal: float,
+        tax: float,
+        discount: float,
+        payment_id: str,
+        payment_method: str = "upi"
+    ) -> Optional[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            # Check if order already recorded
+            cursor.execute("SELECT id FROM merchant_orders WHERE id = ? OR payment_id = ?", (order_id, payment_id))
+            if cursor.fetchone():
+                return None
+
+            now = datetime.datetime.now()
+            now_str = now.isoformat()
+            short_id = uuid.uuid4().hex[:6].upper()
+            order_number = f"RCM-{now.year}-{short_id}"
+            tracking_id = f"TRK-{short_id}"
+            awb = f"AWB{random.randint(10000000, 99999999)}"
+            carrier = random.choice(["BlueDart Apex", "Delhivery Surface", "DTDC Express"])
+            eta = (now + datetime.timedelta(days=3)).strftime("%d %b %Y")
+
+            timeline = [
+                {"status": "ORDER_PLACED", "label": "Order Placed", "time": now.strftime("%I:%M %p"), "date": now.strftime("%d %b"), "completed": True},
+                {"status": "PAYMENT_RECEIVED", "label": "Payment Confirmed via Razorpay", "time": now.strftime("%I:%M %p"), "date": now.strftime("%d %b"), "completed": True},
+                {"status": "PROCESSING", "label": "Order Processing", "time": "Pending", "date": "-", "completed": False},
+                {"status": "SHIPPED", "label": "Shipped", "time": "Pending", "date": "-", "completed": False},
+                {"status": "DELIVERED", "label": "Delivered", "time": "Pending", "date": "-", "completed": False}
+            ]
+
+            cursor.execute("""
+                INSERT INTO merchant_orders
+                (id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+            """, (
+                order_id, order_number, "cust_001", customer_name, customer_email, customer_phone,
+                shipping_address, json.dumps(items), subtotal, tax, discount, gross_amount,
+                carrier, awb, tracking_id, "Central Warehouse", eta,
+                json.dumps(timeline), payment_id, payment_method,
+                now_str, now_str, now_str, now_str, now_str
+            ))
+            conn.commit()
+            return {"order_id": order_id, "order_number": order_number}
 
 merchant_service = MerchantService()

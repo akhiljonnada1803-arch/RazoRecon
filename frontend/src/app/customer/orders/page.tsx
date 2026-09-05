@@ -22,10 +22,21 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { downloadOrderInvoice } from '@/lib/invoice';
 
 export default function CustomerOrdersPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
+
+  const handleDownload = async (orderId: string) => {
+    setDownloadingOrderId(orderId);
+    try {
+      await downloadOrderInvoice(orderId);
+    } finally {
+      setTimeout(() => setDownloadingOrderId(null), 1000);
+    }
+  };
 
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ['customer-orders-list'],
@@ -180,6 +191,16 @@ export default function CustomerOrdersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownload(orderId)}
+                      disabled={downloadingOrderId === orderId}
+                      className="h-8 px-3 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs gap-1.5"
+                    >
+                      <Receipt className="h-3.5 w-3.5 text-[#0B72E7]" />
+                      <span>{downloadingOrderId === orderId ? 'Downloading...' : 'Download Invoice'}</span>
+                    </Button>
+
                     <Button
                       onClick={() => router.push(`/customer/track?orderId=${orderId}`)}
                       className="h-8 px-3 rounded-xl bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold shadow-2xs gap-1.5"

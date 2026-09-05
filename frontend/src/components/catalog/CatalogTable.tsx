@@ -13,7 +13,9 @@ import {
   PackageCheck,
   Tag,
   Percent,
-  Sparkles
+  Sparkles,
+  Layers,
+  Plus
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,7 @@ interface CatalogTableProps {
   onDeleteProduct: (product: CatalogProduct) => void;
   onAdjustStock: (product: CatalogProduct) => void;
   onViewProduct: (product: CatalogProduct) => void;
+  onManageVolumeTiers?: (product: CatalogProduct) => void;
 }
 
 export function CatalogTable({
@@ -32,6 +35,7 @@ export function CatalogTable({
   onDeleteProduct,
   onAdjustStock,
   onViewProduct,
+  onManageVolumeTiers,
 }: CatalogTableProps) {
   if (products.length === 0) {
     return (
@@ -134,6 +138,31 @@ export function CatalogTable({
                     <div className="text-[10px] text-emerald-600 font-semibold">
                       +{marginPct}% Margin ({prod.gst_rate_pct}% GST)
                     </div>
+
+                    {/* Volume Tier Pricing Indicator */}
+                    {onManageVolumeTiers && (
+                      <div className="mt-1 flex justify-end">
+                        {prod.price_tiers && prod.price_tiers.length > 0 ? (
+                          <button
+                            onClick={() => onManageVolumeTiers(prod)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-md transition-colors shadow-2xs"
+                            title="Manage volume tier pricing"
+                          >
+                            <Layers className="h-2.5 w-2.5 text-[#0B72E7]" />
+                            <span>{prod.price_tiers.length} Tiers (Up to {Math.max(...prod.price_tiers.map(t => t.discount_pct))}% Off)</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => onManageVolumeTiers(prod)}
+                            className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-[#0B72E7] transition-colors"
+                            title="Add volume discount tier"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            <span>Add Volume Tiers</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
 
                   {/* 3. Stock */}
@@ -206,6 +235,17 @@ export function CatalogTable({
                   {/* Actions */}
                   <td className="p-4 pr-6 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {onManageVolumeTiers && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onManageVolumeTiers(prod)}
+                          className="h-7 w-7 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                          title="Manage Volume Tier Pricing"
+                        >
+                          <Layers className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

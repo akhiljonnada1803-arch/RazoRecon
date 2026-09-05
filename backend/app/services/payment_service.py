@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
+from app.core.timestamps import utcnow_iso
+from app.services.audit_service import audit_service
 from app.schemas.payments import (
     CreateOrderRequestDTO,
     CreateOrderResponseDTO,
@@ -92,7 +94,7 @@ class PaymentService:
         amount_paise = int(round(req.amount * 100))
         currency = req.currency or "INR"
         receipt = req.receipt or f"rcpt_{uuid.uuid4().hex[:8]}"
-        now_str = datetime.now().isoformat()
+        now_str = utcnow_iso()
 
         items_json = json.dumps([item.model_dump() for item in (req.items or [])])
         notes_json = json.dumps(req.notes or {})
@@ -112,6 +114,19 @@ class PaymentService:
                 checkout_session_url, now_str, now_str
             ))
             conn.commit()
+
+        try:
+            audit_service.log_audit(
+                action="PAYMENT_INITIATED",
+                entity_type="PAYMENT",
+                entity_id=order_id,
+                user_name=req.customer_email or "Customer",
+                role="Customer",
+                old_value=None,
+                new_value={"order_id": order_id, "amount": req.amount, "currency": currency}
+            )
+        except Exception:
+            pass
 
         return CreateOrderResponseDTO(
             order_id=order_id,
@@ -148,6 +163,7 @@ class PaymentService:
             if not req.razorpay_signature or len(req.razorpay_signature) < 10:
                 raise ValueError("Invalid Razorpay payment signature. Verification failed.")
 
+        now_str = utcnow_iso()
         # 2. Lookup Order
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -155,8 +171,6 @@ class PaymentService:
             order_row = cursor.fetchone()
 
             if not order_row:
-                # If order wasn't created yet, create it on the fly
-                now_str = datetime.now().isoformat()
                 cursor.execute("""
                     INSERT INTO orders (
                         id, amount, amount_paise, currency, receipt, status,
@@ -172,9 +186,8 @@ class PaymentService:
                 order_amount = 4999.0
             else:
                 order_amount = float(order_row["amount"])
-                # Update order status to paid
                 cursor.execute("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ?", 
-                               (datetime.now().isoformat(), req.razorpay_order_id))
+                               (now_str, req.razorpay_order_id))
                 conn.commit()
 
             # 3. Calculate Processing Fee & Tax (Razorpay 2.0% MDR + 18% GST)
@@ -183,7 +196,6 @@ class PaymentService:
             tax = round(fee * 0.18, 2)
             net_deposit = round(gross_amount - fee - tax, 2)
             reconciliation_id = f"REC-RZP-{uuid.uuid4().hex[:8].upper()}"
-            now_str = datetime.now().isoformat()
 
             # 4. Insert or Update Payment record
             cursor.execute("SELECT id FROM payments WHERE id = ?", (req.razorpay_payment_id,))
@@ -213,6 +225,19 @@ class PaymentService:
                     WHERE id = ?
                 """, (reconciliation_id, now_str, req.razorpay_payment_id))
             conn.commit()
+
+        try:
+            audit_service.log_audit(
+                action="PAYMENT_SUCCESS",
+                entity_type="PAYMENT",
+                entity_id=req.razorpay_payment_id,
+                user_name="Razorpay Gateway Sentinel",
+                role="Payment Gateway",
+                old_value={"status": "INITIATED", "order_id": req.razorpay_order_id},
+                new_value={"status": "CAPTURED", "payment_id": req.razorpay_payment_id, "amount": gross_amount, "method": req.method or "upi", "reconciliation_id": reconciliation_id}
+            )
+        except Exception:
+            pass
 
         # 5. Automatically Send Transaction to Reconciliation Engine & Memory Engine
         memory_engine.update_memory(

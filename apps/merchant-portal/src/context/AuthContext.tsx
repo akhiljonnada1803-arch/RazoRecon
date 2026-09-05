@@ -12,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   organizations: OrganizationDTO[];
   login: (email: string, password: string) => Promise<boolean>;
+  register: (data: { business_name: string; email: string; password: string; gstin?: string }) => Promise<any>;
   logout: () => void;
   quickSwitchUser: (email: string) => Promise<void>;
   switchOrganization: (orgName: string) => Promise<void>;
@@ -127,7 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (savedToken && savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (parsed.role === 'Merchant Owner' || parsed.role === 'Operations Manager' || parsed.role_id === 'role_merchant_owner') {
+        if (
+          parsed.role === 'Merchant Owner' || 
+          parsed.role === 'merchant_owner' || 
+          parsed.role === 'Operations Manager' || 
+          parsed.role_id === 'role_merchant_owner'
+        ) {
           setToken(savedToken);
           setUser(parsed);
         } else {
@@ -156,13 +162,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('razorcommerce_merchant_token', resp.access_token);
         localStorage.setItem('razorcommerce_merchant_user', JSON.stringify(resp.user));
         
-        router.push('/');
+        router.push('/dashboard');
         return true;
       }
     } catch (err) {
-      console.warn('Backend login fallback to quickswitch auth:', err);
+      console.warn('Backend login error:', err);
     }
     return false;
+  };
+
+  const register = async (data: { business_name: string; email: string; password: string; gstin?: string }) => {
+    const resp = await apiClient.post<any>('/auth/register', data);
+    if (resp && resp.access_token) {
+      setToken(resp.access_token);
+      setUser(resp.user);
+      localStorage.setItem('razorcommerce_merchant_token', resp.access_token);
+      localStorage.setItem('razorcommerce_merchant_user', JSON.stringify(resp.user));
+      router.push('/dashboard');
+    }
+    return resp;
   };
 
   const quickSwitchUser = async (email: string) => {
@@ -230,6 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const PUBLIC_ROUTES = [
     '/', 
     '/login', 
+    '/register',
     '/cart', 
     '/checkout',
     '/customer/products', 
@@ -309,6 +328,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         organizations,
         login,
+        register,
         logout,
         quickSwitchUser,
         switchOrganization,

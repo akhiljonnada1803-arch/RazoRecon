@@ -10,19 +10,31 @@ import { Button } from '@/components/ui/button';
 interface ProductRecommendationCardProps {
   product: Product;
   onAddToCart: (product: Product) => void;
+  onBuyAutoPay?: (product: Product) => void;
   onCompare?: (product: Product) => void;
   onViewDetails?: (product: Product) => void;
+  isAutoPayEnabled?: boolean;
 }
 
 export function ProductRecommendationCard({
   product,
   onAddToCart,
+  onBuyAutoPay,
   onCompare,
   onViewDetails,
+  isAutoPayEnabled = true,
 }: ProductRecommendationCardProps) {
   const discountPct = product.original_price
     ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
+
+  const handleAction = () => {
+    if (onBuyAutoPay) {
+      onBuyAutoPay(product);
+    } else {
+      onAddToCart(product);
+    }
+  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 flex flex-col group">
@@ -124,11 +136,15 @@ export function ProductRecommendationCard({
             )}
             <Button
               size="sm"
-              onClick={() => onAddToCart(product)}
-              className="h-8 text-xs font-semibold bg-[#0B72E7] hover:bg-[#095bc0] text-white shadow-xs flex items-center justify-center gap-1.5 rounded-xl col-span-1"
+              onClick={handleAction}
+              className={`h-8 text-xs font-bold text-white shadow-xs flex items-center justify-center gap-1.5 rounded-xl col-span-1 ${
+                isAutoPayEnabled
+                  ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                  : 'bg-indigo-600 hover:bg-indigo-500'
+              }`}
             >
-              <ShoppingBag className="h-3.5 w-3.5" />
-              Add to Cart
+              <span className="text-amber-300">⚡</span>
+              <span>{isAutoPayEnabled ? 'Buy via AutoPay' : 'Connect AutoPay'}</span>
             </Button>
           </div>
         </div>

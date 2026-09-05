@@ -8,6 +8,7 @@ import { Product, CartItem, CartState } from '@/types/commerce';
 import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
+import { AgentConfirmationModal } from '@/components/commerce/AgentConfirmationModal';
 import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { ProductDetailSkeleton } from '@/components/common/SkeletonLoaders';
 import { 
@@ -27,7 +28,10 @@ import {
   Sparkles,
   Package,
   Layers,
-  ThumbsUp
+  ThumbsUp,
+  ChevronDown,
+  ChevronUp,
+  Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +53,49 @@ export default function ProductDetailPage() {
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [agentConfirmation, setAgentConfirmation] = useState<any | null>(null);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+  const [showPriceBreakdown, setShowPriceBreakdown] = useState(false);
+
+  // Fetch customer AutoPay configuration
+  const { data: autopayData } = useQuery({
+    queryKey: ['customer-autopay'],
+    queryFn: async () => {
+      try {
+        return await apiClient.get<any>('/customer/autopay');
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: isAuthenticated,
+  });
+
+  const isAutoPayEnabled = Boolean(autopayData?.autopay_enabled && autopayData?.connected_payment_method);
+
+  const handleBuyAutoPay = async (p: Product) => {
+    if (!isAuthenticated) {
+      setPendingProduct(p);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!isAutoPayEnabled) {
+      router.push('/customer/autopay');
+      return;
+    }
+    try {
+      const res = await apiClient.post<any>('/customer/autopay/one-click-buy', {
+        product_id: p.id,
+        quantity: quantity
+      });
+      if (res?.confirmation) {
+        setAgentConfirmation(res.confirmation);
+        setIsConfirmationModalOpen(true);
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'AutoPay purchase could not be completed.';
+      alert(`⚠️ AutoPay Error: ${detail}`);
+    }
+  };
 
   const [cart, setCart] = useState<CartState>({
     items: [],
@@ -144,37 +191,19 @@ export default function ProductDetailPage() {
       return;
     }
 
-    const singleCart: CartState = {
-      items: [
-        {
-          product_id: p.id,
-          name: p.name,
-          price: p.price,
-          quantity: quantity,
-          image_url: p.image_url,
-          category: p.category,
-          product: p
-        }
-      ],
-      items_total: round2(p.price * quantity),
-      subtotal: round2(p.price * quantity),
-      delivery_fee: 0,
-      platform_fee: 0,
-      gst_included: round2((p.price * quantity) - (p.price * quantity) / 1.18),
-      tax_gst: round2((p.price * quantity) - (p.price * quantity) / 1.18),
-      shipping: 0,
-      discount: 0,
-      coupon_applied: null,
-      total: round2(p.price * quantity),
-      currency: 'INR'
-    };
-
     try {
-      const res: any = await apiClient.post('/commerce/checkout', { cart: singleCart });
-      setCheckoutResult(res);
-      setIsCheckoutModalOpen(true);
+      localStorage.setItem('razorcommerce_staged_buy_now', JSON.stringify({
+        product_id: p.id,
+        name: p.name,
+        price: p.price,
+        quantity: quantity,
+        image_url: p.image_url,
+        sku: p.sku || `SKU-${p.id.toUpperCase()}`
+      }));
+      router.push('/checkout');
     } catch (e) {
       console.error(e);
+      router.push('/checkout');
     }
   };
 
@@ -299,25 +328,83 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
-          {/* Pricing Box (GST-Inclusive Architecture) */}
-          <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-2">
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-extrabold text-[#072654] font-mono">
-                ₹{product.price.toLocaleString('en-IN')}
-              </span>
-              <Badge className="bg-emerald-600 text-white font-bold text-[10px] border-0">
-                Inclusive of GST
-              </Badge>
-            </div>
+          {/* Pricing Box (Amazon/Flipkart Style GST-Inclusive Architecture) */}
+          {(() => {
+            const sellingPrice = product.price;
+            const mrp = product.original_price || Math.round(product.price * 1.25);
+            const savings = Math.max(0, mrp - sellingPrice);
+            const savingsPct = mrp > 0 ? Math.round((savings / mrp) * 100) : 0;
+            const basePrice = product.base_price || Math.round(sellingPrice / 1.18);
+            const gstAmount = product.gst_amount || (sellingPrice - basePrice);
 
-            <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2 pt-1 font-mono">
-              <span>Base Price: ₹{(product.base_price || Math.round(product.price / 1.18)).toLocaleString('en-IN')}</span>
-              <span>+</span>
-              <span>18% GST: ₹{(product.gst_amount || (product.price - Math.round(product.price / 1.18))).toLocaleString('en-IN')}</span>
-              <span>•</span>
-              <span className="text-emerald-700 font-sans font-semibold">Zero Surprise Tax at Checkout</span>
-            </div>
-          </div>
+            return (
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-3">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <span className="text-3xl sm:text-4xl font-black text-[#072654] font-mono">
+                    ₹{sellingPrice.toLocaleString('en-IN')}
+                  </span>
+                  {mrp > sellingPrice && (
+                    <span className="text-sm sm:text-base text-slate-400 line-through font-mono">
+                      M.R.P.: ₹{mrp.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                  {savings > 0 && (
+                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 font-bold text-[11px]">
+                      You Save: ₹{savings.toLocaleString('en-IN')} ({savingsPct}% OFF)
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-emerald-600 text-white font-bold text-[10px] border-0 px-2 py-0.5">
+                    Inclusive of GST
+                  </Badge>
+                  <span className="text-xs text-slate-500">
+                    Inclusive of all taxes
+                  </span>
+                </div>
+
+                {/* Optional Expandable Price Breakdown Section */}
+                <div className="pt-2 border-t border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={() => setShowPriceBreakdown(!showPriceBreakdown)}
+                    className="flex items-center justify-between w-full text-xs font-semibold text-slate-700 hover:text-[#0B72E7] transition-colors py-1 cursor-pointer"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-[#0B72E7]" />
+                      <span>Price Breakdown (Tax & Base Price Details)</span>
+                    </span>
+                    {showPriceBreakdown ? (
+                      <ChevronUp className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+
+                  {showPriceBreakdown && (
+                    <div className="mt-2 p-3 bg-white rounded-2xl border border-slate-200 space-y-1.5 text-xs font-mono animate-in fade-in-50 duration-150">
+                      <div className="flex justify-between text-slate-600">
+                        <span>Base Price (Excl. GST):</span>
+                        <span className="font-semibold text-slate-900">₹{basePrice.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>GST (18% ITC Eligible):</span>
+                        <span className="font-semibold text-slate-900">₹{gstAmount.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-900 font-bold pt-1.5 border-t border-slate-100 text-xs">
+                        <span>Final Selling Price:</span>
+                        <span className="text-[#072654] font-extrabold text-sm">₹{sellingPrice.toLocaleString('en-IN')}</span>
+                      </div>
+                      <p className="text-[10px] font-sans text-emerald-700 pt-0.5 font-medium">
+                        ✓ Registered GST Invoice with 100% Input Tax Credit provided upon order confirmation.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Description */}
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -380,12 +467,24 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {isAutoPayEnabled ? (
+                <Button
+                  size="lg"
+                  onClick={() => handleBuyAutoPay(product)}
+                  disabled={isOutOfStock}
+                  className="sm:col-span-2 h-12 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-extrabold text-xs sm:text-sm gap-2 shadow-lg shadow-emerald-600/25 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300 animate-bounce" />
+                  <span>⚡ Agent AutoPay Purchase (Instant Mandate Charge)</span>
+                </Button>
+              ) : null}
+
               <Button
                 size="lg"
                 onClick={() => handleAddToCart(product, quantity)}
                 disabled={isOutOfStock}
-                className="h-12 rounded-2xl bg-white border-2 border-[#0B72E7] text-[#0B72E7] hover:bg-blue-50 font-bold text-xs sm:text-sm gap-2 shadow-xs cursor-pointer"
+                className={`h-12 rounded-2xl bg-white border-2 border-[#0B72E7] text-[#0B72E7] hover:bg-blue-50 font-bold text-xs sm:text-sm gap-2 shadow-xs cursor-pointer ${isAutoPayEnabled ? 'sm:col-span-1' : ''}`}
               >
                 <ShoppingBag className="w-4 h-4" />
                 <span>Add to Cart</span>
@@ -395,7 +494,7 @@ export default function ProductDetailPage() {
                 size="lg"
                 onClick={() => handleBuyNow(product)}
                 disabled={isOutOfStock}
-                className="h-12 rounded-2xl bg-[#0B72E7] hover:bg-[#095ec2] text-white font-bold text-xs sm:text-sm gap-2 shadow-md cursor-pointer"
+                className={`h-12 rounded-2xl bg-[#0B72E7] hover:bg-[#095ec2] text-white font-bold text-xs sm:text-sm gap-2 shadow-md cursor-pointer ${isAutoPayEnabled ? 'sm:col-span-1' : ''}`}
               >
                 <Zap className="w-4 h-4 text-amber-300" />
                 <span>Buy Now with 1-Click</span>
@@ -497,19 +596,28 @@ export default function ProductDetailPage() {
             total: Math.max(0, round2(prev.subtotal - disc))
           }));
         }}
-        onCheckout={async () => {
+        onCheckout={() => {
           if (!isAuthenticated) {
             setIsCartOpen(false);
             router.push('/login?redirect=/checkout');
             return;
           }
           try {
-            const res: any = await apiClient.post('/commerce/checkout', { cart });
-            setCheckoutResult(res);
+            localStorage.setItem('razorcommerce_cart', JSON.stringify(cart.items.map(i => ({
+              product_id: i.product_id,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              image_url: i.image_url,
+              sku: i.product?.sku || `SKU-${i.product_id.toUpperCase()}`
+            }))));
+            localStorage.removeItem('razorcommerce_staged_buy_now');
             setIsCartOpen(false);
-            setIsCheckoutModalOpen(true);
+            router.push('/checkout');
           } catch (e) {
             console.error(e);
+            setIsCartOpen(false);
+            router.push('/checkout');
           }
         }}
         isCheckingOut={false}
@@ -528,6 +636,13 @@ export default function ProductDetailPage() {
         onClose={() => setIsAuthModalOpen(false)}
         redirectPath="/cart"
         pendingItemName={pendingProduct?.name}
+      />
+
+      {/* Autonomous Agent Purchase Confirmation Modal */}
+      <AgentConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        data={agentConfirmation}
       />
     </div>
   );

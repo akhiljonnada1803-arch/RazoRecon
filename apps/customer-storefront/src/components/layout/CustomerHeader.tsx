@@ -20,7 +20,8 @@ import {
   Tag,
   SlidersHorizontal,
   Flame,
-  ShieldCheck
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +52,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
   const displayName = user?.name ? user.name.split(' ')[0] : 'Guest';
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all print:hidden">
       {/* Top Marketplace Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
@@ -98,17 +99,29 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               <span>Deals</span>
             </Link>
 
-            {/* Orders link is visible ONLY to logged-in users */}
+            {/* Orders & AutoPay links for authenticated customers */}
             {isAuthenticated && (
-              <Link 
-                href="/orders" 
-                className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
-                  pathname === '/orders' ? 'text-[#0B72E7] font-bold' : ''
-                }`}
-              >
-                <Package className="w-3.5 h-3.5" />
-                <span>My Orders</span>
-              </Link>
+              <>
+                <Link 
+                  href="/orders" 
+                  className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
+                    pathname === '/orders' ? 'text-[#0B72E7] font-bold' : ''
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>My Orders</span>
+                </Link>
+
+                <Link 
+                  href="/customer/autopay" 
+                  className={`transition-colors hover:text-[#0B72E7] flex items-center gap-1 ${
+                    pathname.includes('autopay') ? 'text-[#0B72E7] font-bold' : ''
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  <span>AI AutoPay</span>
+                </Link>
+              </>
             )}
 
             <Link 
@@ -232,6 +245,15 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                       </Link>
 
                       <Link 
+                        href="/customer/autopay"
+                        onClick={() => setIsAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
+                      >
+                        <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                        <span>AI Budget AutoPay</span>
+                      </Link>
+
+                      <Link 
                         href="/assistant"
                         onClick={() => setIsAccountDropdownOpen(false)}
                         className="flex items-center gap-2 px-4 py-2 hover:bg-blue-50 text-[#0B72E7] font-semibold"
@@ -325,6 +347,13 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                   📦 My Orders
                 </Link>
                 <Link 
+                  href="/autopay" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl hover:bg-slate-50 font-bold text-[#0B72E7]"
+                >
+                  ⚡ AI Budget AutoPay
+                </Link>
+                <Link 
                   href="/account" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
@@ -361,3 +390,5 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
     </header>
   );
 }
+
+export default CustomerHeader;

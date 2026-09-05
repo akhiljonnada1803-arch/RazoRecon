@@ -54,7 +54,7 @@ export default function MerchantDashboardPage() {
   }
 
   const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';
-  const isMerchantOwner = activeRole.includes('Merchant Owner');
+  const isMerchantOwner = activeRole.includes('Merchant Owner') || activeRole.includes('merchant_owner') || user?.role_id === 'role_merchant_owner';
   const isOpsManager = activeRole.includes('Operations');
   const isRevenueManager = activeRole.includes('Revenue');
   const isFinanceController = activeRole.includes('Controller');

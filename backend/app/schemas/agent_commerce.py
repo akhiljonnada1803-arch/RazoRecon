@@ -1,6 +1,14 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
+class VolumeDiscountTierOfferDTO(BaseModel):
+    min_qty: int
+    max_qty: Optional[int] = None
+    discount_pct: float
+    offer_text: Optional[str] = None
+    effective_unit_price: Optional[float] = None
+    total_savings: Optional[float] = None
+
 class A2ADialogueMessageDTO(BaseModel):
     id: str
     sender: str # "buyer_agent" | "seller_agent"
@@ -9,6 +17,9 @@ class A2ADialogueMessageDTO(BaseModel):
     timestamp: str
     message: str
     thought_process: Optional[str] = None
+    volume_discount_offer: Optional[List[Dict[str, Any]]] = None
+    recommended_quantity: Optional[int] = None
+    savings_amount: Optional[float] = None
     structured_payload: Optional[Dict[str, Any]] = None
 
 class A2ALedgerEntryDTO(BaseModel):
@@ -58,3 +69,9 @@ class A2ASimulationResponseDTO(BaseModel):
     final_ledger: List[A2ALedgerEntryDTO]
     reconciliation_status: str
     created_at: str
+    created_order_id: Optional[str] = None
+    created_order_number: Optional[str] = None
+    tracking_id: Optional[str] = None
+    awb_number: Optional[str] = None
+    delivery_partner: Optional[str] = None
+    invoice_url: Optional[str] = None

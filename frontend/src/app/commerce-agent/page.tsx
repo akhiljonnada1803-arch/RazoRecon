@@ -97,10 +97,15 @@ export default function CommerceAgentPage() {
         comparison_data: data.comparison_data,
         suggested_prompts: data.suggested_prompts,
         action_type: data.action_triggered,
-        checkout_link: data.checkout_link
+        checkout_link: data.checkout_link,
+        recommendation_reason: data.recommendation_reason,
+        confidence_score: data.confidence_score,
+        review_intelligence: data.review_intelligence,
+        before_checkout_summary: data.before_checkout_summary,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+
 
       if (data.cart) {
         setCart(data.cart);

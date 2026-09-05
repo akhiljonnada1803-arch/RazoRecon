@@ -6,7 +6,7 @@ import json
 import uuid
 import re
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 
 from app.schemas.checkout import (
     CartItemDTO,
@@ -25,6 +25,12 @@ from app.schemas.checkout import (
 from app.schemas.payments import CreateOrderRequestDTO, OrderItemDTO
 from app.services.catalog_service import catalog_service
 from app.services.payment_service import payment_service
+from app.services.pricing_service import (
+    get_applicable_tier,
+    calculate_volume_discount,
+    apply_volume_pricing,
+    pricing_service
+)
 
 # SQLite Database Setup
 DB_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"))
@@ -85,9 +91,22 @@ class CheckoutService:
                     gst_rate_pct REAL DEFAULT 18.0,
                     hsn_sac_code TEXT DEFAULT '8470',
                     active_offer TEXT,
+                    tier_used TEXT,
+                    discount_amount REAL DEFAULT 0.0,
+                    effective_price REAL,
                     FOREIGN KEY (cart_id) REFERENCES carts (id) ON DELETE CASCADE
                 )
             """)
+
+            # Migration check for existing cart_items
+            cursor.execute("PRAGMA table_info(cart_items)")
+            ci_cols = [row["name"] for row in cursor.fetchall()]
+            if "tier_used" not in ci_cols:
+                cursor.execute("ALTER TABLE cart_items ADD COLUMN tier_used TEXT")
+            if "discount_amount" not in ci_cols:
+                cursor.execute("ALTER TABLE cart_items ADD COLUMN discount_amount REAL DEFAULT 0.0")
+            if "effective_price" not in ci_cols:
+                cursor.execute("ALTER TABLE cart_items ADD COLUMN effective_price REAL")
 
             # 3. Checkout Audit Logs Table
             cursor.execute("""
@@ -183,18 +202,38 @@ class CheckoutService:
         items_total = 0.0
         gst_included_amount = 0.0
         total_qty = 0
+        volume_discount_total = 0.0
 
         for r in items_rows:
             item_price = float(r["price"])
             item_qty = int(r["quantity"])
-            item_subtotal = round(item_price * item_qty, 2)
             gst_pct = float(r["gst_rate_pct"]) if r["gst_rate_pct"] is not None else 18.0
-            
-            # Embedded GST component calculation
+
+            # Dynamic Volume Tier Recalculation against current catalog product definition
+            product = catalog_service.get_product_by_id(r["product_id"])
+            if product:
+                pricing = apply_volume_pricing(product, item_qty)
+                tier_used = pricing.get("tier_used")
+                item_discount = float(pricing.get("discount_amount", 0.0))
+                effective_price = float(pricing.get("effective_price", item_price))
+                item_subtotal = float(pricing.get("effective_subtotal", round(item_price * item_qty, 2)))
+            else:
+                # Fallback to stored values in cart_items for backward compatibility
+                tier_used_raw = r["tier_used"] if "tier_used" in r.keys() and r["tier_used"] else None
+                try:
+                    tier_used = json.loads(tier_used_raw) if isinstance(tier_used_raw, str) else tier_used_raw
+                except Exception:
+                    tier_used = None
+                item_discount = float(r["discount_amount"]) if "discount_amount" in r.keys() and r["discount_amount"] is not None else 0.0
+                effective_price = float(r["effective_price"]) if "effective_price" in r.keys() and r["effective_price"] is not None else item_price
+                item_subtotal = float(r["subtotal"]) if "subtotal" in r.keys() and r["subtotal"] is not None else round(effective_price * item_qty, 2)
+
+            # Embedded GST component calculation on effective subtotal
             base_item_subtotal = round(item_subtotal / (1.0 + (gst_pct / 100.0)), 2)
             item_gst = round(item_subtotal - base_item_subtotal, 2)
-            
+
             items_total += item_subtotal
+            volume_discount_total += item_discount
             gst_included_amount += item_gst
             total_qty += item_qty
 
@@ -210,26 +249,31 @@ class CheckoutService:
                 image_url=r["image_url"],
                 gst_rate_pct=gst_pct,
                 hsn_sac_code=r["hsn_sac_code"],
-                active_offer=r["active_offer"]
+                active_offer=r["active_offer"],
+                tier_used=tier_used,
+                discount_amount=item_discount,
+                effective_price=effective_price,
+                original_price=item_price
             ))
 
-        # Compute Discounts
+        # Compute Promotional Coupons (applied on volume-discounted subtotal)
         coupon_code = cart_row["coupon_code"]
-        discount_amount = 0.0
+        coupon_discount_amount = 0.0
         discount_pct = float(cart_row["discount_pct"] or 0.0)
 
         if coupon_code and coupon_code in AVAILABLE_COUPONS:
             coupon_info = AVAILABLE_COUPONS[coupon_code]
             if coupon_info["type"] == "percentage":
-                discount_amount = round(items_total * (coupon_info["value"] / 100.0), 2)
+                coupon_discount_amount = round(items_total * (coupon_info["value"] / 100.0), 2)
                 discount_pct = coupon_info["value"]
             elif coupon_info["type"] == "flat":
-                discount_amount = min(items_total, coupon_info["value"])
-                discount_pct = round((discount_amount / max(1.0, items_total)) * 100, 1)
+                coupon_discount_amount = min(items_total, coupon_info["value"])
+                discount_pct = round((coupon_discount_amount / max(1.0, items_total)) * 100, 1)
 
         delivery_fee = 0.0  # Free Delivery
         platform_fee = 0.0  # Zero Platform Fee
-        final_amount = max(0.0, round(items_total + delivery_fee + platform_fee - discount_amount, 2))
+        final_amount = max(0.0, round(items_total + delivery_fee + platform_fee - coupon_discount_amount, 2))
+        total_discount_amount = round(volume_discount_total + coupon_discount_amount, 2)
 
         summary = CartSummaryDTO(
             items_total=round(items_total, 2),
@@ -238,7 +282,9 @@ class CheckoutService:
             platform_fee=platform_fee,
             gst_included_amount=round(gst_included_amount, 2),
             tax_amount=round(gst_included_amount, 2),
-            discount_amount=round(discount_amount, 2),
+            discount_amount=total_discount_amount,
+            volume_discount_amount=round(volume_discount_total, 2),
+            coupon_discount_amount=round(coupon_discount_amount, 2),
             discount_code=coupon_code,
             discount_pct=discount_pct,
             final_amount=final_amount,
@@ -274,21 +320,27 @@ class CheckoutService:
 
             if existing:
                 new_qty = existing["quantity"] + quantity
-                new_subtotal = round(product.price * new_qty, 2)
+                pricing = apply_volume_pricing(product, new_qty)
+                tier_used_json = json.dumps(pricing["tier_used"]) if pricing["tier_used"] else None
                 cursor.execute("""
-                    UPDATE cart_items SET quantity = ?, subtotal = ? WHERE id = ?
-                """, (new_qty, new_subtotal, existing["id"]))
+                    UPDATE cart_items 
+                    SET quantity = ?, subtotal = ?, tier_used = ?, discount_amount = ?, effective_price = ? 
+                    WHERE id = ?
+                """, (new_qty, pricing["effective_subtotal"], tier_used_json, pricing["discount_amount"], pricing["effective_price"], existing["id"]))
             else:
                 item_id = f"item_{uuid.uuid4().hex[:10]}"
-                subtotal = round(product.price * quantity, 2)
+                pricing = apply_volume_pricing(product, quantity)
+                tier_used_json = json.dumps(pricing["tier_used"]) if pricing["tier_used"] else None
                 cursor.execute("""
                     INSERT INTO cart_items (
                         id, cart_id, product_id, sku, name, brand, category,
-                        price, quantity, subtotal, image_url, gst_rate_pct, hsn_sac_code, active_offer
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        price, quantity, subtotal, image_url, gst_rate_pct, hsn_sac_code, active_offer,
+                        tier_used, discount_amount, effective_price
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     item_id, cart.id, product.id, product.sku, product.name, product.brand, product.category,
-                    product.price, quantity, subtotal, product.image_url, product.gst_rate_pct, product.hsn_sac_code, product.offer_text
+                    product.price, quantity, pricing["effective_subtotal"], product.image_url, product.gst_rate_pct, product.hsn_sac_code, product.offer_text,
+                    tier_used_json, pricing["discount_amount"], pricing["effective_price"]
                 ))
 
             cursor.execute("UPDATE carts SET updated_at = ? WHERE id = ?", (now_str, cart.id))
@@ -319,8 +371,17 @@ class CheckoutService:
                 row = cursor.fetchone()
                 if not row:
                     raise ValueError(f"Product '{product_id}' not found in cart.")
-                new_subtotal = round(float(row["price"]) * quantity, 2)
-                cursor.execute("UPDATE cart_items SET quantity = ?, subtotal = ? WHERE id = ?", (quantity, new_subtotal, row["id"]))
+
+                product = catalog_service.get_product_by_id(row["product_id"]) or catalog_service.get_product_by_id(product_id)
+                unit_price = product.price if product else float(row["price"])
+                pricing = apply_volume_pricing(product, quantity) if product else calculate_volume_discount(unit_price, quantity)
+                tier_used_json = json.dumps(pricing["tier_used"]) if pricing.get("tier_used") else None
+
+                cursor.execute("""
+                    UPDATE cart_items 
+                    SET quantity = ?, subtotal = ?, tier_used = ?, discount_amount = ?, effective_price = ? 
+                    WHERE id = ?
+                """, (quantity, pricing["effective_subtotal"], tier_used_json, pricing["discount_amount"], pricing["effective_price"], row["id"]))
                 event_desc = f"Updated quantity for '{row['name']}' to {quantity} units."
                 event_type = "QUANTITY_UPDATED"
 
@@ -373,12 +434,12 @@ class CheckoutService:
 
         now_str = datetime.now().isoformat()
 
-        # Build order items for Razorpay Test Mode Payment Service
+        # Build order items for Razorpay Test Mode Payment Service with effective pricing
         order_items = [
             OrderItemDTO(
                 product_id=it.product_id,
                 name=it.name,
-                price=it.price,
+                price=it.effective_price if it.effective_price is not None else it.price,
                 quantity=it.quantity,
                 subtotal=it.subtotal
             )
@@ -399,6 +460,8 @@ class CheckoutService:
                 "coupon_code": cart.summary.discount_code or "NONE",
                 "taxes_inr": str(cart.summary.tax_amount),
                 "discounts_inr": str(cart.summary.discount_amount),
+                "volume_discounts_inr": str(cart.summary.volume_discount_amount),
+                "coupon_discounts_inr": str(cart.summary.coupon_discount_amount),
                 "shipping_address": req.shipping_address or ""
             }
         )
@@ -440,6 +503,7 @@ class CheckoutService:
                 "order_amount": cart.summary.subtotal,
                 "taxes": cart.summary.tax_amount,
                 "discounts": cart.summary.discount_amount,
+                "volume_discounts": cart.summary.volume_discount_amount,
                 "final_amount": cart.summary.final_amount,
                 "payment_link": payment_link
             },
@@ -583,5 +647,31 @@ class CheckoutService:
             suggested_actions=["Add 2x Smart POS V3 Pro", "Apply RAZOR2026 Coupon", "Proceed to Checkout"],
             applied_action="NONE"
         )
+
+    # =========================================================================
+    # VOLUME TIER PRICING METHODS (Requirements 3 & 4)
+    # =========================================================================
+    def get_applicable_tier(
+        self,
+        price_tiers: Optional[Union[List[Dict[str, Any]], str]],
+        quantity: int
+    ) -> Optional[Dict[str, Any]]:
+        return get_applicable_tier(price_tiers, quantity)
+
+    def calculate_volume_discount(
+        self,
+        unit_price: float,
+        quantity: int,
+        tier: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        return calculate_volume_discount(unit_price, quantity, tier)
+
+    def apply_volume_pricing(
+        self,
+        product: Any,
+        quantity: int
+    ) -> Dict[str, Any]:
+        return apply_volume_pricing(product, quantity)
+
 
 checkout_service = CheckoutService()

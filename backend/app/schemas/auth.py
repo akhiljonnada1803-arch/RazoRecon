@@ -25,8 +25,8 @@ class UserDTO(BaseModel):
     permissions: List[str] = Field(default_factory=list)
 
 class LoginRequestDTO(BaseModel):
-    email: str = Field(..., example="controller@acme.com")
-    password: str = Field(..., example="demo123")
+    email: str
+    password: str
     remember_me: Optional[bool] = False
 
 class LoginResponseDTO(BaseModel):
@@ -35,11 +35,23 @@ class LoginResponseDTO(BaseModel):
     user: UserDTO
 
 class RegisterRequestDTO(BaseModel):
-    name: str
+    business_name: Optional[str] = None
     email: str
     password: str
-    role: Optional[str] = "Finance Controller"
-    organization_name: Optional[str] = "Acme Direct Corp"
+    gstin: Optional[str] = None
+    # Optional aliases for backwards compatibility
+    name: Optional[str] = None
+    role: Optional[str] = None
+    organization_name: Optional[str] = None
+
+class RegisterResponseDTO(BaseModel):
+    merchant_id: str
+    email: str
+    status: str = "ACTIVE"
+    business_name: str
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
+    user: Optional[UserDTO] = None
 
 class OrganizationDTO(BaseModel):
     id: str

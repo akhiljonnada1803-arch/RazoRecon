@@ -1,3 +1,12 @@
+export interface VolumeDiscountTierOffer {
+  min_qty: number;
+  max_qty?: number | null;
+  discount_pct: number;
+  offer_text?: string;
+  effective_unit_price?: number;
+  total_savings?: number;
+}
+
 export interface A2ADialogueMessage {
   id: string;
   sender: 'buyer_agent' | 'seller_agent';
@@ -6,6 +15,9 @@ export interface A2ADialogueMessage {
   timestamp: string;
   message: string;
   thought_process?: string;
+  volume_discount_offer?: VolumeDiscountTierOffer[];
+  recommended_quantity?: number;
+  savings_amount?: number;
   structured_payload?: Record<string, any>;
 }
 

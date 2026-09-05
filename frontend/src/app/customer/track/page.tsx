@@ -20,12 +20,14 @@ import {
   AlertCircle,
   QrCode,
   Boxes,
-  Navigation
+  Navigation,
+  Receipt
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { downloadOrderInvoice } from '@/lib/invoice';
 
 const STAGES = [
   { id: 'PAYMENT_RECEIVED', title: 'Payment Received', desc: 'Instant Razorpay settlement verified' },
@@ -176,6 +178,15 @@ export default function CustomerTrackPage() {
                       TRK: <strong>{currentOrder.tracking_id}</strong>
                     </span>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadOrderInvoice(currentOrder.id || currentOrder.order_id || currentOrder.order_number)}
+                    className="h-7 px-2.5 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold gap-1.5 shadow-2xs"
+                  >
+                    <Receipt className="h-3.5 w-3.5 text-[#0B72E7]" />
+                    <span>Download Invoice</span>
+                  </Button>
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs px-3 py-1">
                     Live Telemetry
                   </Badge>

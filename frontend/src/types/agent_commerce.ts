@@ -1,3 +1,12 @@
+export interface VolumeDiscountTierOffer {
+  min_qty: number;
+  max_qty?: number | null;
+  discount_pct: number;
+  offer_text?: string;
+  effective_unit_price?: number;
+  total_savings?: number;
+}
+
 export interface A2ADialogueMessage {
   id: string;
   sender: 'buyer_agent' | 'seller_agent';
@@ -6,6 +15,9 @@ export interface A2ADialogueMessage {
   timestamp: string;
   message: string;
   thought_process?: string;
+  volume_discount_offer?: VolumeDiscountTierOffer[];
+  recommended_quantity?: number;
+  savings_amount?: number;
   structured_payload?: Record<string, any>;
 }
 
@@ -80,4 +92,10 @@ export interface A2ASimulationResponse {
   final_ledger: A2ALedgerEntry[];
   reconciliation_status: string;
   created_at: string;
+  created_order_id?: string;
+  created_order_number?: string;
+  tracking_id?: string;
+  awb_number?: string;
+  delivery_partner?: string;
+  invoice_url?: string;
 }

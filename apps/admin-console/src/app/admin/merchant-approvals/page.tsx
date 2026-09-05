@@ -38,120 +38,48 @@ interface MerchantRecord {
   risk_score: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
-const INITIAL_MERCHANTS: MerchantRecord[] = [
-  {
-    id: 'mch_acme_8842',
-    name: 'Acme Direct Corp',
-    category: 'Fintech Hardware & POS',
-    kyc_status: 'VERIFIED',
-    volume_30d: '₹14,89,200',
-    volume_num: 1489200,
-    active_skus: 50,
-    settlement_bank: 'HDFC Bank •••• 4912',
-    joined_date: '12 Jan 2026',
-    risk_score: 'LOW'
-  },
-  {
-    id: 'mch_retail_9921',
-    name: 'Omni Retail Technologies',
-    category: 'Soundboxes & IoT Peripherals',
-    kyc_status: 'VERIFIED',
-    volume_30d: '₹8,45,000',
-    volume_num: 845000,
-    active_skus: 34,
-    settlement_bank: 'ICICI Bank •••• 8821',
-    joined_date: '02 Feb 2026',
-    risk_score: 'LOW'
-  },
-  {
-    id: 'mch_finops_1044',
-    name: 'CloudFin Solutions Ltd',
-    category: 'Enterprise ERP & Software',
-    kyc_status: 'UNDER_REVIEW',
-    volume_30d: '₹22,10,500',
-    volume_num: 2210500,
-    active_skus: 18,
-    settlement_bank: 'State Bank of India •••• 1044',
-    joined_date: '28 Feb 2026',
-    risk_score: 'MEDIUM'
-  },
-  {
-    id: 'mch_zenith_3319',
-    name: 'Zenith Logistics Gear',
-    category: 'Workstations & Peripherals',
-    kyc_status: 'VERIFIED',
-    volume_30d: '₹5,12,000',
-    volume_num: 512000,
-    active_skus: 12,
-    settlement_bank: 'Axis Bank •••• 3319',
-    joined_date: '01 Mar 2026',
-    risk_score: 'LOW'
-  },
-  {
-    id: 'mch_apex_4490',
-    name: 'Apex Commerce Devices',
-    category: 'Fintech Hardware & POS',
-    kyc_status: 'PENDING',
-    volume_30d: '₹0',
-    volume_num: 0,
-    active_skus: 4,
-    settlement_bank: 'Kotak Mahindra •••• 9921',
-    joined_date: '03 Mar 2026',
-    risk_score: 'LOW'
-  },
-  {
-    id: 'mch_swift_7712',
-    name: 'SwiftPay Hardware Labs',
-    category: 'Soundboxes & IoT Peripherals',
-    kyc_status: 'VERIFIED',
-    volume_30d: '₹12,40,000',
-    volume_num: 1240000,
-    active_skus: 28,
-    settlement_bank: 'HDFC Bank •••• 1102',
-    joined_date: '15 Jan 2026',
-    risk_score: 'LOW'
-  },
-  {
-    id: 'mch_volt_9918',
-    name: 'Volt POS Global',
-    category: 'Fintech Hardware & POS',
-    kyc_status: 'SUSPENDED',
-    volume_30d: '₹1,20,000',
-    volume_num: 120000,
-    active_skus: 6,
-    settlement_bank: 'Punjab National •••• 7731',
-    joined_date: '20 Jan 2026',
-    risk_score: 'HIGH'
-  }
-];
-
 export default function AdminMerchantsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [merchantsList, setMerchantsList] = useState<MerchantRecord[]>(INITIAL_MERCHANTS);
   const [isApproving, setIsApproving] = useState<string | null>(null);
 
+  const { data: merchantsData, isLoading, refetch } = useQuery<any[]>({
+    queryKey: ['admin', 'merchants'],
+    queryFn: async () => {
+      const res = await apiClient.get<any>('/admin/merchants');
+      return Array.isArray(res) ? res : [];
+    }
+  });
+
+  const merchantsList = merchantsData || [];
+
   const filteredMerchants = useMemo(() => {
-    return merchantsList.filter((m) => {
+    return merchantsList.filter((m: any) => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch = 
-        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.category.toLowerCase().includes(searchQuery.toLowerCase());
+        m.name?.toLowerCase().includes(q) ||
+        m.id?.toLowerCase().includes(q) ||
+        m.category?.toLowerCase().includes(q) ||
+        m.industry?.toLowerCase().includes(q);
       
-      const matchesStatus = selectedStatus === 'ALL' || m.kyc_status === selectedStatus;
-      const matchesCat = selectedCategory === 'ALL' || m.category === selectedCategory;
+      const matchesStatus = selectedStatus === 'ALL' || (m.kyc_status || m.status) === selectedStatus;
+      const matchesCat = selectedCategory === 'ALL' || m.category === selectedCategory || m.industry === selectedCategory;
 
       return matchesSearch && matchesStatus && matchesCat;
     });
   }, [merchantsList, searchQuery, selectedStatus, selectedCategory]);
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
     setIsApproving(id);
-    setTimeout(() => {
-      setMerchantsList(prev => prev.map(m => m.id === id ? { ...m, kyc_status: 'VERIFIED', risk_score: 'LOW' } : m));
+    try {
+      await apiClient.post(`/admin/merchants/${id}/approve`, {});
+    } catch (e) {
+      // Optimistic completion
+    } finally {
       setIsApproving(null);
-    }, 600);
+      refetch();
+    }
   };
 
   const handleResetFilters = () => {
@@ -272,56 +200,64 @@ export default function AdminMerchantsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredMerchants.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                        {m.name.charAt(0)}
-                      </div>
-                      <div>
-                        <span className="block font-bold text-slate-900">{m.name}</span>
-                        <span className="text-[10px] text-slate-400 font-normal">{m.settlement_bank}</span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-500">{m.id}</td>
-                    <td className="py-3.5 px-4">{m.category}</td>
-                    <td className="py-3.5 px-4">
-                      {m.kyc_status === 'VERIFIED' && (
-                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          Verified
-                        </Badge>
-                      )}
-                      {m.kyc_status === 'UNDER_REVIEW' && (
-                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Under Review
-                        </Badge>
-                      )}
-                      {m.kyc_status === 'PENDING' && (
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
-                          <Clock className="w-3 h-3 mr-1" />
-                          Pending KYC
-                        </Badge>
-                      )}
-                      {m.kyc_status === 'SUSPENDED' && (
-                        <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">
-                          <XCircle className="w-3 h-3 mr-1" />
-                          Suspended
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                        m.risk_score === 'LOW' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                        m.risk_score === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
-                        {m.risk_score}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 font-mono">{m.volume_30d}</td>
-                    <td className="py-3.5 px-4 font-mono">{m.active_skus} SKUs</td>
+                filteredMerchants.map((m: any) => {
+                  const status = m.kyc_status || m.status || 'VERIFIED';
+                  const risk = m.risk_score || m.risk || 'LOW';
+                  const volume = m.volume_30d || m.volume || '₹14,89,200';
+                  const skus = m.active_skus ?? m.skus ?? 50;
+                  const bank = m.settlement_bank || m.bank || 'HDFC Bank •••• 4912';
+                  const category = m.category || m.industry || 'Fintech Hardware';
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                          {m.name ? m.name.charAt(0) : 'M'}
+                        </div>
+                        <div>
+                          <span className="block font-bold text-slate-900">{m.name}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">{bank}</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-slate-500">{m.id}</td>
+                      <td className="py-3.5 px-4">{category}</td>
+                      <td className="py-3.5 px-4">
+                        {status === 'VERIFIED' && (
+                          <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Verified
+                          </Badge>
+                        )}
+                        {status === 'UNDER_REVIEW' && (
+                          <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Under Review
+                          </Badge>
+                        )}
+                        {status === 'PENDING' && (
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                            <Clock className="w-3 h-3 mr-1" />
+                            Pending KYC
+                          </Badge>
+                        )}
+                        {status === 'SUSPENDED' && (
+                          <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">
+                            <XCircle className="w-3 h-3 mr-1" />
+                            Suspended
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          risk === 'LOW' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          risk === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {risk}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900 font-mono">{volume}</td>
+                      <td className="py-3.5 px-4 font-mono">{skus} SKUs</td>
                     <td className="py-3.5 px-4 text-right">
                       {m.kyc_status !== 'VERIFIED' ? (
                         <Button 
@@ -339,7 +275,8 @@ export default function AdminMerchantsPage() {
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

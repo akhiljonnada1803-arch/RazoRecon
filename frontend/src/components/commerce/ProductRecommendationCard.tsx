@@ -3,7 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Product } from '@/types/commerce';
-import { Star, ShoppingBag, GitCompare, CheckCircle, ShieldCheck, Truck } from 'lucide-react';
+import { Star, ShoppingBag, GitCompare, CheckCircle, ShieldCheck, Truck, Sparkles, Info } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -37,6 +37,12 @@ export function ProductRecommendationCard({
           <Badge className="bg-[#072654] text-white text-[10px] font-semibold tracking-wide border-0 shadow-xs">
             {product.brand}
           </Badge>
+          {product.match_score && (
+            <Badge className="bg-blue-600 text-white text-[10px] font-bold border-0 shadow-xs flex items-center gap-0.5">
+              <Sparkles className="h-2.5 w-2.5" />
+              {product.match_score}% Match
+            </Badge>
+          )}
           {discountPct > 0 && (
             <Badge className="bg-emerald-600 text-white text-[10px] font-bold border-0 shadow-xs">
               {discountPct}% OFF
@@ -80,8 +86,55 @@ export function ProductRecommendationCard({
           </p>
         </div>
 
+        {/* AI Advisor Ranking Breakdown Chips */}
+        {product.ranking_breakdown && (
+          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-2 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
+              <span className="flex items-center gap-1 text-[#0B72E7]">
+                <Sparkles className="h-3 w-3" />
+                Ranking Factors
+              </span>
+              <span className="text-[#072654] font-bold">
+                {Math.round(product.ranking_breakdown.total_score * 100)}% Total
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-1 text-[9px] text-center font-medium">
+              <div className="bg-white rounded px-1 py-0.5 border border-slate-200" title="Budget Match (30% weight)">
+                <span className="text-slate-500 block text-[8px]">Budget</span>
+                <span className="text-slate-800 font-bold">{Math.round(product.ranking_breakdown.budget_match * 100)}%</span>
+              </div>
+              <div className="bg-white rounded px-1 py-0.5 border border-slate-200" title="Specs Match (30% weight)">
+                <span className="text-slate-500 block text-[8px]">Specs</span>
+                <span className="text-slate-800 font-bold">{Math.round(product.ranking_breakdown.specs_match * 100)}%</span>
+              </div>
+              <div className="bg-white rounded px-1 py-0.5 border border-slate-200" title="Rating Score (20% weight)">
+                <span className="text-slate-500 block text-[8px]">Rating</span>
+                <span className="text-slate-800 font-bold">{Math.round(product.ranking_breakdown.rating_score * 100)}%</span>
+              </div>
+              <div className="bg-white rounded px-1 py-0.5 border border-slate-200" title="Review Sentiment (10% weight)">
+                <span className="text-slate-500 block text-[8px]">Sentiment</span>
+                <span className="text-slate-800 font-bold">{Math.round(product.ranking_breakdown.review_sentiment * 100)}%</span>
+              </div>
+              <div className="bg-white rounded px-1 py-0.5 border border-slate-200" title="Popularity Score (10% weight)">
+                <span className="text-slate-500 block text-[8px]">Popular</span>
+                <span className="text-slate-800 font-bold">{Math.round(product.ranking_breakdown.popularity_score * 100)}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Why Recommended Snippet */}
+        {product.why_recommended && (
+          <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-2 text-[11px] text-emerald-900 leading-snug">
+            <span className="font-semibold text-emerald-800 block mb-0.5 flex items-center gap-1">
+              <Info className="h-3 w-3 text-emerald-600 inline" /> Why Recommended:
+            </span>
+            <span className="line-clamp-2 text-emerald-950 font-normal">{product.why_recommended}</span>
+          </div>
+        )}
+
         {/* Feature Highlights */}
-        {product.features && product.features.length > 0 && (
+        {product.features && product.features.length > 0 && !product.ranking_breakdown && (
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 space-y-1">
             {product.features.slice(0, 2).map((feat, idx) => (
               <div key={idx} className="flex items-start gap-1.5 text-[11px] text-slate-600">

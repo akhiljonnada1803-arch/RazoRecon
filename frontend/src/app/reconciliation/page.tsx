@@ -30,7 +30,8 @@ import {
   ChevronRight,
   ExternalLink,
   SlidersHorizontal,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { 
   ReconciliationResponseDTO, 
@@ -38,6 +39,7 @@ import {
   RazorpayReconciliationResponseDTO 
 } from '@/types/reconciliation';
 import { formatCurrency } from '@/lib/utils';
+import { downloadOrderInvoice } from '@/lib/invoice';
 
 const LIFECYCLE_STAGES = [
   { key: 'Pending Payment', label: 'Pending Payment', color: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -400,15 +402,27 @@ export default function CommerceTransactionEnginePage() {
                   </td>
 
                   <td className="py-3.5 px-4 text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedTxn(t)}
-                      className="h-7 text-xs font-semibold text-[#0B72E7] hover:bg-blue-50 border-blue-200 rounded-lg gap-1"
-                    >
-                      <span>Timeline</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadOrderInvoice(t.order_id)}
+                        title="Download GST Invoice PDF"
+                        className="h-7 px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 border-slate-200 rounded-lg gap-1"
+                      >
+                        <FileText className="w-3 h-3 text-[#0B72E7]" />
+                        <span>Invoice</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedTxn(t)}
+                        className="h-7 text-xs font-semibold text-[#0B72E7] hover:bg-blue-50 border-blue-200 rounded-lg gap-1"
+                      >
+                        <span>Timeline</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </td>
                 </TableRow>
               ))}
@@ -478,12 +492,20 @@ export default function CommerceTransactionEnginePage() {
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between gap-3 border-t border-slate-100">
+              <Button
+                variant="outline"
+                onClick={() => downloadOrderInvoice(selectedTxn.order_id)}
+                className="h-9 px-3.5 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold gap-2 shadow-2xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#0B72E7]" />
+                <span>Download Official GST Invoice (PDF)</span>
+              </Button>
               <Button
                 onClick={() => setSelectedTxn(null)}
-                className="bg-[#072654] hover:bg-[#0c3977] text-white rounded-xl text-xs font-bold px-5"
+                className="bg-[#072654] hover:bg-[#0c3977] text-white rounded-xl text-xs font-bold px-5 h-9"
               >
-                Close Timeline
+                Close
               </Button>
             </div>
           </div>

@@ -1,237 +1,340 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
-import { MerchantCustomer } from '@/types/merchant';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
-  Search, 
-  Sparkles, 
   Crown, 
-  CreditCard, 
-  ArrowRight, 
-  Award,
-  Brain,
-  History,
-  TrendingUp,
-  Tag
+  AlertTriangle, 
+  TrendingUp, 
+  CheckCircle2, 
+  Mail, 
+  Phone, 
+  ShieldAlert, 
+  Zap, 
+  RefreshCw,
+  Search,
+  Filter,
+  ArrowUpRight,
+  UserCheck
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
-export default function MerchantCustomersPage() {
-  const [search, setSearch] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<MerchantCustomer | null>(null);
+export default function CustomerIntelligencePage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [filterTier, setFilterTier] = useState<string>('ALL');
+  const [triggeredWinbacks, setTriggeredWinbacks] = useState<Record<string, boolean>>({});
 
-  const { data: customers, isLoading } = useQuery<MerchantCustomer[]>({
-    queryKey: ['merchant', 'customers'],
-    queryFn: () => apiClient.get('/merchant/customers'),
-  });
+  useEffect(() => {
+    fetch('/api/v1/merchant/growth/customer-intelligence')
+      .then(res => res.json())
+      .then(res => {
+        setData(res);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load customer intelligence', err);
+        setLoading(false);
+      });
+  }, []);
 
-  const filteredCustomers = (customers || []).filter((c) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
+  const handleTriggerWinback = (customerId: string) => {
+    setTriggeredWinbacks(prev => ({ ...prev, [customerId]: true }));
+  };
+
+  if (loading || !data) {
     return (
-      c.name.toLowerCase().includes(term) ||
-      c.email.toLowerCase().includes(term) ||
-      c.tier.toLowerCase().includes(term)
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-semibold text-slate-400">Loading Customer Intelligence & CLV Tiers...</span>
+        </div>
+      </div>
     );
-  });
+  }
+
+  const metrics = data.metrics || {};
+  const clvDist = data.clv_distribution || [];
+  const cohorts = data.retention_cohorts || [];
+  const vipCustomers = data.vip_customers || [];
+
+  const filteredVips = filterTier === 'ALL' 
+    ? vipCustomers 
+    : vipCustomers.filter((c: any) => c.clv_tier.includes(filterTier));
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#072654] via-[#0c3977] to-[#0B72E7] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Badge className="bg-white/20 text-white border-white/30 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
+    <div className="space-y-8 pb-16">
+      {/* 1. HERO HEADER */}
+      <div className="bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#1E3A5F] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden border border-slate-700">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/30 text-xs font-bold uppercase tracking-wider">
                 <Users className="w-3.5 h-3.5 mr-1" />
-                Customer LTV & AI Behavioral Memory
+                Customer Intelligence & Churn AI
               </Badge>
-              <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs font-mono">
-                <Brain className="w-3.5 h-3.5 mr-1" />
-                Personalized Recommendations Active
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/30 text-xs font-mono">
+                128.4% NRR
               </Badge>
             </div>
-
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Customer Intelligence & Lifetime Value
+              Customer Intelligence & Retention Hub
             </h1>
-            <p className="text-blue-100 text-xs sm:text-sm mt-1 max-w-2xl">
-              Understand purchase velocity, preferred hardware categories, payment habits, and AI buyer propensity models.
+            <p className="text-slate-300 text-xs sm:text-sm max-w-2xl">
+              Cohort lifetime value modeling, repeat replenishment frequency, predictive churn risk detection, and VIP corporate account management.
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-        <div className="relative max-w-md w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            type="text"
-            placeholder="Search by customer name, email, or tier..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 rounded-xl border-slate-200 text-xs bg-slate-50/50"
-          />
-        </div>
-        <span className="text-xs text-slate-500 font-mono">
-          Showing {filteredCustomers.length} Enterprise Customers
-        </span>
-      </div>
-
-      {/* Customers Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredCustomers.map((c) => (
-          <div
-            key={c.id}
-            className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs space-y-4 hover:border-blue-300 transition-all flex flex-col justify-between"
-          >
-            <div className="space-y-3">
-              {/* Header Profile */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#0B72E7] to-[#072654] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                    {c.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">{c.name}</h3>
-                    <span className="text-[11px] text-slate-400 font-mono block truncate max-w-[170px]">{c.email}</span>
-                  </div>
-                </div>
-
-                <Badge
-                  className={`text-[9px] font-bold ${
-                    c.tier.includes('Platinum')
-                      ? 'bg-purple-50 text-purple-700 border-purple-200'
-                      : c.tier.includes('Gold')
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-blue-50 text-blue-700 border-blue-200'
-                  }`}
-                >
-                  {c.tier}
-                </Badge>
-              </div>
-
-              {/* LTV & Orders */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                  <span className="text-slate-400 text-[10px] block font-semibold">Lifetime Value</span>
-                  <span className="font-bold text-[#0B72E7] font-mono text-sm">
-                    ₹{c.lifetime_value.toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                  <span className="text-slate-400 text-[10px] block font-semibold">Orders / AOV</span>
-                  <span className="font-bold text-slate-800 font-mono text-xs">
-                    {c.orders_count} ord • ₹{(c.average_order_value / 1000).toFixed(0)}k
-                  </span>
-                </div>
-              </div>
-
-              {/* Favorite Categories */}
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Affinity Categories
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {c.preferences.favourite_categories.map((cat, idx) => (
-                    <Badge key={idx} variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px]">
-                      {cat}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* AI Insights */}
-              <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100 text-xs text-slate-700 space-y-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#0B72E7] uppercase tracking-wider">
-                  <Sparkles className="w-3 h-3" />
-                  AI Buyer Insight
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">
-                  {c.ai_insights}
-                </p>
-              </div>
+          <div className="bg-slate-900/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700 text-right min-w-[220px]">
+            <span className="text-[11px] font-semibold text-slate-400 block uppercase tracking-wider">
+              Avg Customer Lifetime Value
+            </span>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-purple-400">
+              ₹{metrics.avg_customer_lifetime_value_inr?.toLocaleString('en-IN')}
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedCustomer(c)}
-              className="w-full rounded-xl text-xs font-semibold text-[#0B72E7] hover:bg-blue-50 border-slate-200 mt-2"
-            >
-              Inspect Persona Dossier <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
-          </div>
-        ))}
-      </div>
-
-      {/* Customer Dossier Modal */}
-      {selectedCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-2xl bg-[#0B72E7] text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                  {selectedCustomer.name.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{selectedCustomer.name}</h3>
-                  <span className="text-[11px] text-slate-400 font-mono">{selectedCustomer.email}</span>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedCustomer(null)}
-                className="h-7 w-7 p-0 rounded-lg"
-              >
-                ✕
-              </Button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
-                  <span className="text-slate-400 text-[10px] block font-semibold">Tier Status</span>
-                  <span className="font-bold text-purple-700 font-mono">{selectedCustomer.tier}</span>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
-                  <span className="text-slate-400 text-[10px] block font-semibold">Preferred Channel</span>
-                  <span className="font-bold text-slate-800">{selectedCustomer.preferences.preferred_payment}</span>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                  AI Behavioral Persona Analysis
-                </span>
-                <p className="text-slate-700 text-xs leading-relaxed">
-                  {selectedCustomer.ai_insights}
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedCustomer(null)}
-                className="rounded-xl"
-              >
-                Close
-              </Button>
-            </div>
+            <span className="text-[10px] text-emerald-400 font-mono font-bold">
+              {metrics.repeat_purchase_rate_pct}% Repeat Purchase Rate
+            </span>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* 2. 4 TOP KPI CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Customers</span>
+          <div className="text-2xl font-black text-slate-900 font-mono">
+            {metrics.total_active_customers}
+          </div>
+          <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" /> +18.4% MoM Net Growth
+          </span>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Net Revenue Retention (NRR)</span>
+          <div className="text-2xl font-black text-emerald-600 font-mono">
+            {metrics.net_revenue_retention_nrr_pct}%
+          </div>
+          <span className="text-[11px] text-emerald-600 font-semibold">
+            Expansion revenue outpaces churn
+          </span>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Churn Rate</span>
+          <div className="text-2xl font-black text-slate-900 font-mono">
+            {metrics.monthly_churn_rate_pct}%
+          </div>
+          <span className="text-[11px] text-slate-400 font-semibold">
+            Industry benchmark: 4.8%
+          </span>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">At-Risk Merchants</span>
+          <div className="text-2xl font-black text-amber-600 font-mono">
+            {metrics.at_risk_customers_count}
+          </div>
+          <span className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5" /> 1-Click Winbacks Ready
+          </span>
+        </div>
+      </div>
+
+      {/* 3. CLV DISTRIBUTION & COHORT RETENTION MATRIX */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: CLV Tier Breakdown */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Customer Lifetime Value Tiers</h3>
+            <p className="text-xs text-slate-500">Revenue concentration by merchant customer spend tier.</p>
+          </div>
+
+          <div className="space-y-4">
+            {clvDist.map((tier: any, i: number) => (
+              <div key={i} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-slate-900">{tier.tier}</span>
+                  <span className="font-mono text-purple-700 font-bold">{tier.share_pct}% Revenue</span>
+                </div>
+                <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                  <div 
+                    style={{ width: `${tier.share_pct}%` }} 
+                    className="bg-purple-600 h-full rounded-full" 
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                  <span>{tier.customer_count} merchants ({tier.pct_of_total}%)</span>
+                  <span>₹{(tier.total_revenue_inr / 100000).toFixed(1)} Lakhs</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Cohort Retention Curves */}
+        <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Cohort Retention Heatmap (%)</h3>
+              <p className="text-xs text-slate-500">Percentage of merchants reordering across subsequent months.</p>
+            </div>
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-mono">
+              AutoPay Powered
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="pb-3">Cohort Month</th>
+                  <th className="pb-3 text-right">Initial Size</th>
+                  <th className="pb-3 text-right">Month 1</th>
+                  <th className="pb-3 text-right">Month 2</th>
+                  <th className="pb-3 text-right">Month 3</th>
+                  <th className="pb-3 text-right">Month 4</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono font-medium">
+                {cohorts.map((c: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50/80">
+                    <td className="py-3 font-bold text-slate-800">{c.cohort}</td>
+                    <td className="py-3 text-right text-slate-500">{c.initial_size}</td>
+                    <td className="py-3 text-right">
+                      <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">{c.month_1}%</span>
+                    </td>
+                    <td className="py-3 text-right">
+                      {c.month_2 ? (
+                        <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">{c.month_2}%</span>
+                      ) : <span className="text-slate-300">-</span>}
+                    </td>
+                    <td className="py-3 text-right">
+                      {c.month_3 ? (
+                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-semibold">{c.month_3}%</span>
+                      ) : <span className="text-slate-300">-</span>}
+                    </td>
+                    <td className="py-3 text-right">
+                      {c.month_4 ? (
+                        <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-semibold">{c.month_4}%</span>
+                      ) : <span className="text-slate-300">-</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. VIP CUSTOMERS & CHURN RISK MANAGEMENT */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">VIP Clients & Churn Risk Watchlist</h3>
+            <p className="text-xs text-slate-500">Real-time spend, replenishment cycle health, and automated winback triggers.</p>
+          </div>
+
+          {/* Tier Filters */}
+          <div className="flex items-center gap-2">
+            {['ALL', 'ENTERPRISE', 'GROWTH', 'EMERGING'].map((tier) => (
+              <button
+                key={tier}
+                onClick={() => setFilterTier(tier)}
+                className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-colors ${
+                  filterTier === tier 
+                    ? 'bg-[#072654] text-white' 
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tier}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <th className="pb-3">Customer Account</th>
+                <th className="pb-3">CLV Tier</th>
+                <th className="pb-3 text-right">Lifetime Spend</th>
+                <th className="pb-3 text-right">Orders</th>
+                <th className="pb-3">Cycle Frequency</th>
+                <th className="pb-3">Churn Risk</th>
+                <th className="pb-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              {filteredVips.map((c: any) => {
+                const isWinbackSent = triggeredWinbacks[c.id];
+                const isHighRisk = c.churn_risk_level === 'HIGH_CHURN_RISK';
+                return (
+                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 pr-4">
+                      <div className="flex items-center gap-2">
+                        {c.clv_tier.includes('ENTERPRISE') && <Crown className="w-4 h-4 text-amber-500 shrink-0" />}
+                        <div>
+                          <span className="font-bold text-slate-900 block">{c.name}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{c.contact}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5">
+                      <Badge className="text-[10px] font-mono font-bold bg-purple-50 text-purple-700 border-purple-200">
+                        {c.clv_tier}
+                      </Badge>
+                    </td>
+                    <td className="py-3.5 text-right font-mono font-bold text-slate-900">
+                      ₹{c.total_spend_inr.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 text-right font-mono font-semibold text-slate-600">
+                      {c.total_orders}
+                    </td>
+                    <td className="py-3.5 text-slate-600 font-mono">
+                      Every {c.repeat_frequency_days} days
+                    </td>
+                    <td className="py-3.5">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                        isHighRisk 
+                          ? 'bg-red-100 text-red-700' 
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {isHighRisk && <AlertTriangle className="w-3 h-3" />}
+                        {c.churn_risk_score}% {c.churn_risk_level}
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-right">
+                      {isHighRisk ? (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleTriggerWinback(c.id)}
+                          disabled={isWinbackSent}
+                          className={`text-xs font-bold rounded-xl py-1 px-3 ${
+                            isWinbackSent 
+                              ? 'bg-emerald-600 text-white' 
+                              : 'bg-red-600 hover:bg-red-700 text-white'
+                          }`}
+                        >
+                          {isWinbackSent ? 'Winback Dispatched' : 'Push AI Winback Offer'}
+                        </Button>
+                      ) : (
+                        <span className="text-[11px] text-emerald-600 font-semibold font-mono">
+                          AutoPay Healthy
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

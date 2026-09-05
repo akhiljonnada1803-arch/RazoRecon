@@ -9,10 +9,13 @@ import {
   ShieldCheck, 
   CheckCircle2, 
   ArrowRight,
-  Clock
+  Clock,
+  Layers,
+  Percent,
+  TrendingDown
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { A2ASimulationStep, A2ADialogueMessage } from '@/types/agent_commerce';
+import { A2ASimulationStep, A2ADialogueMessage, VolumeDiscountTierOffer } from '@/types/agent_commerce';
 
 interface A2ADialoguePanelProps {
   currentStep: A2ASimulationStep;
@@ -74,6 +77,9 @@ export function A2ADialoguePanel({
       <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/30">
         {currentStep.dialogue.map((msg) => {
           const isBuyer = msg.sender === 'buyer_agent';
+          const volumeTiers = msg.volume_discount_offer || msg.structured_payload?.volume_discount_offer;
+          const recQty = msg.recommended_quantity || msg.structured_payload?.recommended_quantity;
+          const savings = msg.savings_amount || msg.structured_payload?.savings_amount;
 
           return (
             <div
@@ -107,6 +113,81 @@ export function A2ADialoguePanel({
                     : 'bg-emerald-50/80 border-emerald-200/70 text-slate-800 rounded-tr-xs'
                 }`}>
                   <p className="whitespace-pre-line font-medium">{msg.message}</p>
+
+                  {/* Volume Discount Offer Callout */}
+                  {volumeTiers && volumeTiers.length > 0 && (
+                    <div className="mt-3 p-3 rounded-xl bg-white/90 border border-blue-200/80 shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[#072654]">
+                          <Layers className="h-3.5 w-3.5 text-[#0B72E7]" />
+                          <span className="text-[11px] font-bold">Volume-Based Discount Schedule</span>
+                        </div>
+                        {savings && (
+                          <Badge className="bg-emerald-500 text-white text-[9px] font-mono border-0">
+                            Save ₹{savings.toLocaleString('en-IN')}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Tier Badges */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {volumeTiers.map((tier: VolumeDiscountTierOffer, tIdx: number) => (
+                          <div key={tIdx} className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[10px]">
+                            <div className="flex items-center gap-1 font-semibold text-slate-700">
+                              <span className="font-mono bg-blue-100/70 text-blue-800 px-1.5 py-0.5 rounded">
+                                {tier.min_qty}{tier.max_qty ? `-${tier.max_qty}` : '+'} units
+                              </span>
+                              <span>→</span>
+                              <span className="text-emerald-600 font-bold">{tier.discount_pct}% off</span>
+                            </div>
+                            {tier.effective_unit_price && (
+                              <span className="font-mono text-slate-500 text-[9px]">
+                                ₹{tier.effective_unit_price.toLocaleString('en-IN')}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Recommendation & Savings Footer */}
+                      <div className="flex flex-wrap items-center justify-between gap-1 pt-1 text-[10px] text-slate-600 border-t border-slate-100">
+                        {recQty && (
+                          <span className="font-semibold text-blue-700">
+                            🎯 Recommended Fleet: <strong>{recQty} units</strong>
+                          </span>
+                        )}
+                        {savings && (
+                          <span className="font-mono font-bold text-emerald-600">
+                            Volume Concession: ₹{savings.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Autonomous Trade-Off Evaluation Badge */}
+                  {msg.structured_payload?.intent === 'volume_tradeoff_evaluation' && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-blue-100/50 border border-blue-200/80 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between font-bold text-blue-900 text-[10px] uppercase tracking-wider">
+                        <span>AI Trade-Off Evaluation Engine</span>
+                        <span className="text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded font-mono">Budget Approved</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] pt-1">
+                        <div className="bg-white/80 p-1.5 rounded-lg text-center">
+                          <span className="text-slate-400 block text-[9px]">Qty Delta</span>
+                          <span className="font-bold font-mono text-blue-700">+{msg.structured_payload.evaluated_quantity_increase} units</span>
+                        </div>
+                        <div className="bg-white/80 p-1.5 rounded-lg text-center">
+                          <span className="text-slate-400 block text-[9px]">Discount Tier</span>
+                          <span className="font-bold font-mono text-emerald-600">{msg.structured_payload.achieved_discount_pct}% Off</span>
+                        </div>
+                        <div className="bg-white/80 p-1.5 rounded-lg text-center">
+                          <span className="text-slate-400 block text-[9px]">Net Savings</span>
+                          <span className="font-bold font-mono text-emerald-700">₹{msg.structured_payload.savings_amount?.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Internal Thought Process */}
                   {msg.thought_process && (

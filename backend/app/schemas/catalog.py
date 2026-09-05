@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
+class PriceTierDTO(BaseModel):
+    min_qty: int
+    max_qty: Optional[int] = None
+    discount_pct: float
+
 class ProductSpecDTO(BaseModel):
     key: str
     value: str
@@ -46,6 +51,10 @@ class ProductDetailDTO(BaseModel):
     features: List[str] = []
     key_features: List[str] = []
     specs: List[ProductSpecDTO] = []
+    price_tiers: Optional[List[PriceTierDTO]] = []
+    price_tiers_json: Optional[str] = "[]"
+    review_sentiment_score: Optional[float] = 0.90
+    popularity_score: Optional[float] = 0.88
     in_stock: bool = True
     delivery_time: str = "2-3 business days"
     hsn_sac_code: str = "8470"
@@ -80,6 +89,8 @@ class ProductCreateDTO(BaseModel):
     features: Optional[List[str]] = []
     key_features: Optional[List[str]] = None
     specs: Optional[List[ProductSpecDTO]] = []
+    price_tiers: Optional[List[PriceTierDTO]] = None
+    price_tiers_json: Optional[str] = None
     delivery_time: Optional[str] = "2-3 business days"
     gst_rate_pct: Optional[float] = 18.0
     hsn_sac_code: Optional[str] = "8470"
@@ -108,6 +119,8 @@ class ProductUpdateDTO(BaseModel):
     features: Optional[List[str]] = None
     key_features: Optional[List[str]] = None
     specs: Optional[List[ProductSpecDTO]] = None
+    price_tiers: Optional[List[PriceTierDTO]] = None
+    price_tiers_json: Optional[str] = None
     delivery_time: Optional[str] = None
     gst_rate_pct: Optional[float] = None
     hsn_sac_code: Optional[str] = None
@@ -172,6 +185,7 @@ class AICatalogProductItemDTO(BaseModel):
     brand: str
     specs: Dict[str, str] = {}
     active_offer: Optional[str] = None
+    volume_pricing_tiers: List[Dict[str, Any]] = []
 
 class AICatalogContextDTO(BaseModel):
     schema_version: str = "2026.1"

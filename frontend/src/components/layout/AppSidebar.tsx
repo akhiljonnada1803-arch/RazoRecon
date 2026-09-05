@@ -36,7 +36,9 @@ import {
   Server,
   Settings,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  BarChart3,
+  Wrench
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -66,6 +68,7 @@ const CUSTOMER_SECTIONS: NavSection[] = [
     title: 'MY ORDERS & TRACKING',
     items: [
       { href: '/customer/orders', label: 'My Orders', icon: ShoppingBag },
+      { href: '/customer/installation', label: 'Installation Services', icon: Wrench, badge: 'On-Site' },
       { href: '/customer/track', label: 'Track Order', icon: Truck, badge: '7 Stages' },
       { href: '/customer/wishlist', label: 'My Wishlist', icon: Heart },
     ],
@@ -91,13 +94,19 @@ const MERCHANT_SECTIONS: NavSection[] = [
       { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incident' },
       { href: '/vendor-intelligence', label: 'Merchant Intelligence', icon: Sparkles, badge: 'LTV / Churn' },
       { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
-      { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
+      { href: '/merchant/shipping', label: 'Shipping & Fleet', icon: Truck, badge: '4 Couriers' },
+      { href: '/merchant/logistics-intelligence', label: 'Logistics Intelligence', icon: Truck, badge: '5 Fleets' },
+      { href: '/merchant/return-risk', label: 'Return Risk Engine', icon: ShieldCheck, badge: '1.3% RTO' },
+      { href: '/merchant/review-return-agent', label: 'Review & Return Agent', icon: ShieldCheck, badge: 'AI Shield' },
       { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
+      { href: '/merchant/razorpay-analytics', label: 'Razorpay Gateway', icon: CreditCard, badge: 'Live PG' },
     ],
   },
   {
     title: 'GROWTH & MARKETING',
     items: [
+      { href: '/merchant/growth-agent', label: 'AI Growth Agent', icon: Bot, badge: 'Advisor' },
+      { href: '/merchant/analytics', label: 'Advanced Analytics', icon: BarChart3, badge: '7 Charts' },
       { href: '/growth/campaigns', label: 'Campaign Manager', icon: Megaphone, badge: 'Auto' },
       { href: '/growth/upsell', label: 'Upsell Engine', icon: Sparkles, badge: 'Active' },
       { href: '/growth', label: 'Revenue Dashboard', icon: TrendingUp, badge: '+28.9%' },
@@ -132,6 +141,9 @@ const ADMIN_SECTIONS: NavSection[] = [
       { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
       { href: '/admin/api-keys', label: 'API Key Management', icon: Key, badge: 'Auth' },
       { href: '/admin/webhooks', label: 'Webhook Management', icon: Radio, badge: 'Events' },
+      { href: '/admin/razorpay-analytics', label: 'Razorpay Analytics', icon: CreditCard, badge: 'MDR & Payout' },
+      { href: '/admin/logistics-intelligence', label: 'Logistics Intelligence', icon: Truck, badge: 'Fleet OS' },
+      { href: '/admin/return-risk', label: 'Return Risk Analytics', icon: ShieldCheck, badge: 'Platform' },
       { href: '/admin/ai-buyer-logs', label: 'AI Buyer Request Logs', icon: Activity, badge: 'Live Traces' },
       { href: '/admin/protocol-monitoring', label: 'Protocol Monitoring', icon: Server, badge: '99.99%' },
     ],

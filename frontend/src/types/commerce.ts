@@ -35,7 +35,21 @@ export interface Product {
   offer?: string;
   active_offer?: string;
   delivery_time?: string;
+  match_score?: number;
+  ranking_breakdown?: {
+    budget_match: number;
+    specs_match: number;
+    rating_score: number;
+    review_sentiment: number;
+    popularity_score: number;
+    total_score: number;
+  };
+  why_recommended?: string;
+  review_sentiment_score?: number;
+  popularity_score?: number;
+  review_intelligence?: ReviewIntelligence;
 }
+
 
 export interface ProductCategoryStats {
   name: string;
@@ -110,6 +124,11 @@ export interface ChatMessage {
   recommended_products?: Product[];
   comparison_data?: ComparisonData | null;
   suggested_prompts?: string[];
+  recommendation_reason?: string;
+  confidence_score?: number;
+  parsed_intent?: any;
+  review_intelligence?: ReviewIntelligence;
+  before_checkout_summary?: string;
 }
 
 export interface CommerceChatResponse {
@@ -122,6 +141,31 @@ export interface CommerceChatResponse {
   comparison?: ComparisonData | null;
   comparison_data?: ComparisonData | null;
   suggested_prompts?: string[];
+  recommendation_reason?: string;
+  confidence_score?: number;
+  parsed_intent?: any;
+  review_intelligence?: ReviewIntelligence;
+  before_checkout_summary?: string;
+}
+
+export interface ReviewIntelligence {
+  product_id: string;
+  pros: string[];
+  cons: string[];
+  customer_sentiment: string;
+  satisfaction_score: number;
+  recommendation_score: number;
+  before_checkout_summary: string;
+  total_reviews_analyzed?: number;
+}
+
+
+export interface AdvisorRecommendationResponse {
+  recommended_products: Product[];
+  recommendation_reason: string;
+  confidence_score: number;
+  parsed_intent?: any;
+  query?: string;
 }
 
 export interface CheckoutResult {
@@ -136,3 +180,98 @@ export interface CheckoutResult {
   status: string;
   receipt?: string;
 }
+
+export interface ProductReview {
+  id: string;
+  product_id: string;
+  customer_id: string;
+  customer_name: string;
+  rating: number; // 1-5
+  review_title: string;
+  review_text: string;
+  verified_purchase: boolean;
+  helpful_votes: number;
+  images: string[];
+  created_at: string;
+  updated_at: string;
+  has_voted?: boolean;
+}
+
+export interface StarBreakdown {
+  star: number;
+  count: number;
+  percentage: number;
+}
+
+export interface ProductRatingSummary {
+  product_id: string;
+  average_rating: number;
+  total_reviews: number;
+  rating_breakdown: Record<string, StarBreakdown>;
+  verified_purchases_count: number;
+}
+
+export interface ReviewListResponse {
+  items: ProductReview[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: ProductRatingSummary;
+}
+
+export interface ReviewCreatePayload {
+  product_id: string;
+  rating: number;
+  review_title: string;
+  review_text: string;
+  customer_id?: string;
+  customer_name?: string;
+  images?: string[];
+  verified_purchase?: boolean;
+}
+
+export interface ReviewUpdatePayload {
+  rating?: number;
+  review_title?: string;
+  review_text?: string;
+  images?: string[];
+}
+
+export interface EMIOption {
+  tenure: number;
+  tenure_label: string;
+  emi_amount: number;
+  interest_rate: number;
+  total_interest: number;
+  total_payable: number;
+  processing_fee: number;
+  emi_type: 'no_cost' | 'standard' | 'bank';
+  bank_name?: string;
+  is_recommended?: boolean;
+  recommendation_score?: number;
+  recommendation_badge?: string;
+  monthly_burden_pct?: number;
+}
+
+export interface EMISpendingProfile {
+  user_id?: string;
+  monthly_budget: number;
+  avg_monthly_spend: number;
+  discretionary_cashflow: number;
+  affordability_tier: 'HIGH' | 'BALANCED' | 'STRETCHED';
+  historical_orders_count: number;
+}
+
+export interface EMIRecommendationResponse {
+  price: number;
+  recommended_plan: EMIOption;
+  recommendation_reason: string;
+  all_options: EMIOption[];
+  plans_by_type: {
+    no_cost: EMIOption[];
+    standard: EMIOption[];
+    bank: EMIOption[];
+  };
+  spending_profile: EMISpendingProfile;
+}
+

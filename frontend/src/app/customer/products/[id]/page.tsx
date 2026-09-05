@@ -8,6 +8,13 @@ import { Product, CartItem, CartState } from '@/types/commerce';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { RazorpayMultiCheckoutModal } from '@/components/commerce/RazorpayMultiCheckoutModal';
 import { ProductDetailSkeleton } from '@/components/common/SkeletonLoaders';
+import { ProductReviewsSection } from '@/components/commerce/ProductReviewsSection';
+import { AIReviewIntelligenceCard } from '@/components/commerce/AIReviewIntelligenceCard';
+import { EMIRecommendationModal } from '@/components/commerce/EMIRecommendationModal';
+import { PrePurchaseDecisionAssistant } from '@/components/commerce/PrePurchaseDecisionAssistant';
+import { InstallationBookingCard } from '@/components/commerce/InstallationBookingCard';
+import { PrePurchaseReviewReturnShield } from '@/components/commerce/PrePurchaseReviewReturnShield';
+
 import { 
   Star, 
   ShieldCheck, 
@@ -43,7 +50,10 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isEmiModalOpen, setIsEmiModalOpen] = useState(false);
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<any>(null);
+
   const [cart, setCart] = useState<CartState>({
     items: [],
     subtotal: 0,
@@ -294,7 +304,43 @@ export default function ProductDetailPage() {
               <span>•</span>
               <span className="text-emerald-700 font-sans font-semibold">Zero Surprise Tax at Checkout</span>
             </div>
+
+            {/* AI EMI Teaser Bar */}
+            <div 
+              onClick={() => setIsEmiModalOpen(true)}
+              className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200 rounded-2xl flex items-center justify-between cursor-pointer hover:border-[#0B72E7] transition-all shadow-2xs group"
+            >
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#0B72E7]" />
+                <span className="text-xs font-bold text-[#072654]">
+                  No Cost EMI from <strong className="text-[#0B72E7] font-mono font-extrabold">₹{Math.round(product.price / 6).toLocaleString('en-IN')}/mo</strong> (3 to 24 Months)
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-[#0B72E7] flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>AI Recommended Options</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </div>
+
+            {/* AI Pre-Purchase Decision Assistant Teaser Bar */}
+            <div 
+              onClick={() => setIsDecisionModalOpen(true)}
+              className="mt-2.5 p-3 bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border border-purple-200 rounded-2xl flex items-center justify-between cursor-pointer hover:border-purple-400 transition-all shadow-2xs group"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-bold text-[#072654]">
+                  AI Pre-Purchase Assistant: <strong className="text-purple-700">Pros, Cons, Return Risk & Similar Models</strong>
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-purple-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                <span>View Full Analysis</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </div>
           </div>
+
 
           {/* Description */}
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
@@ -406,6 +452,48 @@ export default function ProductDetailPage() {
         </div>
       </section>
 
+      {/* AI Pre-Purchase Decision Assistant Section */}
+      <section>
+        <PrePurchaseDecisionAssistant
+          productId={product.id}
+          productName={product.name}
+          onAddToCart={(item) => handleAddToCart(item, 1)}
+        />
+      </section>
+
+      {/* Professional Installation & Setup Add-on */}
+      <section>
+        <InstallationBookingCard
+          productId={product.id}
+          productName={product.name}
+        />
+      </section>
+
+      {/* AI Pre-Purchase Review Intelligence & Return Reduction Shield */}
+      <section>
+        <PrePurchaseReviewReturnShield
+          productId={product.id}
+          productName={product.name}
+        />
+      </section>
+
+      {/* AI Review Intelligence Section */}
+      <section>
+        <AIReviewIntelligenceCard
+          productId={product.id}
+          initialIntelligence={product.review_intelligence}
+        />
+      </section>
+
+      {/* Product Ratings & Reviews Section */}
+      <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
+        <ProductReviewsSection
+          productId={product.id}
+          productName={product.name}
+        />
+      </section>
+
+
       {/* Related Products Carousel */}
       {relatedProducts.length > 0 && (
         <section className="space-y-4">
@@ -493,6 +581,29 @@ export default function ProductDetailPage() {
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
       />
+
+      {/* AI EMI Recommendation Modal */}
+      <EMIRecommendationModal
+        isOpen={isEmiModalOpen}
+        onClose={() => setIsEmiModalOpen(false)}
+        price={product.price}
+        productName={product.name}
+      />
+
+      {/* AI Pre-Purchase Decision Assistant Modal */}
+      {isDecisionModalOpen && (
+        <PrePurchaseDecisionAssistant
+          productId={product.id}
+          productName={product.name}
+          isOpenModal={true}
+          onCloseModal={() => setIsDecisionModalOpen(false)}
+          onAddToCart={(item) => {
+            handleAddToCart(item, 1);
+            setIsDecisionModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
+

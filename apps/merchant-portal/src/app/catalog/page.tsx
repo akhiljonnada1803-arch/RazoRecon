@@ -65,13 +65,36 @@ export default function MerchantCatalogInventoryHubPage() {
     name: '',
     description: '',
     category: 'Fintech Hardware',
-    price: 9999,
+    base_price: 10000,
+    gst_rate_pct: 18,
+    price: 11800,
     stock: 50,
     inventory_status: 'IN_STOCK',
     image_url: 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=500&auto=format&fit=crop&q=60',
     key_features: 'Fast Thermal Printer, 4G Dual SIM, All Cards Accepted',
     active_offer: 'BESTSELLER'
   });
+
+  const handleBasePriceChange = (basePriceVal: number) => {
+    const bp = Math.max(0, basePriceVal);
+    const gst = Math.round(bp * 0.18);
+    const finalPrice = bp + gst;
+    setFormData(prev => ({
+      ...prev,
+      base_price: bp,
+      price: finalPrice
+    }));
+  };
+
+  const handleFinalPriceChange = (finalPriceVal: number) => {
+    const finalPrice = Math.max(0, finalPriceVal);
+    const bp = Math.round(finalPrice / 1.18);
+    setFormData(prev => ({
+      ...prev,
+      base_price: bp,
+      price: finalPrice
+    }));
+  };
 
   const { data: catalogData, isLoading, refetch } = useQuery<any>({
     queryKey: ['merchant', 'catalog', selectedCategory, search],
@@ -230,7 +253,9 @@ export default function MerchantCatalogInventoryHubPage() {
       name: '',
       description: '',
       category: 'Fintech Hardware',
-      price: 9999,
+      base_price: 10000,
+      gst_rate_pct: 18,
+      price: 11800,
       stock: 50,
       inventory_status: 'IN_STOCK',
       image_url: 'https://images.unsplash.com/photo-1556742049-0a67e5572293?w=500&auto=format&fit=crop&q=60',
@@ -243,10 +268,13 @@ export default function MerchantCatalogInventoryHubPage() {
 
   const handleOpenEdit = (product: Product) => {
     setEditingProduct(product);
+    const bp = product.base_price || Math.round(product.price / 1.18);
     setFormData({
       name: product.name,
       description: product.description || '',
       category: product.category,
+      base_price: bp,
+      gst_rate_pct: product.gst_rate_pct || 18,
       price: product.price,
       stock: product.stock_quantity ?? product.stock ?? 0,
       inventory_status: product.inventory_status || (product.in_stock ? 'IN_STOCK' : 'OUT_OF_STOCK'),
@@ -801,26 +829,76 @@ export default function MerchantCatalogInventoryHubPage() {
                 </div>
               </div>
 
-              {/* Price, Stock Quantity & Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Customer Price (INR, Incl. GST) *
-                  </label>
-                  <Input
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="9999"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                    className="h-9 text-xs rounded-xl font-mono font-bold"
-                  />
-                  <span className="text-[10px] text-slate-500 block mt-1">
-                    Base: ₹{Math.round(formData.price / 1.18).toLocaleString('en-IN')} + 18% GST: ₹{(formData.price - Math.round(formData.price / 1.18)).toLocaleString('en-IN')}
+              {/* Automated GST & Pricing Architecture Section */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-[#0B72E7]" />
+                    <span>Price & Automatic GST Engine</span>
                   </span>
+                  <Badge className="bg-blue-50 text-[#0B72E7] border-blue-200 text-[10px] font-mono">
+                    18% GST Standard
+                  </Badge>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      1. Base Price (excl. GST) *
+                    </label>
+                    <Input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="10000"
+                      value={formData.base_price}
+                      onChange={(e) => handleBasePriceChange(Number(e.target.value))}
+                      className="h-9 text-xs rounded-xl font-mono font-bold bg-white"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Merchant net proceeds
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      2. GST Amount (18%)
+                    </label>
+                    <div className="h-9 px-3 rounded-xl border border-slate-200 bg-slate-100/80 flex items-center font-mono font-bold text-slate-700 text-xs">
+                      ₹{Math.round(formData.base_price * 0.18).toLocaleString('en-IN')}
+                    </div>
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      Auto-calculated tax
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1 text-emerald-800">
+                      3. Final Selling Price *
+                    </label>
+                    <Input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="11800"
+                      value={formData.price}
+                      onChange={(e) => handleFinalPriceChange(Number(e.target.value))}
+                      className="h-9 text-xs rounded-xl font-mono font-bold bg-emerald-50/50 border-emerald-300 text-emerald-900"
+                    />
+                    <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                      Customer sees on storefront
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Customer storefront always displays <strong>₹{formData.price.toLocaleString('en-IN')} (Inclusive of all taxes)</strong>. No surprise GST is added at checkout.</span>
+                </div>
+              </div>
+
+              {/* Stock Quantity & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Initial Stock Units *

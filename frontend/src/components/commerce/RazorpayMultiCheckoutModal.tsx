@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+
 import { apiClient } from '@/lib/api-client';
-import { CheckoutResult } from '@/types/commerce';
+import { CheckoutResult, EMIRecommendationResponse, EMIOption } from '@/types/commerce';
+
 import { 
   CheckCircle2, 
   Copy, 
@@ -66,7 +68,19 @@ export function RazorpayMultiCheckoutModal({
 
   const totalAmount = result.amount || 0;
 
+  const { data: emiData } = useQuery<EMIRecommendationResponse>({
+    queryKey: ['checkout-emi-plans', totalAmount],
+    queryFn: async () => {
+      return apiClient.post<EMIRecommendationResponse>('/commerce/emi/recommend', {
+        price: totalAmount,
+        user_id: 'usr_customer_demo',
+      });
+    },
+    enabled: isOpen && totalAmount > 0,
+  });
+
   const handleCopyLink = () => {
+
     const link = result.payment_url || result.payment_link || '';
     if (link) {
       navigator.clipboard.writeText(link);
@@ -471,32 +485,85 @@ export function RazorpayMultiCheckoutModal({
 
                   {/* TAB 5: EMI & PAY LATER */}
                   {activeTab === 'emi' && (
-                    <div className="space-y-2">
-                      <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                        No-Cost EMI & Pay Later Options
-                      </label>
-                      {emiPlans.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => setSelectedEmiPlan(p.id)}
-                          className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                            selectedEmiPlan === p.id
-                              ? 'bg-blue-50 border-[#0B72E7] text-[#0B72E7]'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs">{p.name}</span>
-                              <Badge className="bg-emerald-100 text-emerald-800 text-[9px] font-bold border-0">
-                                {p.badge}
-                              </Badge>
-                            </div>
-                            <span className="text-[11px] text-slate-500 block mt-0.5">{p.rate}</span>
+                    <div className="space-y-3">
+                      {/* AI Recommended Plan Highlight */}
+                      {emiData?.recommended_plan && (
+                        <div className="p-3 bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-300 rounded-2xl space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-emerald-600" />
+                              AI Recommended Best Plan
+                            </span>
+                            <Badge className="bg-emerald-600 text-white text-[9px] font-extrabold border-0">
+                              OPTIMAL CASHFLOW
+                            </Badge>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-slate-400" />
-                        </button>
-                      ))}
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-xs font-bold text-[#072654]">
+                              {emiData.recommended_plan.tenure} Months {emiData.recommended_plan.emi_type === 'no_cost' ? 'No Cost EMI' : 'Standard'}
+                            </span>
+                            <span className="text-sm font-black text-[#0B72E7] font-mono">
+                              ₹{emiData.recommended_plan.emi_amount.toLocaleString('en-IN')}/mo
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-tight">
+                            {emiData.recommendation_reason}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                        <span>Select EMI Tenure</span>
+                        <span className="text-[10px] text-slate-400 font-normal">3, 6, 9, 12, 18, 24 Mo Available</span>
+                      </div>
+
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        {(emiData?.all_options?.slice(0, 6) || emiPlans).map((p: any, idx: number) => {
+                          const planKey = p.tenure ? `plan_${p.tenure}_${p.emi_type}` : p.id;
+                          const isSelected = selectedEmiPlan === planKey || (idx === 0 && !selectedEmiPlan);
+                          const isNoCost = p.interest_rate === 0 || p.emi_type === 'no_cost' || p.badge?.includes('NO COST');
+                          return (
+                            <button
+                              key={planKey}
+                              type="button"
+                              onClick={() => setSelectedEmiPlan(planKey)}
+                              className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-50 border-[#0B72E7] text-[#0B72E7] ring-1 ring-[#0B72E7]/20 shadow-xs'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs">
+                                    {p.tenure_label || p.name}
+                                  </span>
+                                  <Badge
+                                    className={`text-[9px] font-bold border-0 ${
+                                      isNoCost
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {isNoCost ? '0% No Cost' : `${p.interest_rate || 14}% p.a.`}
+                                  </Badge>
+                                </div>
+                                <span className="text-[11px] text-slate-600 block mt-0.5 font-mono font-medium">
+                                  {p.emi_amount ? `₹${p.emi_amount.toLocaleString('en-IN')}/mo • Total: ₹${p.total_payable.toLocaleString('en-IN')}` : p.rate}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {p.is_recommended && (
+                                  <Badge className="bg-emerald-600 text-white text-[8px] font-bold border-0">
+                                    AI PICK
+                                  </Badge>
+                                )}
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
 
                       <Button
                         onClick={() => handleProcessPayment('emi')}
@@ -508,6 +575,7 @@ export function RazorpayMultiCheckoutModal({
                       </Button>
                     </div>
                   )}
+
                 </div>
               </div>
 

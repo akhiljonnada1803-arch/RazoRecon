@@ -17,17 +17,39 @@ import {
   Server, 
   ArrowUpRight,
   CheckCircle2,
-  Lock
+  Lock,
+  Clock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { AuditActivityFeed } from '@/components/common/AuditActivityFeed';
+
+function formatTimestamp(isoStr?: string | null) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return isoStr;
+  }
+}
 
 export default function AdminDashboardPage() {
-  const { data: monitoring, isLoading } = useQuery<ProtocolMonitoringData>({
+  const { data: monitoring, isLoading, dataUpdatedAt } = useQuery<ProtocolMonitoringData>({
     queryKey: ['admin', 'protocol-monitoring'],
     queryFn: () => apiClient.get('/admin/protocol-monitoring'),
   });
+
+  const lastUpdatedFormatted = dataUpdatedAt ? formatTimestamp(new Date(dataUpdatedAt).toISOString()) : 'Live';
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-6 space-y-6">
@@ -43,6 +65,10 @@ export default function AdminDashboardPage() {
               </Badge>
               <Badge className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs font-mono">
                 Protocol v1.4 Active
+              </Badge>
+              <Badge className="bg-blue-500/20 text-blue-200 border-blue-400/30 text-xs font-mono flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>Last Updated: {lastUpdatedFormatted}</span>
               </Badge>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
@@ -118,6 +144,9 @@ export default function AdminDashboardPage() {
           <span className="text-[11px] text-slate-500 block">LangChain & CrewAI Agents</span>
         </div>
       </div>
+
+      {/* Live System Audit Feed Component */}
+      <AuditActivityFeed limit={20} title="Enterprise System Audit Stream & Action Log" />
 
       {/* Developer Console Quick Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

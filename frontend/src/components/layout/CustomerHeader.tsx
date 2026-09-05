@@ -20,7 +20,9 @@ import {
   Tag,
   SlidersHorizontal,
   Flame,
-  ShieldCheck
+  ShieldCheck,
+  Truck,
+  Wrench
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -197,6 +199,24 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                       >
                         <Package className="w-4 h-4 text-slate-400" />
                         <span>My Orders</span>
+                      </Link>
+
+                      <Link 
+                        href="/customer/installation"
+                        onClick={() => setIsAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
+                      >
+                        <Wrench className="w-4 h-4 text-slate-400" />
+                        <span>Installation & Setup</span>
+                      </Link>
+
+                      <Link 
+                        href="/customer/track"
+                        onClick={() => setIsAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
+                      >
+                        <Truck className="w-4 h-4 text-slate-400" />
+                        <span>Track Order (AI Logistics)</span>
                       </Link>
 
                       <Link 

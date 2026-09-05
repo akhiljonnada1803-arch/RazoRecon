@@ -15,6 +15,12 @@ export interface OfferItem {
   active: boolean;
 }
 
+export interface PriceTier {
+  min_qty: number;
+  max_qty: number | null;
+  discount_pct: number;
+}
+
 export interface CatalogProduct {
   id: string;
   sku: string;
@@ -22,6 +28,8 @@ export interface CatalogProduct {
   brand: string;
   category: string;
   price: number; // Customer-facing GST-inclusive price
+  price_tiers?: PriceTier[];
+  price_tiers_json?: string;
   customer_price?: number;
   base_price?: number;
   gst_rate?: number;
@@ -74,6 +82,8 @@ export interface ProductFormData {
   offer_text?: string;
   offer_discount_pct?: number;
   offer_badge?: string;
+  price_tiers?: PriceTier[];
+  price_tiers_json?: string;
 }
 
 export interface CatalogStats {
@@ -114,6 +124,7 @@ export interface AICatalogProductItem {
   specs_summary: Record<string, string>;
   gst_input_credit_pct: number;
   active_offer?: string;
+  volume_pricing_tiers?: PriceTier[];
 }
 
 export interface AICatalogContext {

@@ -77,36 +77,25 @@ export default function CustomerCartPage() {
     }
   };
 
-  const handleProceedCheckout = async () => {
+  const handleProceedCheckout = () => {
     if (!isAuthenticated) {
       router.push('/login?redirect=/checkout');
       return;
     }
 
     try {
-      const res: any = await apiClient.post('/commerce/checkout', {
-        cart: {
-          items: items.map(i => ({
-            product_id: i.id,
-            name: i.name,
-            price: i.price,
-            quantity: i.quantity,
-            image_url: i.image_url,
-          })),
-          subtotal,
-          items_total: subtotal,
-          gst_included,
-          total,
-          discount,
-          delivery_fee: 0,
-          platform_fee: 0,
-          coupon_applied: couponApplied ? 'RAZOR2026' : null,
-        }
-      });
-      setCheckoutResult(res);
-      setIsCheckoutOpen(true);
+      localStorage.setItem('razorcommerce_cart', JSON.stringify(items.map(i => ({
+        product_id: i.id,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        image_url: i.image_url,
+      }))));
+      localStorage.removeItem('razorcommerce_staged_buy_now');
+      router.push('/checkout');
     } catch (e) {
-      console.error('Checkout error:', e);
+      console.error('Checkout routing error:', e);
+      router.push('/checkout');
     }
   };
 

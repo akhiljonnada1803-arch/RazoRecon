@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 
 export default function MerchantRegisterPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { register } = useAuth();
 
   const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
@@ -34,11 +34,59 @@ export default function MerchantRegisterPage() {
     setIsSubmitting(true);
     setErrorMsg(null);
 
-    const success = await login(email || 'owner@acme.com', password || 'demo123');
-    if (success) {
-      router.push('/');
-    } else {
-      setErrorMsg('Could not create merchant account. Please use demo login credentials.');
+    // Front-end pre-flight validations
+    if (!businessName.trim()) {
+      setErrorMsg('Business name is required (EMPTY_BUSINESS_NAME)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setErrorMsg('Valid business email is required (INVALID_EMAIL_FORMAT)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters (WEAK_PASSWORD)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (gstin && gstin.trim()) {
+      const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstinRegex.test(gstin.trim().toUpperCase())) {
+        setErrorMsg('Invalid GSTIN format. Example: 29AAAAA0000A1Z5 (INVALID_GSTIN)');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    try {
+      await register({
+        business_name: businessName.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        gstin: gstin.trim() ? gstin.trim().toUpperCase() : undefined
+      });
+      // AuthContext.register automatically logs in and redirects to /dashboard
+    } catch (err: any) {
+      console.error('Merchant registration failed:', err);
+      const rawError = err.message || 'Registration failed. Please check your details.';
+      if (rawError.includes('EMAIL_ALREADY_EXISTS')) {
+        setErrorMsg('This business email is already registered (EMAIL_ALREADY_EXISTS). Please log in.');
+      } else if (rawError.includes('INVALID_GSTIN')) {
+        setErrorMsg('Invalid GSTIN format (INVALID_GSTIN).');
+      } else if (rawError.includes('WEAK_PASSWORD')) {
+        setErrorMsg('Password must be at least 6 characters (WEAK_PASSWORD).');
+      } else if (rawError.includes('INVALID_EMAIL_FORMAT')) {
+        setErrorMsg('Invalid email format (INVALID_EMAIL_FORMAT).');
+      } else if (rawError.includes('EMPTY_BUSINESS_NAME')) {
+        setErrorMsg('Business name cannot be empty (EMPTY_BUSINESS_NAME).');
+      } else {
+        setErrorMsg(rawError);
+      }
       setIsSubmitting(false);
     }
   };

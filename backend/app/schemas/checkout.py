@@ -15,6 +15,10 @@ class CartItemDTO(BaseModel):
     gst_rate_pct: float = 18.0
     hsn_sac_code: Optional[str] = "8470"
     active_offer: Optional[str] = None
+    tier_used: Optional[Dict[str, Any]] = None
+    discount_amount: float = 0.0
+    effective_price: Optional[float] = None
+    original_price: Optional[float] = None
 
 class CartSummaryDTO(BaseModel):
     items_total: float = 0.0  # Total of GST-inclusive customer prices
@@ -24,6 +28,8 @@ class CartSummaryDTO(BaseModel):
     gst_included_amount: float = 0.0  # GST embedded in items_total
     tax_amount: float = 0.0  # Alias for gst_included_amount
     discount_amount: float = 0.0
+    volume_discount_amount: float = 0.0  # Total volume tier discounts applied
+    coupon_discount_amount: float = 0.0  # Total promotional coupon discounts applied
     discount_code: Optional[str] = None
     discount_pct: Optional[float] = 0.0
     final_amount: float = 0.0  # items_total + delivery_fee + platform_fee - discount_amount

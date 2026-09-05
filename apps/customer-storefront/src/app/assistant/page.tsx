@@ -16,6 +16,7 @@ import { CommerceChatInterface } from '@/components/commerce/CommerceChatInterfa
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { ProductComparisonModal } from '@/components/commerce/ProductComparisonModal';
 import { CheckoutSuccessModal } from '@/components/commerce/CheckoutSuccessModal';
+import { AgentConfirmationModal } from '@/components/commerce/AgentConfirmationModal';
 import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
@@ -41,19 +42,20 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 'msg_welcome',
     role: 'assistant',
     content: (
-      "👋 **Welcome to your AI Shopping Assistant!**\n\n" +
-      "I can help you explore 50+ enterprise fintech hardware, high-end developer peripherals, and smart payment devices.\n\n" +
-      "**What would you like to do?**\n" +
-      "• Ask for tailored recommendations (e.g., *'Show smart POS machines with 4G soundbox for my retail store'*)\n" +
-      "• Ask technical specs & compare items side-by-side\n" +
-      "• Add products to your cart and instantly initiate Razorpay Checkout with 7-stage delivery tracking"
+      "👋 **Welcome to your AI Personal Shopping Advisor!**\n\n" +
+      "I provide tailored commercial hardware recommendations, side-by-side spec comparisons with Pros & Cons, and seamless 1-click AutoPay autonomous buying.\n\n" +
+      "**Try asking me:**\n" +
+      "• *'I need a laptop under ₹60,000'*\n" +
+      "• *'Find the best POS machine'*\n" +
+      "• *'Recommend a CCTV camera'*\n" +
+      "• *'Buy a printer for my store'*"
     ),
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     suggested_prompts: [
-      "Show smart POS terminals for retail stores",
-      "Compare Razorpay POS Terminal V3 and Smart Soundbox 4G",
-      "Recommend developer hardware under ₹40,000",
-      "Show me enterprise thermal barcode scanners"
+      "I need a laptop under ₹60,000",
+      "Find the best POS machine",
+      "Recommend a CCTV camera",
+      "Buy a printer for my store"
     ]
   }
 ];
@@ -80,6 +82,8 @@ export default function CustomerAssistantPage() {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [agentConfirmation, setAgentConfirmation] = useState<any | null>(null);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
 
   // 1. Fetch available products catalog
   const { data: catalogProducts = [] } = useQuery<Product[]>({
@@ -94,25 +98,89 @@ export default function CustomerAssistantPage() {
     },
   });
 
-  // 2. Chat mutation
+  // 1b. Fetch customer AutoPay configuration
+  const { data: autopayData } = useQuery({
+    queryKey: ['customer-autopay'],
+    queryFn: async () => {
+      try {
+        return await apiClient.get<any>('/customer/autopay');
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: isAuthenticated,
+  });
+
+  const isAutoPayEnabled = Boolean(autopayData?.autopay_enabled && autopayData?.connected_payment_method);
+
+  // 1c. One-Click AutoPay Buy Mutation
+  const oneClickBuyMutation = useMutation({
+    mutationFn: async ({ productId, quantity = 1 }: { productId: string; quantity?: number }) => {
+      return await apiClient.post<any>('/customer/autopay/one-click-buy', {
+        product_id: productId,
+        quantity
+      });
+    },
+    onSuccess: (res) => {
+      if (res.confirmation) {
+        setAgentConfirmation(res.confirmation);
+        setIsConfirmationModalOpen(true);
+      }
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail || err?.message || 'AutoPay purchase could not be completed.';
+      alert(`⚠️ AutoPay Error: ${detail}`);
+    }
+  });
+
+  const handleBuyAutoPay = async (product: Product) => {
+    if (!isAuthenticated) {
+      setPendingProduct(product);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!isAutoPayEnabled) {
+      router.push('/customer/autopay');
+      return;
+    }
+    oneClickBuyMutation.mutate({ productId: product.id, quantity: 1 });
+  };
+
+  // 2. Chat mutation supporting advisor actions
+  interface ChatPayload {
+    query: string;
+    action?: string;
+    selected_product_id?: string;
+    selected_address?: any;
+    quantity?: number;
+  }
+
   const chatMutation = useMutation({
-    mutationFn: (query: string) => 
-      apiClient.post<CommerceChatResponse>('/commerce/chat', {
-        query,
-        history: messages,
-        cart
-      }),
+    mutationFn: (payload: string | ChatPayload) => {
+      const body = typeof payload === 'string'
+        ? { query: payload, history: messages, cart }
+        : { ...payload, history: messages, cart };
+      return apiClient.post<CommerceChatResponse>('/commerce/chat', body);
+    },
     onSuccess: (data) => {
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now()}`,
         role: 'assistant',
         content: data.message,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        flow_step: data.flow_step,
         recommended_products: data.recommended_products,
         comparison_data: data.comparison_data,
+        ai_recommendation_reason: data.ai_recommendation_reason,
+        selected_product: data.selected_product,
+        selected_address: data.selected_address,
+        order_summary: data.order_summary,
+        saved_addresses: data.saved_addresses,
         suggested_prompts: data.suggested_prompts,
         action_type: data.action_triggered,
-        checkout_link: data.checkout_link
+        checkout_link: data.checkout_link,
+        autonomous_order: data.autonomous_order,
+        requires_approval: data.requires_approval
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -123,6 +191,11 @@ export default function CustomerAssistantPage() {
 
       if (data.action_triggered === 'checkout_link_created' && data.checkout_link) {
         setIsCartOpen(true);
+      }
+
+      if (data.autonomous_order?.confirmation) {
+        setAgentConfirmation(data.autonomous_order.confirmation);
+        setIsConfirmationModalOpen(true);
       }
     },
     onError: () => {
@@ -137,6 +210,53 @@ export default function CustomerAssistantPage() {
       ]);
     }
   });
+
+  const handleSelectProduct = (product: Product) => {
+    const userMessage: ChatMessage = {
+      id: `msg_user_${Date.now()}`,
+      role: 'user',
+      content: `👉 I select ${product.name}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages(prev => [...prev, userMessage]);
+    chatMutation.mutate({
+      query: `Select ${product.name}`,
+      action: 'select_product',
+      selected_product_id: product.id
+    });
+  };
+
+  const handleSelectAddress = (address: any, product: Product) => {
+    const userMessage: ChatMessage = {
+      id: `msg_user_${Date.now()}`,
+      role: 'user',
+      content: `📍 Ship to ${address.label} (${address.city})`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages(prev => [...prev, userMessage]);
+    chatMutation.mutate({
+      query: `Ship to ${address.label}`,
+      action: 'select_address',
+      selected_product_id: product.id,
+      selected_address: address
+    });
+  };
+
+  const handleConfirmAutoPayPurchase = (product: Product, address: any) => {
+    const userMessage: ChatMessage = {
+      id: `msg_user_${Date.now()}`,
+      role: 'user',
+      content: `⚡ Confirm & Buy ${product.name} via AutoPay`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages(prev => [...prev, userMessage]);
+    chatMutation.mutate({
+      query: `Confirm & Buy ${product.name} via AutoPay`,
+      action: 'confirm_autopay_purchase',
+      selected_product_id: product.id,
+      selected_address: address
+    });
+  };
 
   // 3. Checkout mutation
   const checkoutMutation = useMutation({
@@ -171,9 +291,6 @@ export default function CustomerAssistantPage() {
 
   const calculateCart = (items: CartItem[], coupon: string | null = cart.coupon_applied || null): CartState => {
     const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax_gst = Math.round(subtotal * 0.18);
-    const shipping = subtotal > 5000 || subtotal === 0 ? 0 : 499;
-    
     let discount = 0;
     if (coupon?.toUpperCase() === 'RAZOR2026') {
       discount = Math.round(subtotal * 0.10);
@@ -181,12 +298,19 @@ export default function CustomerAssistantPage() {
       discount = Math.min(2500, Math.round(subtotal * 0.15));
     }
 
-    const total = Math.max(0, subtotal + tax_gst + shipping - discount);
+    const discountedSubtotal = Math.max(0, subtotal - discount);
+    const gst_included = Math.round(discountedSubtotal - (discountedSubtotal / 1.18));
+    const shipping = subtotal > 5000 || subtotal === 0 ? 0 : 49;
+    const total = discountedSubtotal + shipping;
 
     return {
       items,
+      items_total: subtotal,
       subtotal,
-      tax_gst,
+      delivery_fee: shipping,
+      platform_fee: 0,
+      gst_included,
+      tax_gst: gst_included,
       shipping,
       discount,
       coupon_applied: coupon,
@@ -336,6 +460,8 @@ export default function CustomerAssistantPage() {
           onSendMessage={handleSendMessage}
           isLoading={chatMutation.isPending}
           onAddToCart={handleAddToCart}
+          onBuyAutoPay={handleBuyAutoPay}
+          isAutoPayEnabled={isAutoPayEnabled}
           onCompare={handleCompare}
           onOpenComparison={(data) => {
             setComparisonModalData(data);
@@ -343,6 +469,9 @@ export default function CustomerAssistantPage() {
           }}
           onOpenCart={() => setIsCartOpen(true)}
           onResetChat={handleResetChat}
+          onSelectProduct={handleSelectProduct}
+          onSelectAddress={handleSelectAddress}
+          onConfirmAutoPayPurchase={handleConfirmAutoPayPurchase}
         />
       </div>
 
@@ -360,9 +489,25 @@ export default function CustomerAssistantPage() {
             router.push('/login?redirect=/checkout');
             return;
           }
-          checkoutMutation.mutate();
+          try {
+            localStorage.setItem('razorcommerce_cart', JSON.stringify(cart.items.map(i => ({
+              product_id: i.product_id,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              image_url: i.image_url,
+              sku: `SKU-${i.product_id.toUpperCase()}`
+            }))));
+            localStorage.removeItem('razorcommerce_staged_buy_now');
+            setIsCartOpen(false);
+            router.push('/checkout');
+          } catch (e) {
+            console.error(e);
+            setIsCartOpen(false);
+            router.push('/checkout');
+          }
         }}
-        isCheckingOut={checkoutMutation.isPending}
+        isCheckingOut={false}
       />
 
       {/* Side-by-Side Product Comparison Modal */}
@@ -378,6 +523,13 @@ export default function CustomerAssistantPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
+      />
+
+      {/* Autonomous Agent Purchase Confirmation Modal */}
+      <AgentConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        data={agentConfirmation}
       />
 
       {/* Customer Authentication Gating Modal */}

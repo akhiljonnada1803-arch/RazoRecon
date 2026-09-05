@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { apiClient } from '@/lib/api-client';
+import { AIReviewIntelligenceCard } from '@/components/commerce/AIReviewIntelligenceCard';
+
 
 export default function StandaloneCheckoutPage() {
   const router = useRouter();
@@ -224,9 +226,16 @@ export default function StandaloneCheckoutPage() {
                 Includes ₹{gst_included.toLocaleString('en-IN')} GST
               </div>
             </div>
+
+            {/* Before Checkout AI Review Intelligence Card */}
+            <AIReviewIntelligenceCard
+              productId="prod_pos_smart_v3"
+              compact={true}
+            />
           </div>
         </div>
       )}
+
     </div>
   );
 }

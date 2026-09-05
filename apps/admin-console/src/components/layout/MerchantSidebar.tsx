@@ -29,24 +29,29 @@ const MERCHANT_NAV = [
     title: 'STORE OPERATIONS',
     items: [
       { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard, badge: 'Live' },
-      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
+      { href: '/merchant/catalog', label: 'Catalog & Inventory', icon: Package, badge: '50 SKUs' },
       { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
       { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
     ],
   },
   {
-    title: 'GROWTH & REVENUE',
+    title: 'MERCHANT INTELLIGENCE',
     items: [
-      { href: '/merchant/campaigns', label: 'Campaign Manager', icon: Megaphone, badge: 'Auto' },
-      { href: '/merchant/revenue', label: 'Revenue Dashboard', icon: TrendingUp, badge: '+28.9%' },
+      { href: '/merchant/demand-intelligence', label: 'Demand Intelligence', icon: TrendingUp, badge: 'AI Engine' },
+      { href: '/merchant/revenue', label: 'Revenue Forecasting', icon: TrendingUp, badge: '+28.9%' },
       { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
     ],
   },
   {
-    title: 'INTELLIGENCE & SETTINGS',
+    title: 'GROWTH & MARKETING',
+    items: [
+      { href: '/merchant/campaigns', label: 'Campaign Recommendations', icon: Megaphone, badge: 'Auto Lift' },
+    ],
+  },
+  {
+    title: 'AI TOOLS',
     items: [
       { href: '/merchant/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'AI Copilot' },
-      { href: '/merchant/settings', label: 'Store Settings', icon: Settings },
     ],
   },
 ];

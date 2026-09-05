@@ -27,9 +27,13 @@ export interface Product {
   features?: string[];
   key_features?: string[];
   specs?: ProductSpec[];
+  pros?: string[];
+  cons?: string[];
   stock?: number;
   stock_quantity?: number;
   stock_status?: string;
+  delivery_eta?: string;
+  merchant_trust_score?: number;
   inventory_status?: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'PRE_ORDER' | 'DISCONTINUED';
   in_stock?: boolean;
   offer?: string;
@@ -100,6 +104,43 @@ export interface ComparisonData {
   verdict: string;
 }
 
+export interface DeliveryAddress {
+  id: string;
+  label: string;
+  recipient_name: string;
+  address_line: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone: string;
+  is_default?: boolean;
+}
+
+export interface AIRecommendationReason {
+  recommended_product_id: string;
+  product_name: string;
+  headline: string;
+  why_bullets: string[];
+}
+
+export interface AdvisorOrderSummary {
+  product_id: string;
+  product_name: string;
+  product_image: string;
+  brand: string;
+  quantity: number;
+  unit_price: number;
+  base_subtotal: number;
+  gst_amount: number;
+  delivery_fee: number;
+  total_amount: number;
+  delivery_address: DeliveryAddress;
+  expected_delivery: string;
+  within_limit: boolean;
+  within_budget: boolean;
+  payment_method: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -107,21 +148,38 @@ export interface ChatMessage {
   timestamp: string;
   action_type?: string;
   checkout_link?: string;
+  flow_step?: string;
   recommended_products?: Product[];
   comparison_data?: ComparisonData | null;
+  ai_recommendation_reason?: AIRecommendationReason | null;
+  selected_product?: Product | null;
+  selected_address?: DeliveryAddress | null;
+  order_summary?: AdvisorOrderSummary | null;
+  saved_addresses?: DeliveryAddress[] | null;
   suggested_prompts?: string[];
+  autonomous_order?: any;
+  requires_approval?: boolean;
 }
 
 export interface CommerceChatResponse {
   message: string;
   action_triggered?: string;
   action_type?: string;
+  flow_step?: string;
   checkout_link?: string;
   cart?: any;
   recommended_products?: Product[];
   comparison?: ComparisonData | null;
   comparison_data?: ComparisonData | null;
+  ai_recommendation_reason?: AIRecommendationReason | null;
+  selected_product?: Product | null;
+  selected_address?: DeliveryAddress | null;
+  order_summary?: AdvisorOrderSummary | null;
+  saved_addresses?: DeliveryAddress[] | null;
   suggested_prompts?: string[];
+  autonomous_order?: any;
+  requires_approval?: boolean;
+  autopay_guardrail_info?: any;
 }
 
 export interface CheckoutResult {

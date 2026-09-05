@@ -26,12 +26,14 @@ import {
   Layers,
   ArrowUpRight,
   Boxes,
-  ClipboardList
+  ClipboardList,
+  FileText
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import { downloadOrderInvoice } from '@/lib/invoice';
 
 const STAGES_LIST = [
   'ALL',
@@ -367,6 +369,16 @@ export default function MerchantOrdersPage() {
 
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadOrderInvoice(orderId)}
+                            title="Download GST Compliant Tax Invoice (PDF)"
+                            className="h-7 px-2 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-semibold gap-1 shrink-0"
+                          >
+                            <FileText className="h-3 w-3 text-[#0B72E7]" />
+                            <span>Invoice</span>
+                          </Button>
                           {/* Merchant Actions strictly according to e-commerce fulfillment */}
                           {(currentStatus === 'PAYMENT_RECEIVED' || currentStatus === 'PENDING_CONFIRMATION') && (
                             <>

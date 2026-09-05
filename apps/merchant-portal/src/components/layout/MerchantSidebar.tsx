@@ -34,26 +34,27 @@ export const MERCHANT_NAV = [
     title: 'STORE OPERATIONS',
     items: [
       { href: '/merchant/dashboard', label: 'Merchant Hub', icon: LayoutDashboard, badge: 'Live' },
-      { href: '/merchant/catalog', label: 'Catalog Management', icon: Package, badge: '50 SKUs' },
+      { href: '/merchant/catalog', label: 'Catalog & Inventory', icon: Package, badge: '50 SKUs' },
       { href: '/merchant/orders', label: 'Orders & Fulfillment', icon: ShoppingBag, badge: '7-Stage' },
       { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
     ],
   },
   {
-    title: 'MERCHANT INTELLIGENCE',
+    title: 'AI GROWTH & REVENUE',
     items: [
-      { href: '/merchant/demand-intelligence', label: 'Demand Intelligence', icon: Flame, badge: 'AI Engine' },
-      { href: '/merchant/revenue', label: 'Revenue Forecasting', icon: LineChart, badge: '+28.9%' },
-      { href: '/merchant/inventory-optimization', label: 'Inventory Optimization', icon: Boxes, badge: 'Risk Alert' },
-      { href: '/merchant/campaigns', label: 'Campaign Recommendations', icon: Megaphone, badge: 'Auto Lift' },
-      { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
+      { href: '/merchant/revenue', label: 'Revenue Dashboard', icon: LineChart, badge: '34.2% AI' },
+      { href: '/merchant/upsell', label: 'Upsell & Cross-Sell', icon: Sparkles, badge: 'Auto Lift' },
+      { href: '/merchant/agent-analytics', label: 'Agent Analytics', icon: Activity, badge: '4.6x Conv' },
+      { href: '/merchant/campaigns', label: 'Campaign Manager', icon: Megaphone, badge: 'AI ROI' },
     ],
   },
   {
-    title: 'AI COPILOT & SETTINGS',
+    title: 'CUSTOMER & AGENT INTELLIGENCE',
     items: [
+      { href: '/merchant/customers', label: 'Customer Intelligence', icon: Users, badge: 'CLV Tiers' },
+      { href: '/merchant/demand-intelligence', label: 'Demand Intelligence', icon: Flame, badge: 'Forecast' },
+      { href: '/merchant/readiness', label: 'Agent Readiness Score', icon: ShieldCheck, badge: '99.5/100' },
       { href: '/merchant/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'AI Copilot' },
-      { href: '/merchant/settings', label: 'Store Settings', icon: Settings },
     ],
   },
 ];

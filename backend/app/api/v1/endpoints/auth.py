@@ -7,6 +7,7 @@ from app.schemas.auth import (
     OrganizationDTO, 
     SwitchOrgRequestDTO,
     RegisterRequestDTO,
+    RegisterResponseDTO,
     QuickSwitchUserRequestDTO,
     RoleDTO,
     PermissionDTO,
@@ -25,7 +26,7 @@ def login(payload: LoginRequestDTO):
     if not auth_resp:
         raise HTTPException(
             status_code=401, 
-            detail="Invalid email or password. Use demo accounts (controller@acme.com, cfo@acme.com, auditor@acme.com, admin@razorrecon.ai / demo123)"
+            detail="Invalid email or password."
         )
     auth_service.log_audit_event(
         user_name=auth_resp.user.name,
@@ -56,8 +57,12 @@ def logout():
     return {"status": "logged_out", "message": "Session terminated successfully."}
 
 @router.get("/me", response_model=UserDTO)
-def get_current_user():
+def get_current_user(authorization: Optional[str] = Header(None)):
     """Retrieve active authenticated user profile & RBAC permissions from SQLite database."""
+    if authorization:
+        user = auth_service.verify_token(authorization)
+        if user:
+            return user
     return auth_service.get_current_user_profile()
 
 @router.get("/roles", response_model=List[RoleDTO])
@@ -80,16 +85,21 @@ def get_ai_agent_status():
     """Retrieve status and telemetry for the autonomous non-human AI Finance Agent."""
     return auth_service.get_ai_agent_status()
 
-@router.post("/register", response_model=UserDTO)
+@router.post("/register", response_model=RegisterResponseDTO, status_code=201)
 def register(payload: RegisterRequestDTO):
-    """Register a new enterprise operator in SQLite database."""
-    return auth_service.register_user(
-        name=payload.name,
-        email=payload.email,
-        password=payload.password,
-        role=payload.role or "Finance Controller",
-        org_name=payload.organization_name or "Acme Direct Corp"
-    )
+    """Register a new merchant account with genuine database persistence."""
+    try:
+        business_name = payload.business_name or payload.organization_name or payload.name or ""
+        return auth_service.register_merchant(
+            business_name=business_name,
+            email=payload.email,
+            password=payload.password,
+            gstin=payload.gstin
+        )
+    except ValueError as e:
+        err_msg = str(e)
+        status_code = 409 if err_msg == "EMAIL_ALREADY_EXISTS" else 400
+        raise HTTPException(status_code=status_code, detail=err_msg)
 
 @router.get("/organizations", response_model=List[OrganizationDTO])
 def get_organizations():

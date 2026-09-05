@@ -212,6 +212,12 @@ def adjust_product_stock(
         raise HTTPException(status_code=404, detail=f"Product with ID '{product_id}' not found.")
     return updated
 
+@router.post("/reseed")
+def reseed_catalog():
+    """Reseed the master product catalog from master_product_catalog.csv."""
+    result = catalog_service.reseed_from_csv()
+    return result
+
 @router.delete("/{product_id}")
 @router.delete("/products/{product_id}")
 def delete_product(product_id: str = Path(..., description="Unique product identifier")):

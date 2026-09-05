@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import GrowthCampaignsPage from '@/app/growth/campaigns/page';
+import CampaignManagerPage from '@/components/growth/CampaignManagerEngine';
 
 export default function MerchantCampaignsPage() {
-  return <GrowthCampaignsPage />;
+  return <CampaignManagerPage />;
 }

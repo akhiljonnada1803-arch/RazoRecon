@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ShoppingCartDrawer } from '@/components/commerce/ShoppingCartDrawer';
 import { CheckoutSuccessModal } from '@/components/commerce/CheckoutSuccessModal';
 import { CustomerAuthModal } from '@/components/commerce/CustomerAuthModal';
+import { AgentConfirmationModal } from '@/components/commerce/AgentConfirmationModal';
 import { 
   Search, 
   Filter, 
@@ -50,6 +51,48 @@ export default function CustomerProductsPage() {
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [agentConfirmation, setAgentConfirmation] = useState<any | null>(null);
+  const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
+
+  // Fetch customer AutoPay configuration
+  const { data: autopayData } = useQuery({
+    queryKey: ['customer-autopay'],
+    queryFn: async () => {
+      try {
+        return await apiClient.get<any>('/customer/autopay');
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: isAuthenticated,
+  });
+
+  const isAutoPayEnabled = Boolean(autopayData?.autopay_enabled && autopayData?.connected_payment_method);
+
+  const handleBuyAutoPay = async (product: Product) => {
+    if (!isAuthenticated) {
+      setPendingProduct(product);
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!isAutoPayEnabled) {
+      router.push('/customer/autopay');
+      return;
+    }
+    try {
+      const res = await apiClient.post<any>('/customer/autopay/one-click-buy', {
+        product_id: product.id,
+        quantity: 1
+      });
+      if (res?.confirmation) {
+        setAgentConfirmation(res.confirmation);
+        setIsConfirmationModalOpen(true);
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'AutoPay purchase could not be completed.';
+      alert(`⚠️ AutoPay Error: ${detail}`);
+    }
+  };
 
   // Cart state
   const [cart, setCart] = useState<CartState>({
@@ -441,20 +484,32 @@ export default function CustomerProductsPage() {
                       </span>
                       <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5 mt-0.5">
                         <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
-                        Inclusive of GST
+                        Inclusive of all taxes
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        disabled={!product.in_stock}
-                        onClick={() => handleAddToCart(product)}
-                        className="h-8 px-3 rounded-xl bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold shadow-2xs gap-1.5"
-                      >
-                        <ShoppingBag className="h-3.5 w-3.5" />
-                        <span>Add</span>
-                      </Button>
+                      {isAutoPayEnabled ? (
+                        <Button
+                          size="sm"
+                          disabled={!product.in_stock}
+                          onClick={() => handleBuyAutoPay(product)}
+                          className="h-8 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
+                        >
+                          <Zap className="h-3 w-3 text-amber-300 fill-amber-300" />
+                          <span>AutoPay</span>
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={!product.in_stock}
+                          onClick={() => handleAddToCart(product)}
+                          className="h-8 px-3 rounded-xl bg-[#0B72E7] hover:bg-[#095ec2] text-white text-xs font-semibold shadow-2xs gap-1.5"
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          <span>Add</span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -478,9 +533,25 @@ export default function CustomerProductsPage() {
             router.push('/login?redirect=/checkout');
             return;
           }
-          checkoutMutation.mutate();
+          try {
+            localStorage.setItem('razorcommerce_cart', JSON.stringify(cart.items.map(i => ({
+              product_id: i.product_id,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              image_url: i.image_url,
+              sku: i.product?.sku || `SKU-${i.product_id.toUpperCase()}`
+            }))));
+            localStorage.removeItem('razorcommerce_staged_buy_now');
+            setIsCartOpen(false);
+            router.push('/checkout');
+          } catch (e) {
+            console.error(e);
+            setIsCartOpen(false);
+            router.push('/checkout');
+          }
         }}
-        isCheckingOut={checkoutMutation.isPending}
+        isCheckingOut={false}
       />
 
       {/* Post-Checkout Razorpay Success Modal */}
@@ -488,6 +559,13 @@ export default function CustomerProductsPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         result={checkoutResult}
+      />
+
+      {/* Autonomous Agent Purchase Confirmation Modal */}
+      <AgentConfirmationModal
+        isOpen={isConfirmationModalOpen}
+        onClose={() => setIsConfirmationModalOpen(false)}
+        data={agentConfirmation}
       />
 
       {/* Customer Authentication Gating Modal */}
