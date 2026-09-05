@@ -20,5 +20,8 @@ class Settings(BaseModel):
     )
     APP_LLM_MODEL: str = os.getenv("APP_LLM_MODEL", "gpt-4o-mini")
     OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY")
+    GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    GROQ_BASE_URL: str = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 
 settings = Settings()

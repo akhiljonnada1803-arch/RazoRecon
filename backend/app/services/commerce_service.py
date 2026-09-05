@@ -1390,7 +1390,26 @@ class CommerceService:
                 f"⚠️ **Before Checkout Notice**: *\"{lead_intel.before_checkout_summary}\"*"
             )
 
-        if is_emi_intent:
+        # Generate dynamic Groq LLM response if API key is configured
+        groq_message = None
+        try:
+            from app.services.groq_service import groq_service
+            if groq_service.is_configured():
+                groq_message = groq_service.generate_commerce_response(
+                    query=query,
+                    history=history,
+                    products=top_3,
+                    guardrails=autopay_guardrail_info,
+                    review_intel=lead_intel,
+                    is_review_intent=is_review_intent,
+                    is_emi_intent=is_emi_intent
+                )
+        except Exception:
+            groq_message = None
+
+        if groq_message:
+            message = groq_message
+        elif is_emi_intent:
             message = (
                 f"💳 **AI EMI Advisor Analysis for {lead_product.name}**\n\n"
                 f"For a total price of **₹{lead_product.price:,.2f}**, here is your optimized financing recommendation:"
