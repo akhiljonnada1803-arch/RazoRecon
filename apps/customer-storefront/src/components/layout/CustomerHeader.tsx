@@ -63,10 +63,10 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
             </div>
             <div>
               <span className="font-black text-xl text-[#072654] tracking-tight block leading-none">
-                Razor<span className="text-[#0B72E7]">Commerce</span> <span className="text-xs font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200/60 ml-0.5">AI</span>
+                Cart<span className="text-[#0B72E7]">Mind</span>
               </span>
-              <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase block mt-0.5">
-                AI Powered Marketplace
+              <span className="text-[10px] font-semibold text-slate-400 tracking-wider block mt-0.5">
+                Your AI Shopping Companion
               </span>
             </div>
           </Link>
@@ -119,7 +119,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                   }`}
                 >
                   <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>AI AutoPay</span>
+                  <span>CartMind AutoPay</span>
                 </Link>
               </>
             )}
@@ -131,7 +131,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Shopping</span>
+              <span>CartMind AI</span>
             </Link>
 
             <a 
@@ -250,7 +250,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                         className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
                       >
                         <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-                        <span>AI Budget AutoPay</span>
+                        <span>CartMind AutoPay</span>
                       </Link>
 
                       <Link 
@@ -259,7 +259,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                         className="flex items-center gap-2 px-4 py-2 hover:bg-blue-50 text-[#0B72E7] font-semibold"
                       >
                         <Sparkles className="w-4 h-4 text-[#0B72E7]" />
-                        <span>AI Assistant</span>
+                        <span>CartMind AI</span>
                       </Link>
                     </div>
 
@@ -335,7 +335,7 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
               onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-xl hover:bg-blue-50 text-[#0B72E7] font-bold"
             >
-              ✨ AI Shopping Assistant
+              ✨ CartMind AI
             </Link>
             {isAuthenticated ? (
               <div className="space-y-1 pt-2 border-t border-slate-100">
@@ -347,11 +347,11 @@ export function CustomerHeader({ cartCount = 0, onOpenCart }: CustomerHeaderProp
                   📦 My Orders
                 </Link>
                 <Link 
-                  href="/autopay" 
+                  href="/customer/autopay" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-xl hover:bg-slate-50 font-bold text-[#0B72E7]"
                 >
-                  ⚡ AI Budget AutoPay
+                  ⚡ CartMind AutoPay
                 </Link>
                 <Link 
                   href="/account" 

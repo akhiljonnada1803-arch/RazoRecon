@@ -25,10 +25,10 @@ function OnboardingAddressForm() {
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
+  const [houseFlatNumber, setHouseFlatNumber] = useState('');
+  const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
-  const [state, setState] = useState('Karnataka');
+  const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [landmark, setLandmark] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,12 +65,24 @@ function OnboardingAddressForm() {
       setErrorMsg('Please enter your full name.');
       return;
     }
-    if (!addressLine1.trim()) {
-      setErrorMsg('Please enter your street address.');
+    if (!phone.trim()) {
+      setErrorMsg('Please enter your mobile number.');
+      return;
+    }
+    if (!houseFlatNumber.trim()) {
+      setErrorMsg('Please enter your house or flat number.');
+      return;
+    }
+    if (!street.trim()) {
+      setErrorMsg('Please enter your street name/area.');
       return;
     }
     if (!city.trim()) {
       setErrorMsg('Please enter your city.');
+      return;
+    }
+    if (!state.trim()) {
+      setErrorMsg('Please select or enter your state.');
       return;
     }
     if (!pincode.trim() || pincode.trim().length < 6) {
@@ -80,14 +92,17 @@ function OnboardingAddressForm() {
 
     setIsSubmitting(true);
     try {
+      const addressLine1 = `${houseFlatNumber.trim()}, ${street.trim()}`;
       const res = await fetch('/api/v1/customer/onboarding/address', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           full_name: fullName.trim(),
-          phone: phone.trim() || '+91 98765 43210',
-          address_line1: addressLine1.trim(),
-          address_line2: addressLine2.trim() || undefined,
+          phone: phone.trim(),
+          house_flat_number: houseFlatNumber.trim(),
+          street: street.trim(),
+          address_line1: addressLine1,
+          address_line2: landmark.trim() || undefined,
           city: city.trim(),
           state: state.trim(),
           pincode: pincode.trim(),
@@ -101,8 +116,11 @@ function OnboardingAddressForm() {
         throw new Error(data.detail || 'Failed to save delivery address');
       }
 
-      const nextParam = redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : '';
-      router.push(`/onboarding/payment${nextParam}`);
+      if (redirectParam) {
+        router.push(redirectParam);
+      } else {
+        router.push('/onboarding/payment');
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'An unexpected error occurred while saving your address.');
       setIsSubmitting(false);
@@ -190,46 +208,50 @@ function OnboardingAddressForm() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Phone Number
+                  Mobile Number *
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                   <input
                     type="tel"
+                    required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
+                    placeholder="e.g. 9876543210"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Flat, House No., Building, Street *
-              </label>
-              <input
-                type="text"
-                required
-                value={addressLine1}
-                onChange={(e) => setAddressLine1(e.target.value)}
-                placeholder="e.g. Flat 402, Prestige Tower, 100 Feet Road"
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  House / Flat Number *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={houseFlatNumber}
+                  onChange={(e) => setHouseFlatNumber(e.target.value)}
+                  placeholder="e.g. Flat 402, Building A"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Area, Sector, Colony (Optional)
-              </label>
-              <input
-                type="text"
-                value={addressLine2}
-                onChange={(e) => setAddressLine2(e.target.value)}
-                placeholder="e.g. Koramangala 4th Block"
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
-              />
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Street / Road / Area *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  placeholder="e.g. Outer Ring Road, Marathahalli"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -252,10 +274,12 @@ function OnboardingAddressForm() {
                   State *
                 </label>
                 <select
+                  required
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0B72E7] focus:border-transparent transition-all"
                 >
+                  <option value="">Select State</option>
                   <option value="Karnataka">Karnataka</option>
                   <option value="Maharashtra">Maharashtra</option>
                   <option value="Delhi">Delhi</option>

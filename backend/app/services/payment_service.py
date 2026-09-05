@@ -159,9 +159,19 @@ class PaymentService:
         )
 
         if not is_valid:
-            # Allow fallback if signature format is valid test token
-            if not req.razorpay_signature or len(req.razorpay_signature) < 10:
-                raise ValueError("Invalid Razorpay payment signature. Verification failed.")
+            try:
+                audit_service.log_audit(
+                    action="PAYMENT_FAILED",
+                    entity_type="PAYMENT",
+                    entity_id=req.razorpay_payment_id,
+                    user_name="Razorpay Gateway Sentinel",
+                    role="Payment Gateway",
+                    old_value={"status": "INITIATED", "order_id": req.razorpay_order_id},
+                    new_value={"status": "FAILED", "reason": "Invalid Razorpay HMAC signature verification failure"}
+                )
+            except Exception:
+                pass
+            raise ValueError("Invalid Razorpay payment signature. Verification failed.")
 
         now_str = utcnow_iso()
         # 2. Lookup Order
@@ -283,7 +293,7 @@ class PaymentService:
                 customer_name=cust_name or (req.email.split("@")[0].replace(".", " ").title() if req.email else "Valued Customer"),
                 customer_email=req.email or (order_row["customer_email"] if order_row else "customer@example.com"),
                 customer_phone=req.contact or (order_row["customer_phone"] if order_row else "+91 98765 43210"),
-                shipping_address=ship_addr or "124 Tech Park Avenue, Electronic City, Bengaluru, Karnataka 560100, India",
+                shipping_address=ship_addr or "",
                 items=items_list,
                 gross_amount=gross_amount,
                 subtotal=subtotal_val,

@@ -5,8 +5,8 @@ import { AuthProvider } from '@/context/AuthContext';
 import { MerchantAuthGuard } from '@/components/layout/MerchantAuthGuard';
 
 export const metadata: Metadata = {
-  title: 'RazorMerchant - Shopify Seller Portal',
-  description: 'Shopify Seller Dashboard for Catalog, Inventory, 7-Stage Orders & Fulfillment',
+  title: 'CartMind Business - Grow Revenue with AI-Powered Commerce',
+  description: 'Manage products, track orders, monitor revenue, launch campaigns, and scale your business with intelligent commerce automation.',
 };
 
 export default function RootLayout({

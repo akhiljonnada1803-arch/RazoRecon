@@ -91,10 +91,10 @@ export function AdminSidebar() {
             {!isCollapsed && (
               <div className="overflow-hidden">
                 <span className="font-extrabold text-sm tracking-tight text-white block truncate">
-                  Razor<span className="text-[#0B72E7]">Admin</span>
+                  Cart<span className="text-[#0B72E7]">Mind</span>
                 </span>
-                <span className="text-[10px] font-semibold text-blue-300 block -mt-0.5 uppercase tracking-wider">
-                  Platform Console
+                <span className="text-[10px] font-semibold text-blue-300 block -mt-0.5 tracking-wider">
+                  Control Center
                 </span>
               </div>
             )}
@@ -102,7 +102,7 @@ export function AdminSidebar() {
 
           {!isCollapsed && (
             <Badge className="bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[9px] font-mono px-1.5 py-0.5">
-              ENTERPRISE
+              OPERATIONS
             </Badge>
           )}
         </div>

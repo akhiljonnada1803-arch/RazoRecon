@@ -151,10 +151,10 @@ export function MerchantLandingPage() {
             </div>
             <div>
               <span className="font-black text-xl text-[#072654] tracking-tight block leading-none">
-                Razor<span className="text-emerald-600">Merchant</span> <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200 ml-0.5">PORTAL</span>
+                Cart<span className="text-emerald-600">Mind Business</span>
               </span>
-              <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase block mt-0.5">
-                Merchant Operating System
+              <span className="text-[10px] font-semibold text-slate-400 block mt-0.5">
+                Grow Revenue with AI-Powered Commerce
               </span>
             </div>
           </div>
@@ -196,18 +196,18 @@ export function MerchantLandingPage() {
               <div className="lg:col-span-7 space-y-6">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>NEXT-GEN AI COMMERCE PLATFORM FOR MERCHANTS</span>
+                  <span>CARTMIND BUSINESS COMMERCE PLATFORM</span>
                 </div>
 
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#072654] tracking-tight leading-[1.12]">
-                  Grow Your Revenue With <br />
+                  CartMind Business<br />
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600">
-                    AI Commerce.
+                    Grow Revenue with AI-Powered Commerce.
                   </span>
                 </h1>
 
                 <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
-                  Turn your catalog into an autonomous sales engine. Get discovered by AI buyer agents, automate 7-stage fulfillment, and settle payouts instantly via Razorpay.
+                  Manage products, track orders, monitor revenue, launch campaigns, and scale your business with intelligent commerce automation.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3.5 pt-2">
@@ -220,7 +220,7 @@ export function MerchantLandingPage() {
 
                   <Link href="/login">
                     <Button variant="outline" className="h-12 px-6 rounded-xl border-slate-300 hover:bg-slate-100 text-slate-800 text-xs sm:text-sm font-bold">
-                      <span>Sign In to Seller Hub</span>
+                      <span>Sign In to CartMind Business</span>
                     </Button>
                   </Link>
 
@@ -517,10 +517,10 @@ export function MerchantLandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-bold text-slate-900">
             <Store className="w-4 h-4 text-emerald-600" />
-            <span>RazorCommerce Merchant Portal • Port 3001</span>
+            <span>CartMind Business</span>
           </div>
           <div>
-            © 2026 RazorCommerce AI. Powered by Razorpay Track 01 Architecture.
+            Powered by CartMind AI Commerce Platform
           </div>
         </div>
       </footer>

@@ -78,15 +78,11 @@ def chat_with_commerce_agent(
         fallback_comp = commerce_service.build_comparison_table(fallback_prods)
         fallback_why = commerce_service.generate_ai_why_reasoning(fallback_prods[0])
         
+        from app.services.groq_service import format_optimized_response
+        fallback_msg = format_optimized_response(fallback_prods[0], query=payload.query or "")
+        
         return CommerceChatResponseDTO(
-            message=(
-                f"🤖 **Personal Shopping Advisor**\n\n"
-                f"I encountered a momentary formatting hiccup, but I have retrieved our top recommendations for you:\n\n"
-                f"🥇 **#1 Best Match**: **{fallback_prods[0].name}** (₹{fallback_prods[0].price:,.2f})\n"
-                f"🥈 **#2 Alternative**: **{fallback_prods[1].name}** (₹{fallback_prods[1].price:,.2f})\n"
-                f"🥉 **#3 Alternative**: **{fallback_prods[2].name}** (₹{fallback_prods[2].price:,.2f})\n\n"
-                f"Please review the comparison matrix below or ask me another specific question!"
-            ),
+            message=fallback_msg,
             flow_step="TOP_RECOMMENDATIONS",
             action_triggered="TOP_RECOMMENDATIONS",
             recommended_products=fallback_prods,

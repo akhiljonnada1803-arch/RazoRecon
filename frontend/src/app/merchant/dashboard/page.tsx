@@ -45,6 +45,8 @@ export default function MerchantDashboardPage() {
   const { data: metrics, isLoading } = useQuery<MerchantDashboardMetrics>({
     queryKey: ['merchant', 'dashboard'],
     queryFn: () => apiClient.get('/merchant/dashboard'),
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
   const isPlatformAdmin = user?.role === 'Platform Admin' || user?.role_id === 'role_platform_admin';

@@ -34,6 +34,8 @@ export interface Product {
   in_stock?: boolean;
   offer?: string;
   active_offer?: string;
+  offer_discount_pct?: number;
+  offer_badge?: string;
   delivery_time?: string;
   match_score?: number;
   ranking_breakdown?: {

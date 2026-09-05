@@ -29,13 +29,13 @@ CATEGORY_DOMAIN_MAP = {
 }
 
 CATEGORY_TO_OFFICIAL_NAME = {
-    "laptops": ["Workstations & Laptops"],
+    "laptops": ["Workstations & Laptops", "Workstations & Peripherals"],
     "smart_tvs": ["Smart TVs & Displays"],
     "pos_machines": ["Payment Terminals"],
-    "printers": ["Receipt & Billing Printers"],
-    "cctv_security": ["Security & Access"],
+    "printers": ["Receipt & Billing Printers", "Retail Peripherals"],
+    "cctv_security": ["Security & Access", "Security & Access Tokens"],
     "soundbox": ["Payment Audio Alerts"],
-    "software": ["Enterprise Software"]
+    "software": ["Enterprise Software", "FinOps Software"]
 }
 
 # Spec & feature phrases to detect
@@ -241,7 +241,7 @@ class AISearchService:
         category_relevance = 1.0
         if intent.category:
             expected_official = CATEGORY_TO_OFFICIAL_NAME.get(intent.category, [])
-            if any(product.category == cat for cat in expected_official):
+            if any(product.category.strip().lower() == cat.strip().lower() for cat in expected_official):
                 category_relevance = 1.0
             else:
                 category_relevance = 0.05
@@ -369,6 +369,11 @@ class AISearchService:
         3. Decorate top products with match_score and ranking breakdown
         4. Formulate overall recommendation reason and confidence score
         """
+        if not products:
+            from app.services.catalog_service import catalog_service
+            cat_resp = catalog_service.get_all_products(limit=1000)
+            products = (cat_resp.items if hasattr(cat_resp, "items") else getattr(cat_resp, "products", [])) or []
+
         if not products:
             return AdvisorRecommendationResponseDTO(
                 recommended_products=[],

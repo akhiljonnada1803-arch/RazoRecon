@@ -60,10 +60,15 @@ class ApplyCouponRequestDTO(BaseModel):
 
 class CheckoutOrderRequestDTO(BaseModel):
     cart_id: str
-    customer_name: Optional[str] = "Acme Retail Enterprise"
-    customer_email: Optional[str] = "procurement@acme.com"
-    customer_phone: Optional[str] = "+91 98765 43210"
-    shipping_address: Optional[str] = "Tower 4, Electronic City Phase 1, Bangalore 560100"
+    customer_id: Optional[str] = None
+    address_id: Optional[str] = None
+    payment_method: Optional[str] = "UPI"
+    shipping_address_id: Optional[str] = None
+    billing_address_id: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_phone: Optional[str] = None
+    shipping_address: Optional[str] = None
     notes: Optional[Dict[str, str]] = None
 
 class CheckoutOrderResponseDTO(BaseModel):

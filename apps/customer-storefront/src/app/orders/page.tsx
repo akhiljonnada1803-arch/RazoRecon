@@ -77,14 +77,42 @@ export default function CustomerOrdersPage() {
   }, [isLoading, isAuthenticated, router]);
 
   const { data: ordersData, isLoading: isOrdersLoading, refetch, dataUpdatedAt } = useQuery({
-    queryKey: ['customer-orders-list', selectedFilter, searchQuery],
+    queryKey: ['customer-orders-list', selectedFilter, searchQuery, user?.id, user?.email],
     queryFn: async () => {
-      const q = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '';
-      const filterParam = selectedFilter !== 'ALL' ? `?status=${selectedFilter}${q}` : (searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : '');
-      const res = await apiClient.get<any>(`/customer/orders${filterParam}`);
+      let effectiveId = user?.id || user?.email;
+      let effectiveEmail = user?.email;
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('razorcommerce_user') || localStorage.getItem('razorrecon_user');
+          if (raw) {
+            const u = JSON.parse(raw);
+            if (!effectiveId) effectiveId = u?.id || u?.email;
+            if (!effectiveEmail) effectiveEmail = u?.email;
+          }
+        } catch (e) {}
+      }
+
+      const params: Record<string, string | undefined> = {};
+      if (selectedFilter !== 'ALL') {
+        params.status = selectedFilter;
+      }
+      if (searchQuery && searchQuery.trim()) {
+        params.search = searchQuery.trim();
+      }
+      if (effectiveId) {
+        params.user_id = effectiveId;
+      }
+      if (effectiveEmail) {
+        params.customer_email = effectiveEmail;
+      }
+
+      const res = await apiClient.get<any>('/customer/orders', params);
       return res?.orders || res?.items || (Array.isArray(res) ? res : []);
     },
-    enabled: isAuthenticated,
+    enabled: true,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const orders: any[] = Array.isArray(ordersData) ? ordersData : [];

@@ -39,6 +39,8 @@ interface Address {
   id: string;
   full_name: string;
   phone: string;
+  house_flat_number?: string;
+  street?: string;
   address_line1: string;
   address_line2?: string;
   city: string;
@@ -59,16 +61,17 @@ export default function MultiStepCheckoutPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [addressErrorMessage, setAddressErrorMessage] = useState<string | null>(null);
   const [addressForm, setAddressForm] = useState({
     full_name: '',
     phone: '',
-    address_line1: '',
-    address_line2: '',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560103',
+    house_flat_number: '',
+    street: '',
+    city: '',
+    state: '',
+    pincode: '',
     landmark: '',
-    is_default: true
+    is_default: false
   });
 
   // Delivery Option State
@@ -82,7 +85,7 @@ export default function MultiStepCheckoutPage() {
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CARD' | 'NETBANKING' | 'WALLET' | 'EMI' | 'PAYLATER' | 'COD'>('UPI');
-  const [upiId, setUpiId] = useState('akhil@okaxis');
+  const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Confirmed Order Result State
@@ -93,10 +96,10 @@ export default function MultiStepCheckoutPage() {
     async function loadAddresses() {
       try {
         const res = await apiClient.get<Address[]>('/customer/addresses');
-        if (Array.isArray(res) && res.length > 0) {
+        if (Array.isArray(res)) {
           setAddresses(res);
-          const def = res.find(a => a.is_default === 1) || res[0];
-          setSelectedAddressId(def.id);
+          // Requirement 7: Never auto-fill addresses unless customer explicitly selects one.
+          // Keep selectedAddressId empty ('') until explicit customer selection.
         }
       } catch (e) {
         console.error('Failed to load addresses:', e);
@@ -104,6 +107,13 @@ export default function MultiStepCheckoutPage() {
     }
     loadAddresses();
   }, []);
+
+  // Enforce address selection prerequisite: cannot advance past Step 1 without explicit address selection
+  useEffect(() => {
+    if (currentStep > 1 && (!selectedAddressId || addresses.length === 0)) {
+      setCurrentStep(1);
+    }
+  }, [currentStep, selectedAddressId, addresses.length]);
 
   // Load Staged Products or Cart Items
   useEffect(() => {
@@ -177,7 +187,7 @@ export default function MultiStepCheckoutPage() {
   // Final total only adds delivery fee / platform fee to discounted subtotal
   const finalTotal = Math.max(0, discountedSubtotal + deliveryFee);
 
-  const selectedAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
+  const selectedAddress = addresses.find(a => a.id === selectedAddressId) || null;
 
   const handleApplyCoupon = () => {
     if (couponCode.toUpperCase() === 'RAZOR2026' || couponCode.toUpperCase() === 'SAVE10') {
@@ -191,28 +201,44 @@ export default function MultiStepCheckoutPage() {
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addressForm.full_name || !addressForm.address_line1 || !addressForm.pincode) {
-      alert('Please fill all required address fields.');
+    if (!addressForm.full_name || !addressForm.phone || !addressForm.house_flat_number || !addressForm.street || !addressForm.city || !addressForm.state || !addressForm.pincode) {
+      alert('Please fill all required address fields (Full Name, Mobile Number, House/Flat Number, Street, City, State, Pincode).');
       return;
     }
     try {
-      const newAddr = await apiClient.post<Address>('/customer/addresses', addressForm);
+      const payload = {
+        full_name: addressForm.full_name.trim(),
+        phone: addressForm.phone.trim(),
+        house_flat_number: addressForm.house_flat_number.trim(),
+        street: addressForm.street.trim(),
+        address_line1: `${addressForm.house_flat_number.trim()}, ${addressForm.street.trim()}`,
+        address_line2: addressForm.landmark ? addressForm.landmark.trim() : '',
+        city: addressForm.city.trim(),
+        state: addressForm.state.trim(),
+        pincode: addressForm.pincode.trim(),
+        landmark: addressForm.landmark ? addressForm.landmark.trim() : '',
+        is_default: addressForm.is_default ? 1 : 0
+      };
+      const newAddr = await apiClient.post<Address>('/customer/addresses', payload);
       setAddresses(prev => [newAddr, ...prev]);
       setSelectedAddressId(newAddr.id);
       setIsAddingAddress(false);
+      setAddressErrorMessage(null);
       setAddressForm({
         full_name: '',
         phone: '',
-        address_line1: '',
-        address_line2: '',
-        city: 'Bengaluru',
-        state: 'Karnataka',
-        pincode: '560103',
+        house_flat_number: '',
+        street: '',
+        city: '',
+        state: '',
+        pincode: '',
         landmark: '',
         is_default: false
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to add address:', err);
+      const errMsg = err?.response?.data?.detail || err?.message || 'Failed to save address';
+      alert(errMsg);
     }
   };
 
@@ -221,9 +247,8 @@ export default function MultiStepCheckoutPage() {
     try {
       await apiClient.delete(`/customer/addresses/${id}`);
       setAddresses(prev => prev.filter(a => a.id !== id));
-      if (selectedAddressId === id && addresses.length > 1) {
-        const remaining = addresses.filter(a => a.id !== id);
-        setSelectedAddressId(remaining[0].id);
+      if (selectedAddressId === id) {
+        setSelectedAddressId('');
       }
     } catch (err) {
       console.error(err);
@@ -231,18 +256,23 @@ export default function MultiStepCheckoutPage() {
   };
 
   const handleFinalPayment = async () => {
+    if (!selectedAddressId || !selectedAddress) {
+      alert("Please add a delivery address before placing an order.");
+      setCurrentStep(1);
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const payload = {
-        customer_name: selectedAddress?.full_name || 'Akhil Jonnada',
-        customer_email: user?.email || 'akhil@example.com',
-        customer_phone: selectedAddress?.phone || '+91 98765 43210',
-        shipping_address: selectedAddress || {
-          address_line1: 'Flat 402, Prestige Tech Park Residency',
-          city: 'Bengaluru',
-          state: 'Karnataka',
-          pincode: '560103'
-        },
+        customer_id: user?.id || 'usr_customer_demo',
+        customer_name: selectedAddress.full_name,
+        customer_email: user?.email || '',
+        customer_phone: selectedAddress.phone,
+        address_id: selectedAddress.id,
+        shipping_address_id: selectedAddress.id,
+        billing_address_id: selectedAddress.id,
+        shipping_address: selectedAddress,
         delivery_option: deliveryOption,
         items: cartItems,
         subtotal: rawSubtotal,
@@ -262,19 +292,10 @@ export default function MultiStepCheckoutPage() {
       try {
         localStorage.removeItem('razorcommerce_staged_buy_now');
       } catch (e) {}
-    } catch (err) {
+    } catch (err: any) {
       console.error('Checkout failed:', err);
-      // Fallback to successful simulated confirmation if backend error
-      setConfirmedOrder({
-        order_number: `RCM-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-        id: `ord_${Math.random().toString(36).substring(2, 10)}`,
-        total_amount: finalTotal,
-        order_placed_at: new Date().toISOString(),
-        payment_completed_at: new Date().toISOString(),
-        estimated_delivery: deliveryOption === 'SAME_DAY' ? 'Today, by 9:00 PM' : 'Within 2-4 Days',
-        shipping_address: selectedAddress?.address_line1 || 'Bangalore, India'
-      });
-      setCurrentStep(5);
+      const errMsg = err?.response?.data?.detail || err?.message || 'Failed to place order';
+      alert(`Checkout failed: ${errMsg}`);
     } finally {
       setIsProcessing(false);
     }
@@ -375,7 +396,40 @@ export default function MultiStepCheckoutPage() {
                 </Button>
               </div>
 
-              {/* Add Address Form Drawer */}
+              {/* Zero-Address Warning & Checkout Block Banner */}
+              {addresses.length === 0 && (
+                <div className="p-5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-bold text-sm text-amber-900">
+                        Please add a delivery address before placing an order.
+                      </h3>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Checkout is blocked because you do not have any saved delivery addresses on file.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-1">
+                    <Button
+                      onClick={() => router.push('/onboarding/address?redirect=/checkout')}
+                      className="bg-[#0B72E7] hover:bg-[#095ec2] text-white rounded-xl text-xs font-semibold px-4 h-9 flex items-center gap-1.5"
+                    >
+                      <span>Go to Address Setup</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAddingAddress(true)}
+                      className="border-amber-300 bg-white hover:bg-amber-100 text-amber-900 rounded-xl text-xs font-semibold px-4 h-9"
+                    >
+                      Add Address Here
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Add Address Form Drawer - Exact 8 Required Fields */}
               {isAddingAddress && (
                 <form onSubmit={handleSaveAddress} className="p-5 bg-blue-50/40 rounded-2xl border border-blue-100 space-y-4">
                   <h3 className="text-xs font-bold text-[#072654] uppercase tracking-wider">New Shipping Address</h3>
@@ -391,31 +445,33 @@ export default function MultiStepCheckoutPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-slate-600 font-semibold block mb-1">Phone Number *</label>
+                      <label className="text-slate-600 font-semibold block mb-1">Mobile Number *</label>
                       <Input
                         required
-                        placeholder="+91 98765 43210"
+                        type="tel"
+                        placeholder="e.g. 9876543210"
                         value={addressForm.phone}
                         onChange={e => setAddressForm({ ...addressForm, phone: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
                       />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-slate-600 font-semibold block mb-1">Address Line 1 (Flat, House no., Building) *</label>
+                    <div>
+                      <label className="text-slate-600 font-semibold block mb-1">House/Flat Number *</label>
                       <Input
                         required
-                        placeholder="Flat 402, Building A"
-                        value={addressForm.address_line1}
-                        onChange={e => setAddressForm({ ...addressForm, address_line1: e.target.value })}
+                        placeholder="e.g. Flat 402, Building A"
+                        value={addressForm.house_flat_number}
+                        onChange={e => setAddressForm({ ...addressForm, house_flat_number: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
                       />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-slate-600 font-semibold block mb-1">Address Line 2 (Street, Area, Sector)</label>
+                    <div>
+                      <label className="text-slate-600 font-semibold block mb-1">Street *</label>
                       <Input
-                        placeholder="Outer Ring Road, Marathahalli"
-                        value={addressForm.address_line2}
-                        onChange={e => setAddressForm({ ...addressForm, address_line2: e.target.value })}
+                        required
+                        placeholder="e.g. Outer Ring Road, Marathahalli"
+                        value={addressForm.street}
+                        onChange={e => setAddressForm({ ...addressForm, street: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
                       />
                     </div>
@@ -423,6 +479,7 @@ export default function MultiStepCheckoutPage() {
                       <label className="text-slate-600 font-semibold block mb-1">City *</label>
                       <Input
                         required
+                        placeholder="e.g. Bengaluru"
                         value={addressForm.city}
                         onChange={e => setAddressForm({ ...addressForm, city: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
@@ -432,6 +489,7 @@ export default function MultiStepCheckoutPage() {
                       <label className="text-slate-600 font-semibold block mb-1">State *</label>
                       <Input
                         required
+                        placeholder="e.g. Karnataka"
                         value={addressForm.state}
                         onChange={e => setAddressForm({ ...addressForm, state: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
@@ -441,6 +499,8 @@ export default function MultiStepCheckoutPage() {
                       <label className="text-slate-600 font-semibold block mb-1">Pincode *</label>
                       <Input
                         required
+                        maxLength={6}
+                        placeholder="e.g. 560103"
                         value={addressForm.pincode}
                         onChange={e => setAddressForm({ ...addressForm, pincode: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
@@ -449,7 +509,7 @@ export default function MultiStepCheckoutPage() {
                     <div>
                       <label className="text-slate-600 font-semibold block mb-1">Landmark (Optional)</label>
                       <Input
-                        placeholder="Near Metro Station"
+                        placeholder="e.g. Near Metro Station"
                         value={addressForm.landmark}
                         onChange={e => setAddressForm({ ...addressForm, landmark: e.target.value })}
                         className="h-8 text-xs bg-white rounded-xl"
@@ -475,61 +535,101 @@ export default function MultiStepCheckoutPage() {
                 </form>
               )}
 
-              {/* Saved Address Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {addresses.map((addr) => {
-                  const isSelected = selectedAddressId === addr.id;
-                  return (
-                    <div
-                      key={addr.id}
-                      onClick={() => setSelectedAddressId(addr.id)}
-                      className={`p-4 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
-                        isSelected
-                          ? 'border-[#0B72E7] bg-blue-50/40 shadow-xs'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="selectedAddress"
-                            checked={isSelected}
-                            onChange={() => setSelectedAddressId(addr.id)}
-                            className="text-[#0B72E7]"
-                          />
-                          <span className="font-bold text-sm text-[#072654]">{addr.full_name}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {addr.is_default === 1 && (
-                            <Badge className="bg-slate-100 text-slate-700 font-mono text-[10px]">Default</Badge>
+              {/* Saved Address Cards - Only rendered if addresses exist */}
+              {addresses.length > 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {addresses.map((addr) => {
+                      const isSelected = selectedAddressId === addr.id;
+                      return (
+                        <div
+                          key={addr.id}
+                          onClick={() => setSelectedAddressId(addr.id)}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer relative space-y-2 ${
+                            isSelected
+                              ? 'border-[#0B72E7] bg-blue-50/40 shadow-xs ring-2 ring-blue-200'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="selectedAddress"
+                                checked={isSelected}
+                                onChange={() => setSelectedAddressId(addr.id)}
+                                className="text-[#0B72E7]"
+                              />
+                              <span className="font-bold text-sm text-[#072654]">{addr.full_name}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {addr.is_default === 1 && (
+                                <Badge className="bg-slate-100 text-slate-700 font-mono text-[10px]">Default</Badge>
+                              )}
+                              <button
+                                onClick={(e) => handleDeleteAddress(addr.id, e)}
+                                className="text-slate-400 hover:text-rose-600 p-1"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {addr.house_flat_number ? `${addr.house_flat_number}, ` : ''}
+                            {addr.street ? `${addr.street}, ` : ''}
+                            {!addr.house_flat_number && !addr.street && addr.address_line1 ? `${addr.address_line1}, ` : ''}
+                            {addr.address_line2 ? `${addr.address_line2}, ` : ''}
+                            {addr.city}, {addr.state} - <span className="font-mono font-bold">{addr.pincode}</span>
+                          </p>
+
+                          {addr.landmark && (
+                            <p className="text-[11px] text-slate-500 italic">
+                              Landmark: {addr.landmark}
+                            </p>
                           )}
-                          <button
-                            onClick={(e) => handleDeleteAddress(addr.id, e)}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+
+                          <div className="text-[11px] text-slate-500 font-mono pt-1">
+                            Mobile: <strong className="text-slate-700">{addr.phone}</strong>
+                          </div>
                         </div>
-                      </div>
+                      );
+                    })}
+                  </div>
 
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {addr.address_line1}, {addr.address_line2 ? `${addr.address_line2}, ` : ''}
-                        {addr.city}, {addr.state} - <span className="font-mono font-bold">{addr.pincode}</span>
-                      </p>
-
-                      <div className="text-[11px] text-slate-500 font-mono pt-1">
-                        Phone: <strong className="text-slate-700">{addr.phone}</strong>
-                      </div>
+                  {!selectedAddressId && (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <span>Please explicitly select a delivery address from the list above to proceed.</span>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
+              )}
 
-              <div className="flex justify-end pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <div className="text-xs text-slate-500">
+                  {selectedAddressId ? (
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <Check className="h-4 w-4" /> Address selected
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">No address selected</span>
+                  )}
+                </div>
                 <Button
-                  onClick={() => setCurrentStep(2)}
-                  className="bg-[#0B72E7] hover:bg-[#095ec2] text-white px-6 h-10 rounded-xl text-xs font-semibold shadow-xs flex items-center gap-2"
+                  disabled={!selectedAddressId || addresses.length === 0}
+                  onClick={() => {
+                    if (!selectedAddressId) {
+                      alert("Please add a delivery address before placing an order.");
+                      return;
+                    }
+                    setCurrentStep(2);
+                  }}
+                  className={`px-6 h-10 rounded-xl text-xs font-semibold shadow-xs flex items-center gap-2 ${
+                    selectedAddressId && addresses.length > 0
+                      ? 'bg-[#0B72E7] hover:bg-[#095ec2] text-white'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
                   <span>Continue to Delivery Speed</span>
                   <ArrowRight className="h-4 w-4" />

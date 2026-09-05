@@ -61,26 +61,17 @@ def test_groq_service_graceful_error_handling():
 
 def test_commerce_chat_endpoint_with_groq_integration():
     """End-to-end test verifying /api/v1/commerce/chat uses Groq output when available."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": "🤖 **Groq LLM Shopping Assistant**: Razorpay Smart POS Terminal V3 Pro is your top choice for high throughput retail."
-                }
-            }
-        ]
-    }
+    mock_groq_msg = "🤖 **Groq LLM Shopping Assistant**: Razorpay Smart POS Terminal V3 Pro is your top choice for high throughput retail."
 
-    with patch.dict("os.environ", {"GROQ_API_KEY": "gsk_test_mock_key_12345", "GROQ_MODEL": "openai/gpt-oss-120b"}):
-        with patch("httpx.Client.post", return_value=mock_response):
+    with patch.object(groq_service, "is_configured", return_value=True):
+        with patch.object(groq_service, "generate_commerce_response", return_value=mock_groq_msg):
             resp = client.post("/api/v1/commerce/chat", json={"query": "Recommend POS machine"})
             assert resp.status_code == 200
             data = resp.json()
             assert "Groq LLM Shopping Assistant" in data["message"]
             assert len(data["recommended_products"]) > 0
             assert data["comparison_data"] is not None
+
 
 
 def test_commerce_chat_unconnected_autopay_blocks_autonomous_purchase_and_adds_to_cart():

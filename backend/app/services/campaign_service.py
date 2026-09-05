@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 import math
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from app.schemas.campaign import (
@@ -124,12 +125,127 @@ def generate_forecast_curve(duration_days: int, baseline_rev: float, net_lift: f
         ))
     return points
 
-class CampaignService:
-    def __init__(self):
-        self.segments = CUSTOMER_SEGMENTS
-        self.campaigns: List[CampaignDTO] = self._init_default_campaigns()
+import os
+import sqlite3
 
-    def _init_default_campaigns(self) -> List[CampaignDTO]:
+MERCHANT_DB_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "merchant.db"))
+
+class CampaignService:
+    def __init__(self, db_path: str = MERCHANT_DB_PATH):
+        self.db_path = db_path
+        self.segments = CUSTOMER_SEGMENTS
+        self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self):
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS campaigns (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    target_segment TEXT NOT NULL,
+                    target_segment_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    discount_type TEXT NOT NULL,
+                    discount_value REAL NOT NULL,
+                    min_order_value REAL DEFAULT 0.0,
+                    expected_revenue_lift REAL NOT NULL,
+                    expected_revenue_lift_pct REAL NOT NULL,
+                    projected_orders INTEGER NOT NULL,
+                    projected_gmv REAL NOT NULL,
+                    net_margin_impact_pct REAL NOT NULL,
+                    roi_percentage REAL NOT NULL,
+                    ai_copy_subject TEXT,
+                    ai_copy_body TEXT,
+                    channels_json TEXT NOT NULL,
+                    forecast_days_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    start_date TEXT NOT NULL,
+                    end_date TEXT NOT NULL,
+                    merchant_id TEXT DEFAULT 'rzp_live_acme_8842'
+                )
+            """)
+            conn.commit()
+
+            cursor.execute("SELECT COUNT(*) as count FROM campaigns")
+            if cursor.fetchone()["count"] == 0:
+                defaults = self._build_default_campaigns()
+                for c in defaults:
+                    self._insert_campaign_db(cursor, c)
+                conn.commit()
+
+    def _insert_campaign_db(self, cursor: sqlite3.Cursor, c: CampaignDTO, merchant_id: str = "rzp_live_acme_8842"):
+        channels_str = json.dumps(c.channels or [])
+        forecast_str = json.dumps([f.model_dump() if hasattr(f, "model_dump") else dict(f) for f in (c.forecast_days or [])])
+        cursor.execute("""
+            INSERT OR REPLACE INTO campaigns (
+                id, name, target_segment, target_segment_id, status, discount_type, discount_value,
+                min_order_value, expected_revenue_lift, expected_revenue_lift_pct, projected_orders,
+                projected_gmv, net_margin_impact_pct, roi_percentage, ai_copy_subject, ai_copy_body,
+                channels_json, forecast_days_json, created_at, start_date, end_date, merchant_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            c.id, c.name, c.target_segment, c.target_segment_id, c.status, c.discount_type, c.discount_value,
+            c.min_order_value, c.expected_revenue_lift, c.expected_revenue_lift_pct, c.projected_orders,
+            c.projected_gmv, c.net_margin_impact_pct, c.roi_percentage, c.ai_copy_subject, c.ai_copy_body,
+            channels_str, forecast_str, c.created_at, c.start_date, c.end_date, merchant_id
+        ))
+
+    def _load_campaigns_db(self, merchant_id: Optional[str] = None) -> List[CampaignDTO]:
+        campaigns = []
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            if merchant_id:
+                cursor.execute("SELECT * FROM campaigns WHERE merchant_id = ? ORDER BY created_at DESC", (merchant_id,))
+            else:
+                cursor.execute("SELECT * FROM campaigns ORDER BY created_at DESC")
+            rows = cursor.fetchall()
+
+            for r in rows:
+                row_dict = dict(r)
+                try:
+                    channels = json.loads(row_dict.get("channels_json") or "[]")
+                except Exception:
+                    channels = []
+                try:
+                    forecast_raw = json.loads(row_dict.get("forecast_days_json") or "[]")
+                    forecast = [DailyForecastPointDTO(**f) if isinstance(f, dict) else f for f in forecast_raw]
+                except Exception:
+                    forecast = []
+
+                c_dto = CampaignDTO(
+                    id=row_dict["id"],
+                    name=row_dict["name"],
+                    target_segment=row_dict["target_segment"],
+                    target_segment_id=row_dict["target_segment_id"],
+                    status=row_dict["status"],
+                    discount_type=row_dict["discount_type"],
+                    discount_value=float(row_dict["discount_value"]),
+                    min_order_value=float(row_dict["min_order_value"]),
+                    expected_revenue_lift=float(row_dict["expected_revenue_lift"]),
+                    expected_revenue_lift_pct=float(row_dict["expected_revenue_lift_pct"]),
+                    projected_orders=int(row_dict["projected_orders"]),
+                    projected_gmv=float(row_dict["projected_gmv"]),
+                    net_margin_impact_pct=float(row_dict["net_margin_impact_pct"]),
+                    roi_percentage=float(row_dict["roi_percentage"]),
+                    ai_copy_subject=row_dict.get("ai_copy_subject") or "",
+                    ai_copy_body=row_dict.get("ai_copy_body") or "",
+                    channels=channels,
+                    forecast_days=forecast,
+                    created_at=row_dict["created_at"],
+                    start_date=row_dict["start_date"],
+                    end_date=row_dict["end_date"]
+                )
+                campaigns.append(c_dto)
+        return campaigns
+
+    def _build_default_campaigns(self) -> List[CampaignDTO]:
         c1_forecast = generate_forecast_curve(14, 6200000.0, 1485000.0, 185)
         c2_forecast = generate_forecast_curve(14, 1850000.0, 642000.0, 98)
         c3_forecast = generate_forecast_curve(21, 3800000.0, 1120000.0, 340)
@@ -241,13 +357,12 @@ class CampaignService:
         return self.segments
 
     def get_campaigns_overview(self, merchant_id: Optional[str] = None) -> CampaignListResponseDTO:
-        target_campaigns = self.campaigns
+        target_campaigns = self._load_campaigns_db(merchant_id)
         target_segments = self.segments
 
         if merchant_id:
             from app.services.auth_service import auth_service
             if not auth_service.is_demo_merchant(merchant_id):
-                target_campaigns = [c for c in self.campaigns if getattr(c, "merchant_id", None) == merchant_id]
                 from app.services.merchant_service import merchant_service
                 customers = merchant_service.get_customers(merchant_id=merchant_id)
                 if not customers:
@@ -304,15 +419,12 @@ class CampaignService:
 
         # Margin sensitivity
         baseline_margin_pct = seg.avg_margin_pct
-        # Discount reduces margin directly
         projected_margin_pct = max(10.0, round(baseline_margin_pct - (effective_discount_pct * 0.75), 1))
         net_margin_impact_pct = round(projected_margin_pct - baseline_margin_pct, 1)
 
-        # ROI = (Gross Profit from Incremental Orders - Discount Cost) / Discount Cost * 100
         incremental_gross_profit = (incremental_orders * avg_discounted_ticket) * (projected_margin_pct / 100.0)
         roi_percentage = max(110.0, round((incremental_gross_profit / max(1.0, discount_cost)) * 100, 1))
 
-        # AI Strategy verdict
         if effective_discount_pct <= 10.0:
             ai_verdict = f"High margin preservation strategy. Moderate conversion lift (+{conversion_lift_pct}%) with minimal margin dilution ({net_margin_impact_pct}%)."
         elif effective_discount_pct <= 25.0:
@@ -320,7 +432,6 @@ class CampaignService:
         else:
             ai_verdict = f"Aggressive acquisition/winback incentive. Generates high volume (+{conversion_lift_pct}% orders) but watch for {net_margin_impact_pct}% margin dilution."
 
-        # Daily trajectory
         daily_payoff = generate_forecast_curve(req.duration_days, baseline_revenue, net_revenue_lift, projected_orders)
 
         return CampaignSimulationResponseDTO(
@@ -349,7 +460,6 @@ class CampaignService:
     def generate_campaign_with_ai(self, req: CampaignGenerateRequestDTO) -> CampaignDTO:
         seg = SEGMENT_MAP.get(req.target_segment_id) or self.segments[0]
         
-        # Run simulation to get accurate projections
         sim_res = self.simulate_discount(CampaignSimulationRequestDTO(
             target_segment_id=seg.id,
             discount_type=req.discount_type or "percentage",
@@ -358,7 +468,6 @@ class CampaignService:
             duration_days=req.duration_days or 14
         ))
 
-        # Dynamic AI Copywriting based on goal
         goal_titles = {
             "revenue_surge": f"Q1 Revenue Accelerator: {seg.name} Surge",
             "winback": f"VIP Winback Offer for {seg.name}",
@@ -414,20 +523,41 @@ class CampaignService:
             end_date=end_date
         )
 
-        # Prepend to list
-        self.campaigns.insert(0, new_camp)
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            self._insert_campaign_db(cursor, new_camp)
+            conn.commit()
+
+        try:
+            from app.services.audit_service import audit_service
+            audit_service.log_audit(
+                action="CAMPAIGN_LAUNCHED",
+                entity_type="CAMPAIGN",
+                entity_id=new_camp.id,
+                user_name="Merchant Growth Engine",
+                role="AI Agent",
+                old_value=None,
+                new_value={"name": new_camp.name, "target_segment": new_camp.target_segment, "expected_revenue_lift": new_camp.expected_revenue_lift}
+            )
+        except Exception:
+            pass
+
         return new_camp
 
     def toggle_campaign_status(self, campaign_id: str, status: str) -> Optional[CampaignDTO]:
-        for c in self.campaigns:
-            if c.id == campaign_id:
-                c.status = status
-                return c
-        return None
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE campaigns SET status = ? WHERE id = ?", (status, campaign_id))
+            conn.commit()
+        camps = self._load_campaigns_db()
+        return next((c for c in camps if c.id == campaign_id), None)
 
     def delete_campaign(self, campaign_id: str) -> bool:
-        initial_len = len(self.campaigns)
-        self.campaigns = [c for c in self.campaigns if c.id != campaign_id]
-        return len(self.campaigns) < initial_len
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM campaigns WHERE id = ?", (campaign_id,))
+            affected = cursor.rowcount
+            conn.commit()
+        return affected > 0
 
 campaign_service = CampaignService()

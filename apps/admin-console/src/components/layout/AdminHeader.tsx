@@ -27,11 +27,11 @@ export function AdminHeader() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-2xs">
           <Server className="h-4 w-4 text-[#0B72E7]" />
-          <span className="text-xs font-bold font-mono">Platform Admin Console</span>
+          <span className="text-xs font-bold font-mono">CartMind Control Center</span>
         </div>
 
         <Badge variant="outline" className="hidden sm:inline-flex bg-blue-50 text-[#0B72E7] border-blue-200 text-[10px] font-mono font-bold">
-          LIVE PROD (ap-south-1)
+          Platform Operations & Governance
         </Badge>
       </div>
 

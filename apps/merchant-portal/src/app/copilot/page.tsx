@@ -31,7 +31,7 @@ const MERCHANT_INITIAL_MESSAGE: CopilotMessageDTO = {
   id: 'init-merchant',
   role: 'assistant',
   content:
-    "Hello! I am your **Commerce AI Copilot** (Merchant Mode). I have live access to your Commerce Transaction Engine, 7-stage order lifecycle, inventory stock levels, customer churn telemetry, and autonomous campaign generation tools.\n\nHow can I help grow your revenue and streamline operations today?",
+    "Hello! I am your **CartMind Business Copilot** (Merchant Mode). I have live access to your Commerce Transaction Engine, 7-stage order lifecycle, inventory stock levels, customer churn telemetry, and autonomous campaign generation tools.\n\nHow can I help grow your revenue and streamline operations today?",
   citations: [{ doc_id: 'kb-0102', title: 'Merchant Revenue Intelligence & SKU Velocity Metrics' }],
 };
 
@@ -39,7 +39,7 @@ const CUSTOMER_INITIAL_MESSAGE: CopilotMessageDTO = {
   id: 'init-customer',
   role: 'assistant',
   content:
-    "Welcome to **RazorCommerce Assistant**! I can help you discover products across 50 verified SKUs, compare specifications, find promotional discounts, and track your active package shipments in real-time.\n\nWhat are you shopping for today?",
+    "Welcome to **CartMind AI**! I can help you discover products across 50 verified SKUs, compare specifications, find promotional discounts, and track your active package shipments in real-time.\n\nWhat are you shopping for today?",
   citations: [{ doc_id: 'kb-0041', title: 'Agentic Commerce Protocol Discovery Specification' }],
 };
 
@@ -103,14 +103,32 @@ export default function CommerceCopilotPage() {
     setMessages([...newMessages, initialAssistantMsg]);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      let merchantId = '';
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('razorcommerce_merchant_token');
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        try {
+          const userRaw = localStorage.getItem('razorcommerce_merchant_user');
+          if (userRaw) {
+            const user = JSON.parse(userRaw);
+            if (user?.merchant_id) {
+              merchantId = user.merchant_id;
+              headers['x-merchant-id'] = user.merchant_id;
+            }
+          }
+        } catch (e) {}
+      }
+
       const response = await fetch('http://127.0.0.1:8000/api/v1/copilot/query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          merchant_id: merchantId || undefined,
         }),
       });
 

@@ -13,9 +13,26 @@ class ApiClient {
     if (token) {
       customHeaders['Authorization'] = `Bearer ${token}`;
     }
+    if (isBrowser) {
+      try {
+        const savedUserStr = localStorage.getItem('razorcommerce_user') || localStorage.getItem('razorrecon_user');
+        if (savedUserStr) {
+          const u = JSON.parse(savedUserStr);
+          if (u?.id) {
+            customHeaders['X-Customer-Id'] = u.id;
+          } else if (u?.email) {
+            customHeaders['X-Customer-Id'] = u.email;
+          }
+          if (u?.email) {
+            customHeaders['X-Customer-Email'] = u.email;
+          }
+        }
+      } catch (e) {}
+    }
 
     try {
       const response = await fetch(primaryUrl, {
+        cache: 'no-store',
         ...options,
         signal: controller.signal,
         headers: {

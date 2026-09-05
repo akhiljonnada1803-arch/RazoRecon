@@ -70,6 +70,8 @@ export default function MerchantOrdersPage() {
       const res = await apiClient.get<any>(`/merchant/orders${param}`);
       return res?.orders || res?.items || (Array.isArray(res) ? res : []);
     },
+    refetchInterval: 3000,
+    refetchOnWindowFocus: true,
   });
 
   const orders: any[] = Array.isArray(ordersData) ? ordersData : [];

@@ -78,27 +78,46 @@ class AgentCommerceService:
         sim_id = f"sim_a2a_{uuid.uuid4().hex[:10]}"
         now = datetime.datetime.now()
 
+        # Helper to query live catalog DB for accurate merchant prices & inventory
+        all_live = []
+        try:
+            cat_res = catalog_service.get_all_products(limit=500)
+            all_live = getattr(cat_res, "items", None) or getattr(cat_res, "products", []) or []
+        except Exception:
+            all_live = []
+
+        def _resolve_item(sku: str, default_name: str, qty: int, default_price: float) -> Dict[str, Any]:
+            matched = next((p for p in all_live if getattr(p, "sku", "").lower() == sku.lower() or sku.lower() in getattr(p, "name", "").lower()), None)
+            if matched:
+                lp = float(matched.price)
+                name = matched.name
+            else:
+                lp = default_price
+                name = default_name
+            dp = round(lp * 0.85, 2)
+            return {"name": name, "sku": sku, "qty": qty, "list_price": lp, "discounted_price": dp}
+
         # Item configuration based on scenario (negotiated at 15.0% volume tier)
         if scenario.id == "scenario_finops_enterprise":
             items = [
-                {"name": "RazorRecon Enterprise Annual License", "sku": "LIC-RZP-ENT-2Y", "qty": 1, "list_price": 74999.0, "discounted_price": 63749.15},
-                {"name": "TallyPrime Gold Enterprise Multi-User", "sku": "LIC-TALLY-GOLD", "qty": 1, "list_price": 54000.0, "discounted_price": 45900.00}
+                _resolve_item("LIC-RZP-ENT-2Y", "RazorRecon Enterprise Annual License", 1, 74999.0),
+                _resolve_item("LIC-TALLY-GOLD", "TallyPrime Gold Enterprise Multi-User", 1, 54000.0)
             ]
         elif scenario.id == "scenario_dev_workstation":
             items = [
-                {"name": "Dell UltraSharp 40\" 5K2K Curved Display", "sku": "HW-DELL-5K2K", "qty": 3, "list_price": 139999.0, "discounted_price": 118999.15},
-                {"name": "Keychron Q3 Pro Wireless Mechanical Keyboard", "sku": "HW-KEYCHRON-Q3", "qty": 3, "list_price": 18499.0, "discounted_price": 15724.15},
-                {"name": "Logitech MX Master 3S Performance Mouse", "sku": "HW-LOGI-MX3S", "qty": 3, "list_price": 9995.0, "discounted_price": 8495.75}
+                _resolve_item("HW-DELL-5K2K", "Dell UltraSharp 40\" 5K2K Curved Display", 3, 139999.0),
+                _resolve_item("HW-KEYCHRON-Q3", "Keychron Q3 Pro Wireless Mechanical Keyboard", 3, 18499.0),
+                _resolve_item("HW-LOGI-MX3S", "Logitech MX Master 3S Performance Mouse", 3, 9995.0)
             ]
         elif scenario.id == "scenario_storage_cluster":
             items = [
-                {"name": "Synology DiskStation DS923+ 4-Bay NAS", "sku": "HW-SYNO-DS923", "qty": 2, "list_price": 58999.0, "discounted_price": 50149.15},
-                {"name": "Seagate IronWolf Pro 16TB Enterprise NAS HDD", "sku": "HW-SEAGATE-16TB", "qty": 4, "list_price": 32999.0, "discounted_price": 28049.15}
+                _resolve_item("HW-SYNO-DS923", "Synology DiskStation DS923+ 4-Bay NAS", 2, 58999.0),
+                _resolve_item("HW-SEAGATE-16TB", "Seagate IronWolf Pro 16TB Enterprise NAS HDD", 4, 32999.0)
             ]
         else:  # scenario_retail_expansion
             items = [
-                {"name": "Razorpay Smart POS Terminal V3 Pro", "sku": "RZP-POS-V3-PRO", "qty": 5, "list_price": 14999.0, "discounted_price": 12749.15},
-                {"name": "Razorpay Smart Soundbox 4G Pro", "sku": "RZP-SOUNDBOX-4G", "qty": 5, "list_price": 2499.0, "discounted_price": 2124.15}
+                _resolve_item("RZP-POS-V3-PRO", "Razorpay Smart POS Terminal V3 Pro", 5, 14999.0),
+                _resolve_item("RZP-SOUNDBOX-4G", "Razorpay Smart Soundbox 4G Pro", 5, 2499.0)
             ]
 
         list_subtotal = sum(i["qty"] * i["list_price"] for i in items)

@@ -210,6 +210,68 @@ class CatalogService:
                 """, tv_products)
                 conn.commit()
 
+            # Seed Laptops if not present
+            cursor.execute("SELECT COUNT(*) as cnt FROM products WHERE category = 'Workstations & Laptops'")
+            laptop_row = cursor.fetchone()
+            if laptop_row["cnt"] == 0:
+                now_str = datetime.datetime.now().isoformat()
+                laptop_products = [
+                    (
+                        "prod_laptop_thinkpad", "LAP-LENOVO-L14", "Lenovo ThinkPad L14 Gen 4 Workstation Laptop",
+                        "Lenovo", "Workstations & Laptops", 58999.0, 48000.0, 68999.0, "INR", 30, 5,
+                        "In Stock", "IN_STOCK", 4.8, 195,
+                        "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=600&auto=format&fit=crop&q=80",
+                        "High-performance enterprise laptop with Core i5 and 16GB RAM.",
+                        "Lenovo ThinkPad L14 Gen 4 Workstation Laptop powered by Intel Core i5 processor, 16GB DDR4 RAM, and 512GB NVMe SSD. Ultra-durable enterprise design for developers, financial modelers, and business executives.",
+                        json.dumps(["Intel Core i5-1335U", "16GB DDR4 RAM", "512GB NVMe SSD", "14\" FHD IPS Anti-glare Display", "Fingerprint Reader & Windows Hello"]),
+                        json.dumps([{"key": "Processor", "value": "Intel Core i5-1335U"}, {"key": "RAM", "value": "16GB DDR4"}, {"key": "Storage", "value": "512GB NVMe SSD"}, {"key": "OS", "value": "Windows 11 Pro"}]),
+                        1, "2-3 business days", 18.0, "8471", None, None, None, None,
+                        '[{"min_qty": 3, "max_qty": 5, "discount_pct": 5}, {"min_qty": 6, "max_qty": null, "discount_pct": 10}]',
+                        0.94, 0.91, now_str, now_str
+                    )
+                ]
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO products (
+                        id, sku, name, brand, category, price, cost_price, original_price, currency,
+                        stock_quantity, reorder_threshold, stock_status, inventory_status, rating,
+                        reviews_count, image_url, tagline, description, features, specs, in_stock,
+                        delivery_time, gst_rate_pct, hsn_sac_code, offer_id, offer_text, offer_discount_pct,
+                        offer_badge, price_tiers_json, review_sentiment_score, popularity_score, created_at, updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, laptop_products)
+                conn.commit()
+
+            # Seed Printers if not present
+            cursor.execute("SELECT COUNT(*) as cnt FROM products WHERE category = 'Receipt & Billing Printers'")
+            printer_row = cursor.fetchone()
+            if printer_row["cnt"] == 0:
+                now_str = datetime.datetime.now().isoformat()
+                printer_products = [
+                    (
+                        "prod_printer_epson_tmt82", "PRN-EPSON-TM82", "Epson TM-T82X Thermal Receipt Printer",
+                        "Epson", "Receipt & Billing Printers", 12499.0, 8500.0, 14999.0, "INR", 45, 8,
+                        "In Stock", "IN_STOCK", 4.7, 210,
+                        "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80",
+                        "Ultra-low maintenance cost high-speed thermal receipt printer.",
+                        "Epson TM-T82X Thermal Receipt Printer with low maintenance cost, thermal inkless printing, and 200mm/s print speed for retail counters and POS billing stations.",
+                        json.dumps(["Low Maintenance Cost", "Thermal Inkless Printing", "200mm/s High Speed Print", "Auto-Cutter Rated 1.5M Cuts"]),
+                        json.dumps([{"key": "Print Speed", "value": "200mm/s"}, {"key": "Interface", "value": "USB + Serial"}, {"key": "Paper Width", "value": "80mm"}]),
+                        1, "2-3 business days", 18.0, "8443", None, None, None, None,
+                        '[{"min_qty": 5, "max_qty": 9, "discount_pct": 8}, {"min_qty": 10, "max_qty": null, "discount_pct": 15}]',
+                        0.92, 0.89, now_str, now_str
+                    )
+                ]
+                cursor.executemany("""
+                    INSERT OR REPLACE INTO products (
+                        id, sku, name, brand, category, price, cost_price, original_price, currency,
+                        stock_quantity, reorder_threshold, stock_status, inventory_status, rating,
+                        reviews_count, image_url, tagline, description, features, specs, in_stock,
+                        delivery_time, gst_rate_pct, hsn_sac_code, offer_id, offer_text, offer_discount_pct,
+                        offer_badge, price_tiers_json, review_sentiment_score, popularity_score, created_at, updated_at
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, printer_products)
+                conn.commit()
+
     def reseed_from_csv(self, csv_path: Optional[str] = None, cursor: Optional[sqlite3.Cursor] = None) -> Dict[str, Any]:
         """
         Reseeds the database table 'products' and 'offers' strictly from master_product_catalog.csv.
@@ -369,6 +431,12 @@ class CatalogService:
             price_tiers = [PriceTierDTO(**t) for t in tiers_list]
         except Exception:
             price_tiers = []
+
+        if not price_tiers:
+            price_tiers = [
+                PriceTierDTO(min_qty=5, max_qty=9, discount_pct=8.0),
+                PriceTierDTO(min_qty=10, max_qty=None, discount_pct=15.0)
+            ]
 
         return ProductDetailDTO(
             id=r["id"],

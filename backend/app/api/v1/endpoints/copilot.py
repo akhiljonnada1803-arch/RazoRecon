@@ -13,7 +13,8 @@ async def query_commerce_copilot(
     context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
     """Query the Commerce AI Copilot for sales velocity, stockout alerts, campaign generation, product discovery, or order tracking."""
-    return await service.generate_response(payload.messages, merchant_id=context.merchant_id)
+    effective_merchant_id = payload.merchant_id or context.merchant_id
+    return await service.generate_response(payload.messages, merchant_id=effective_merchant_id)
 
 @router.post("/stream")
 async def stream_commerce_copilot(
@@ -22,8 +23,9 @@ async def stream_commerce_copilot(
     context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
     """Stream Commerce AI Copilot responses using Server-Sent Events (SSE) with tool execution trace & citations."""
+    effective_merchant_id = payload.merchant_id or context.merchant_id
     return StreamingResponse(
-        service.stream_response(payload.messages),
+        service.stream_response(payload.messages, merchant_id=effective_merchant_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

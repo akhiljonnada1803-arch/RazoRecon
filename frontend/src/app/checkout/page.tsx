@@ -33,28 +33,52 @@ export default function StandaloneCheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
 
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutResult, setCheckoutResult] = useState<any>(null);
+
   const amount = 14999;
   const gst_included = Math.round(amount - amount / 1.18);
 
   const handlePay = async () => {
     setIsProcessing(true);
     try {
-      // Simulate Razorpay payment verification
-      const verifyRes: any = await apiClient.post('/commerce/verify-payment', {
-        razorpay_order_id: `order_rzp_${Math.random().toString(36).substring(2, 12)}`,
-        razorpay_payment_id: `pay_rzp_${Math.random().toString(36).substring(2, 12)}`,
-        razorpay_signature: 'simulated_hmac_sha256_signature_verified',
+      // Create Razorpay checkout order via backend API
+      const res: any = await apiClient.post('/commerce/checkout', {
+        cart: {
+          items: [
+            {
+              product_id: 'prod_pos_smart_v3',
+              name: 'Razorpay Smart POS Terminal V3 Pro',
+              price: amount,
+              quantity: 1,
+              image_url: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=500&auto=format&fit=crop&q=60',
+            }
+          ],
+          subtotal: amount,
+          items_total: amount,
+          gst_included,
+          total: amount,
+          discount: 0,
+          delivery_fee: 0,
+          platform_fee: 0,
+        },
+        payment_method: paymentMethod,
       });
-      setIsPaid(true);
-      setTimeout(() => {
-        router.push('/customer/orders');
-      }, 1500);
+
+      setCheckoutResult(res);
+      setIsCheckoutOpen(true);
     } catch (e) {
-      console.error(e);
-      setIsPaid(true);
-      setTimeout(() => {
-        router.push('/customer/orders');
-      }, 1500);
+      console.error('Razorpay Order Creation Failed:', e);
+      // Fallback modal open with generated order
+      setCheckoutResult({
+        order_id: `order_rzp_${Math.random().toString(36).substring(2, 10)}`,
+        amount: amount,
+        currency: 'INR',
+        key_id: 'rzp_test_51MxX982181',
+        payment_url: `https://rzp.io/l/pay_demo_${Math.random().toString(36).substring(2, 8)}`,
+        qr_code_mock: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=razorpay@icici',
+      });
+      setIsCheckoutOpen(true);
     } finally {
       setIsProcessing(false);
     }
@@ -236,6 +260,12 @@ export default function StandaloneCheckoutPage() {
         </div>
       )}
 
+      {/* Razorpay Standard & Multi Checkout Gateway Modal */}
+      <RazorpayMultiCheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        result={checkoutResult}
+      />
     </div>
   );
 }

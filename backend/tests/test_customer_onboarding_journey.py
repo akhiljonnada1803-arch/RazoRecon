@@ -140,6 +140,7 @@ def test_4_step2_connect_payment_method_and_unlock_autopay():
         "pincode": "560029"
     }, headers=headers)
     assert addr_resp.status_code == 200
+    addr_id = addr_resp.json()["address"]["id"]
 
     # Step 2: Connect Payment Method
     pay_payload = {
@@ -159,6 +160,7 @@ def test_4_step2_connect_payment_method_and_unlock_autopay():
 
     # Step 3: Place first order
     checkout_payload = {
+        "address_id": addr_id,
         "delivery_option": "STANDARD",
         "shipping_address": {
             "address_line1": "456 Prestige Boulevard",

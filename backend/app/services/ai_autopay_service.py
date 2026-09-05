@@ -1263,6 +1263,8 @@ class AIAutoPayService:
             "customer_name": resolved_addr["full_name"],
             "customer_email": f"{user_id}@razorcommerce.ai",
             "customer_phone": resolved_addr["phone"],
+            "address_id": resolved_addr["address_id"],
+            "shipping_address_id": resolved_addr["address_id"],
             "shipping_address": {
                 "address_id": resolved_addr["address_id"],
                 "full_name": resolved_addr["full_name"],

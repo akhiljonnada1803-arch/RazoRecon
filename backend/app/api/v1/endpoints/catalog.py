@@ -39,8 +39,11 @@ def list_catalog_products(
     merchant_id: Optional[str] = Query(default=None, description="Filter by merchant ID"),
     context: MerchantContext = Depends(get_authenticated_merchant_context)
 ):
-    """Retrieve filtered, sorted, and paginated products from the enterprise catalog."""
-    filter_merchant = merchant_id if (merchant_id and merchant_id != "all") else (context.merchant_id if not context.is_demo else None)
+    is_customer = bool(context.user and (context.user.role == "Customer" or getattr(context.user, "role", "").lower() == "customer"))
+    if is_customer:
+        filter_merchant = merchant_id if (merchant_id and merchant_id != "all") else None
+    else:
+        filter_merchant = merchant_id if (merchant_id and merchant_id != "all") else (context.merchant_id if not context.is_demo else None)
     return catalog_service.get_all_products(
         search=search,
         category=category,

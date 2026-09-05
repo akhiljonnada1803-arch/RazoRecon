@@ -5,8 +5,8 @@ import { AuthProvider } from '@/context/AuthContext';
 import { CustomerHeader } from '@/components/layout/CustomerHeader';
 
 export const metadata: Metadata = {
-  title: 'RazorCommerce AI - Smart Consumer Marketplace',
-  description: 'AI-Powered Consumer Marketplace with Instant Razorpay Checkout',
+  title: 'CartMind - Your AI Shopping Companion',
+  description: 'Discover products, compare options, explore reviews, calculate EMI, and buy with confidence using CartMind AI.',
 };
 
 export default function RootLayout({

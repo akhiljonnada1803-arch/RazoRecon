@@ -234,11 +234,11 @@ class InvoicePdfService:
         # =========================================================
         hdr_data = [
             [
-                Paragraph("<b>RazorCommerce AI</b>", title_style),
+                Paragraph("<b>CartMind</b>", title_style),
                 Paragraph("<b>TAX INVOICE</b>", inv_badge_style)
             ],
             [
-                Paragraph("Enterprise Agentic Commerce & Autonomous Reconciliation Platform", tagline_style),
+                Paragraph("CartMind AI Commerce Platform", tagline_style),
                 Paragraph("<b>GST Invoice</b> • Original for Recipient", inv_sub_style)
             ]
         ]
@@ -415,7 +415,7 @@ class InvoicePdfService:
             Paragraph("<b>Reverse Charge:</b> No | <b>Supply Type:</b> B2C Intra-State / Inter-State E-Commerce", box_text_style),
             Spacer(1, 4),
             Paragraph(
-                "<font color='#047857'><b>Razorpay Settlement Verified</b></font> • Instant capture via 256-bit automated reconciliation",
+                "<font color='#047857'><b>CartMind AutoPay Settlement Verified</b></font> • Instant capture via 256-bit automated reconciliation",
                 ParagraphStyle("EmdText", parent=box_text_style, textColor=emerald_text)
             )
         ]
@@ -463,12 +463,12 @@ class InvoicePdfService:
             Spacer(1, 2),
             Paragraph(
                 "This document is an electronic record generated in accordance with Rule 48 of the Central Goods and Services Tax (CGST) Rules, 2017. "
-                "All items are covered under RazorCommerce 15-day manufacturer warranty and autonomous return protocols.",
+                "All items are covered under CartMind 15-day manufacturer warranty and autonomous return protocols.",
                 footer_style
             ),
             Spacer(1, 1),
             Paragraph(
-                "RazorCommerce AI • Support: care@razorcommerce.in | Helpline: 1800-120-RAZOR • www.razorcommerce.internal",
+                "CartMind AI • Support: care@cartmind.in | Helpline: 1800-120-CARTMIND • www.cartmind.internal",
                 footer_style
             )
         ]

@@ -296,15 +296,15 @@ export default function MerchantDashboardPage() {
                   color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
                   action_route: "/merchant/campaigns"
                 }
-              ]).map((ins: any) => (
+              ]).map((ins: any, idx: number) => (
                 <Link
-                  key={ins.id}
-                  href={ins.action_route}
+                  key={ins.id || ins._id || `ins_${idx}_${(ins.title || '').replace(/\s+/g, '_')}`}
+                  href={ins.action_route || ins.route || '/merchant/demand-intelligence'}
                   className="bg-slate-800/80 hover:bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 transition-all group space-y-2 block"
                 >
                   <div className="flex items-center justify-between">
-                    <Badge className={`text-[9px] font-bold font-mono border ${ins.color}`}>
-                      {ins.badge}
+                    <Badge className={`text-[9px] font-bold font-mono border ${ins.color || 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'}`}>
+                      {ins.badge || ins.type || 'Insight'}
                     </Badge>
                     <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
                   </div>
@@ -312,7 +312,7 @@ export default function MerchantDashboardPage() {
                     {ins.title}
                   </h4>
                   <p className="text-[11px] text-slate-400 leading-snug line-clamp-2">
-                    {ins.description}
+                    {ins.description || ins.insight || ''}
                   </p>
                 </Link>
               ))}

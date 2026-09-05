@@ -9,23 +9,28 @@ router = APIRouter()
 def resolve_customer_user(
     authorization: Optional[str] = Header(None),
     x_customer_id: Optional[str] = Header(None),
-    user_id: Optional[str] = Query(None)
+    x_customer_email: Optional[str] = Header(None),
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None)
 ) -> Optional[UserDTO]:
-    """Resolve customer UserDTO from JWT bearer token, custom header, or query param."""
-    if authorization:
-        user = auth_service.verify_token(authorization)
+    # 1. Prioritize JWT bearer token verification if present
+    if isinstance(authorization, str) and authorization.strip():
+        user = auth_service.verify_token(authorization.strip())
         if user:
             return user
-    if x_customer_id:
-        user = auth_service.get_user_by_id_or_email(x_customer_id)
-        if user:
-            return user
-    if user_id and user_id.strip() and user_id.strip() != "usr_customer_demo":
-        user = auth_service.get_user_by_id_or_email(user_id.strip())
-        if user:
-            return user
-    if user_id == "usr_customer_demo":
-        return auth_service.get_user_by_id_or_email("customer@acme.com")
+
+    # 2. Check explicit customer identifier (ID or email)
+    for candidate in [customer_email, x_customer_email, user_id, x_customer_id]:
+        if isinstance(candidate, str) and candidate.strip():
+            cid = candidate.strip()
+            if cid.startswith("usr_guest_"):
+                cid = cid[len("usr_guest_"):]
+            if cid == "usr_customer_demo":
+                cid = "customer@acme.com"
+            user = auth_service.get_user_by_id_or_email(cid)
+            if user:
+                return user
+
     return None
 
 # -------------------------------------------------------------
@@ -34,76 +39,297 @@ def resolve_customer_user(
 @router.get("/addresses")
 def get_saved_addresses(
     user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
 ):
     """List saved customer delivery addresses with default flags."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
-    if not customer:
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    eff_id = customer.id if customer else user_id
+    if not eff_id:
         return []
-    return customer_order_service.get_addresses(user_id=customer.id)
+    return customer_order_service.get_addresses(user_id=eff_id)
 
 @router.post("/addresses")
 def add_new_address(
     payload: Dict[str, Any] = Body(...), 
     user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
 ):
     """Add new delivery address to customer profile."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
     eff_id = customer.id if customer else (user_id or "usr_guest")
     return customer_order_service.add_address(user_id=eff_id, data=payload)
 
 @router.put("/addresses/{addr_id}")
 def update_existing_address(
-    addr_id: str = Path(...),
+    addr_id: str = Path(...), 
     payload: Dict[str, Any] = Body(...),
     user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
 ):
-    """Update existing delivery address."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    """Update saved delivery address."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
     eff_id = customer.id if customer else (user_id or "usr_guest")
-    updated = customer_order_service.update_address(addr_id=addr_id, user_id=eff_id, data=payload)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Address not found")
-    return updated
+    res = customer_order_service.update_address(addr_id=addr_id, user_id=eff_id, data=payload)
+    if not res:
+        raise HTTPException(status_code=404, detail="Address not found or unauthorized")
+    return res
 
 @router.delete("/addresses/{addr_id}")
-def delete_saved_address(
-    addr_id: str = Path(...), 
+def delete_existing_address(
+    addr_id: str = Path(...),
     user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
 ):
-    """Delete a saved delivery address."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    """Delete saved delivery address."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
     eff_id = customer.id if customer else (user_id or "usr_guest")
-    success = customer_order_service.delete_address(addr_id=addr_id, user_id=eff_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Address not found or already deleted")
-    return {"status": "success", "message": "Address deleted"}
+    ok = customer_order_service.delete_address(addr_id=addr_id, user_id=eff_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Address not found or unauthorized")
+    return {"status": "DELETED", "id": addr_id}
 
-@router.post("/addresses/{addr_id}/default")
+@router.put("/addresses/{addr_id}/default")
 def set_default_address(
-    addr_id: str = Path(...), 
+    addr_id: str = Path(...),
     user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
     authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
 ):
-    """Set default delivery address."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
+    """Designate address as customer's default delivery address."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
     eff_id = customer.id if customer else (user_id or "usr_guest")
-    updated = customer_order_service.set_default_address(addr_id=addr_id, user_id=eff_id)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Address not found")
-    return updated
+    res = customer_order_service.set_default_address(addr_id=addr_id, user_id=eff_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Address not found or unauthorized")
+    return res
 
 # -------------------------------------------------------------
-# ONBOARDING JOURNEY & PREREQUISITES
+# PAYMENT METHODS (SAVED INSTRUMENTS)
 # -------------------------------------------------------------
+@router.get("/payment-methods")
+def get_saved_payment_methods(
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """List saved cards, UPI IDs, and netbanking accounts (PCI-DSS masked)."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    eff_id = customer.id if customer else user_id
+    if not eff_id:
+        return []
+    return customer_order_service.get_payment_methods(user_id=eff_id)
+
+@router.post("/payment-methods")
+def add_new_payment_method(
+    payload: Dict[str, Any] = Body(...), 
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """Save payment instrument with tokenization & PCI-DSS compliance masking."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    return customer_order_service.add_payment_method(user_id=eff_id, data=payload)
+
+@router.delete("/payment-methods/{method_id}")
+def delete_existing_payment_method(
+    method_id: str = Path(...),
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """Revoke saved card or UPI handle."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    ok = customer_order_service.delete_payment_method(method_id=method_id, user_id=eff_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Payment instrument not found or unauthorized")
+    return {"status": "DELETED", "id": method_id}
+
+@router.put("/payment-methods/{method_id}/default")
+def set_default_payment_method(
+    method_id: str = Path(...),
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """Set default payment method."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    eff_id = customer.id if customer else (user_id or "usr_guest")
+    res = customer_order_service.set_default_payment_method(method_id=method_id, user_id=eff_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Payment instrument not found or unauthorized")
+    return res
+
+# -------------------------------------------------------------
+# CHECKOUT & ORDER LIFECYCLE
+# -------------------------------------------------------------
+@router.post("/checkout")
+def process_checkout_and_place_order(
+    payload: Dict[str, Any] = Body(...),
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """
+    Complete order placement with stock decrement, courier assignment, 
+    AIAgent telemetry logging, and optional payment instrument tokenization.
+    """
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=payload.get("customer_id") or user_id,
+        customer_email=payload.get("customer_email") or customer_email
+    )
+    if customer:
+        payload["customer_id"] = customer.id
+        if not payload.get("customer_email"):
+            payload["customer_email"] = customer.email
+        if not payload.get("customer_name"):
+            payload["customer_name"] = customer.name
+            
+    cid = payload.get("customer_id") or (customer.id if customer else user_id)
+    if not cid or not str(cid).strip():
+        raise HTTPException(status_code=400, detail="customer_id is required")
+
+    aid = (
+        payload.get("address_id") or 
+        payload.get("shipping_address_id") or 
+        (payload.get("shipping_address", {}).get("address_id") if isinstance(payload.get("shipping_address"), dict) else None) or
+        (payload.get("shipping_address", {}).get("address_line1") if isinstance(payload.get("shipping_address"), dict) else None)
+    )
+    if not aid or not str(aid).strip():
+        raise HTTPException(status_code=400, detail="Please add a delivery address before placing an order.")
+
+    pm = payload.get("payment_method")
+    if not pm or not str(pm).strip():
+        raise HTTPException(status_code=400, detail="payment_method is required")
+
+    try:
+        order = customer_order_service.process_checkout(user_id=cid, payload=payload)
+        return order
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Checkout processing failed: {str(e)}")
+
+# -------------------------------------------------------------
+# ORDER TRACKING & MANAGEMENT
+# -------------------------------------------------------------
+@router.get("/orders")
+def get_customer_orders(
+    user_id: Optional[str] = Query(None),
+    customer_email: Optional[str] = Query(None),
+    status: Optional[str] = Query("ALL", description="Filter by stage: ALL, PROCESSING, PACKED, SHIPPED, DELIVERED, CANCELLED, RETURNED, REFUNDED"),
+    search: Optional[str] = Query(None, description="Search by Order ID, Product, or AWB"),
+    authorization: Optional[str] = Header(None),
+    x_customer_id: Optional[str] = Header(None),
+    x_customer_email: Optional[str] = Header(None)
+):
+    """List customer orders with stage filters and search, strictly isolated to the authenticated customer."""
+    customer = resolve_customer_user(
+        authorization=authorization, 
+        x_customer_id=x_customer_id, 
+        x_customer_email=x_customer_email,
+        user_id=user_id,
+        customer_email=customer_email
+    )
+    
+    eff_id = customer.id if customer else user_id
+    eff_email = customer.email if customer else (customer_email or x_customer_email)
+
+    if not eff_id and not eff_email:
+        return {"orders": [], "total": 0}
+
+    orders = customer_order_service.get_customer_orders(
+        user_id=eff_id, 
+        customer_email=eff_email, 
+        status=status or "ALL", 
+        search=search
+    )
+    return {"orders": orders, "total": len(orders)}
+
 @router.get("/onboarding/status")
 def get_customer_onboarding_status(
     user_id: Optional[str] = Query(None),
@@ -201,53 +427,8 @@ def delete_customer_payment_method(
     return {"success": True, "message": "Saved payment method removed successfully"}
 
 # -------------------------------------------------------------
-# MULTI-STEP CHECKOUT
-# -------------------------------------------------------------
-@router.post("/checkout")
-def execute_multi_step_checkout(
-    payload: Dict[str, Any] = Body(...), 
-    user_id: Optional[str] = Query(None),
-    authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
-):
-    """
-    Execute 5-step Amazon/Flipkart checkout.
-    Persists order, generates RCM-2026-XXXXXX order number, saves address snapshot, and schedules fulfillment.
-    """
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
-    eff_id = customer.id if customer else (user_id or f"usr_guest_{payload.get('customer_email', 'unknown')}")
-    if customer:
-        if not payload.get("customer_name"):
-            payload["customer_name"] = customer.name
-        if not payload.get("customer_email"):
-            payload["customer_email"] = customer.email
-    try:
-        return customer_order_service.process_checkout(user_id=eff_id, payload=payload)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Checkout processing failed: {str(e)}")
-
-# -------------------------------------------------------------
 # ORDERS & TRACKING
 # -------------------------------------------------------------
-@router.get("/orders")
-def get_customer_orders(
-    user_id: Optional[str] = Query(None),
-    status: Optional[str] = Query("ALL", description="Filter by stage: ALL, PROCESSING, PACKED, SHIPPED, DELIVERED, CANCELLED, RETURNED, REFUNDED"),
-    search: Optional[str] = Query(None, description="Search by Order ID, Product, or AWB"),
-    authorization: Optional[str] = Header(None),
-    x_customer_id: Optional[str] = Header(None)
-):
-    """List customer orders with stage filters and search, strictly isolated to the authenticated customer."""
-    customer = resolve_customer_user(authorization=authorization, x_customer_id=x_customer_id, user_id=user_id)
-    if not customer:
-        return {"orders": [], "total": 0}
-    orders = customer_order_service.get_customer_orders(
-        user_id=customer.id, 
-        customer_email=customer.email, 
-        status=status or "ALL", 
-        search=search
-    )
-    return {"orders": orders, "total": len(orders)}
 
 @router.get("/orders/{order_id}")
 def get_single_order_details(

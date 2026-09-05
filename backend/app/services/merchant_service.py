@@ -135,6 +135,8 @@ class MerchantService:
                     customer_email TEXT NOT NULL,
                     customer_phone TEXT,
                     shipping_address TEXT,
+                    shipping_address_id TEXT,
+                    billing_address_id TEXT,
                     items_json TEXT NOT NULL,
                     subtotal REAL NOT NULL,
                     tax REAL NOT NULL,
@@ -190,6 +192,20 @@ class MerchantService:
                     updated_at TEXT NOT NULL
                 )
             """)
+
+            # Ensure address columns exist on merchant_orders
+            cursor.execute("PRAGMA table_info(merchant_orders)")
+            order_cols = [c["name"] for c in cursor.fetchall()]
+            if "shipping_address_id" not in order_cols:
+                try:
+                    cursor.execute("ALTER TABLE merchant_orders ADD COLUMN shipping_address_id TEXT")
+                except Exception:
+                    pass
+            if "billing_address_id" not in order_cols:
+                try:
+                    cursor.execute("ALTER TABLE merchant_orders ADD COLUMN billing_address_id TEXT")
+                except Exception:
+                    pass
 
             conn.commit()
 
@@ -455,16 +471,31 @@ class MerchantService:
                 revenue_trend = []
                 customer_growth_pct = 0.0
             else:
-                revenue_trend = [
-                    {"date": "Mon", "revenue": 145000, "orders": 14},
-                    {"date": "Tue", "revenue": 182000, "orders": 19},
-                    {"date": "Wed", "revenue": 158000, "orders": 16},
-                    {"date": "Thu", "revenue": 219000, "orders": 24},
-                    {"date": "Fri", "revenue": 285000, "orders": 31},
-                    {"date": "Sat", "revenue": 342000, "orders": 38},
-                    {"date": "Sun", "revenue": 298000, "orders": 29},
-                ]
-                customer_growth_pct = 24.8
+                now_dt = datetime.now(timezone.utc)
+                trend_map = {}
+                days_list = []
+                for d in range(6, -1, -1):
+                    day_dt = now_dt - timedelta(days=d)
+                    date_str = day_dt.strftime("%Y-%m-%d")
+                    day_name = day_dt.strftime("%a")
+                    days_list.append((date_str, day_name))
+                    trend_map[date_str] = {"date": day_name, "revenue": 0.0, "orders": 0}
+
+                trend_where = " WHERE (UPPER(payment_status) = 'PAID' OR order_status IN ('PAID', 'DELIVERED', 'COMPLETED', 'SHIPPED', 'PACKED', 'ACCEPTED'))"
+                trend_params = []
+                if merchant_id:
+                    trend_where += " AND merchant_id = ?"
+                    trend_params.append(merchant_id)
+
+                cursor.execute(f"SELECT substr(created_at, 1, 10) as o_date, COALESCE(SUM(total_amount), 0) as rev, COUNT(*) as cnt FROM merchant_orders{trend_where} GROUP BY substr(created_at, 1, 10)", trend_params)
+                for r in cursor.fetchall():
+                    od = r["o_date"]
+                    if od in trend_map:
+                        trend_map[od]["revenue"] = round(float(r["rev"]), 2)
+                        trend_map[od]["orders"] = int(r["cnt"])
+
+                revenue_trend = [trend_map[ds] for ds, _ in days_list]
+                customer_growth_pct = round(min(100.0, (total_customers / max(1, total_customers + 5)) * 100), 1) if total_customers > 0 else 0.0
 
             return {
                 "gross_revenue": revenue,
@@ -498,7 +529,12 @@ class MerchantService:
         discount: Optional[float] = None,
         payment_id: Optional[str] = None,
         payment_method: str = "upi",
-        merchant_id: str = "rzp_live_acme_8842"
+        merchant_id: str = "rzp_live_acme_8842",
+        is_ai_order: bool = False,
+        order_channel: str = "web",
+        campaign_id: Optional[str] = None,
+        shipping_address_id: Optional[str] = None,
+        billing_address_id: Optional[str] = None
     ) -> Dict[str, Any]:
         existing = self.get_order_by_id(order_id)
         if existing:
@@ -581,10 +617,23 @@ class MerchantService:
             calc_subtotal = round(sum(i["subtotal"] for i in items_clean), 2)
             final_subtotal = subtotal if subtotal is not None else calc_subtotal
             final_tax = tax if tax is not None else round(final_subtotal - (final_subtotal / 1.18), 2)
-            final_discount = discount or 0.0
-            final_total = gross_amount if gross_amount > 0 else max(0.0, round(final_subtotal - final_discount, 2))
-
-            ship_addr = shipping_address or "124 Tech Park Avenue, Electronic City, Bengaluru, Karnataka 560100, India"
+            final_discount = discount if discount is not None else 0.0
+            final_total = gross_amount if gross_amount > 0 else round(final_subtotal - final_discount, 2)
+            ship_addr = (shipping_address or "").strip()
+            if not ship_addr:
+                try:
+                    audit_service.log_audit(
+                        action="ORDER_CREATION_FAILED",
+                        entity_type="ORDER",
+                        entity_id=order_id,
+                        user_name=c_name,
+                        role="Customer",
+                        old_value=None,
+                        new_value={"reason": "Missing or invalid shipping address"}
+                    )
+                except Exception:
+                    pass
+                raise ValueError("Shipping address is required to create an order.")
             
             # Initial Chronological Timeline
             timeline = [
@@ -592,20 +641,44 @@ class MerchantService:
                 {"status": "Payment Completed", "time": now_str, "location": "Razorpay Payment Gateway", "completed": True}
             ]
 
+            # Ensure extra columns exist
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN is_ai_order INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN order_channel TEXT DEFAULT 'web'")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN campaign_id TEXT")
+            except Exception:
+                pass
+
             # 3. Database Persistence
             cursor.execute("""
                 INSERT INTO merchant_orders
-                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, shipping_address_id, billing_address_id, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, is_ai_order, order_channel, campaign_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', NULL, NULL, NULL, 'Merchant Central Warehouse', NULL, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order_id, merchant_id, order_num, cust_id, c_name, c_email, c_phone,
-                ship_addr, json.dumps(items_clean), final_subtotal, final_tax, final_discount, final_total,
+                ship_addr, shipping_address_id, billing_address_id, json.dumps(items_clean), final_subtotal, final_tax, final_discount, final_total,
                 json.dumps(timeline), payment_id or f"pay_rzp_{uuid.uuid4().hex[:10]}", payment_method,
-                now_str, now_str, now_str, now_str, now_str
+                now_str, now_str, now_str, 1 if is_ai_order else 0, order_channel, campaign_id, now_str, now_str
             ))
             conn.commit()
 
-        # 4. Audit Logging
+        # 4. Analytics Engine Real-Time Recalculation
+        try:
+            from app.services.analytics_engine import analytics_engine
+            ord_obj = self.get_order_by_id(order_id)
+            if ord_obj:
+                analytics_engine.record_order_event("ORDER_CREATED", ord_obj)
+                analytics_engine.record_order_event("ORDER_PAID", ord_obj)
+        except Exception as e:
+            print(f"Warning: Failed to record order event in analytics engine: {e}")
+
+        # 5. Audit Logging
         try:
             audit_service.log_audit(
                 action="ORDER_PLACED",
@@ -794,7 +867,7 @@ class MerchantService:
             new_value={"order_status": "ACCEPTED", "merchant_accepted_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 2. Start Picking: ACCEPTED -> PICKING
     def start_picking(self, order_id: str) -> Optional[Dict[str, Any]]:
@@ -817,7 +890,7 @@ class MerchantService:
             """, (json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 3. Mark Packed: PICKING -> PACKED
     def pack_order(self, order_id: str) -> Optional[Dict[str, Any]]:
@@ -851,7 +924,7 @@ class MerchantService:
             new_value={"order_status": "PACKED", "packed_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 4. Mark Ready for Pickup: PACKED -> READY_FOR_PICKUP
     def mark_ready_for_pickup(self, order_id: str) -> Optional[Dict[str, Any]]:
@@ -885,7 +958,7 @@ class MerchantService:
             new_value={"order_status": "READY_FOR_PICKUP", "ready_for_pickup_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # Courier Actions:
     # 1. Pickup Package & Assign Courier: READY_FOR_PICKUP -> PICKED_UP_BY_COURIER / SHIPPED
@@ -940,7 +1013,7 @@ class MerchantService:
             new_value={"delivery_partner": partner["name"], "awb_number": awb_num, "tracking_id": tracking_id, "courier_assigned_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 2. Update Shipment Location / In-Transit: PICKED_UP_BY_COURIER -> IN_TRANSIT
     def update_shipment_location(self, order_id: str, location: str) -> Optional[Dict[str, Any]]:
@@ -981,7 +1054,7 @@ class MerchantService:
             new_value={"current_location": location, "order_status": "IN_TRANSIT", "shipped_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 3. Out For Delivery: IN_TRANSIT -> OUT_FOR_DELIVERY
     def mark_out_for_delivery(self, order_id: str, agent_notes: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -1022,7 +1095,7 @@ class MerchantService:
             new_value={"order_status": "OUT_FOR_DELIVERY", "out_for_delivery_at": now_str, "location": loc}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 4. Mark Delivered: OUT_FOR_DELIVERY -> DELIVERED
     def mark_delivered(self, order_id: str) -> Optional[Dict[str, Any]]:
@@ -1063,7 +1136,7 @@ class MerchantService:
             new_value={"order_status": "DELIVERED", "delivered_at": now_str, "recipient": order.get("customer_name")}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     # 5. Return & Refund
     def mark_returned(self, order_id: str, reason: str = "Customer Return Initiated") -> Optional[Dict[str, Any]]:
@@ -1102,7 +1175,7 @@ class MerchantService:
             new_value={"order_status": "RETURNED", "reason": reason}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     def mark_refunded(self, order_id: str) -> Optional[Dict[str, Any]]:
         order = self.get_order_by_id(order_id)
@@ -1141,7 +1214,7 @@ class MerchantService:
             new_value={"payment_status": "REFUNDED", "refunded_at": now_str, "amount_refunded": order.get("total_amount")}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     def reject_order(self, order_id: str, reason: str = "Out of Stock / Policy Rejection") -> Optional[Dict[str, Any]]:
         order = self.get_order_by_id(order_id)
@@ -1175,7 +1248,18 @@ class MerchantService:
             new_value={"order_status": "REJECTED", "reason": reason, "merchant_rejected_at": now_str}
         )
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
+
+
+    def _notify_analytics(self, order: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if order and order.get("order_status"):
+            try:
+                from app.services.analytics_engine import analytics_engine
+                st = str(order.get("order_status", "")).upper()
+                analytics_engine.record_order_event(f"ORDER_{st}", order)
+            except Exception as e:
+                logger.error(f"Failed to record analytics event: {e}")
+        return order
 
     # Universal Status Update Dispatcher
     def update_order_status(self, order_id: str, new_status: str, notes: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -1222,7 +1306,7 @@ class MerchantService:
             """, (st, json.dumps(timeline), now_str, order_id, order_id))
             conn.commit()
 
-        return self.get_order_by_id(order_id)
+        return self._notify_analytics(self.get_order_by_id(order_id))
 
     def assign_courier(self, order_id: str, courier_name: str) -> Optional[Dict[str, Any]]:
         """Alias for courier_pickup to guarantee backward compatibility."""
@@ -1306,7 +1390,10 @@ class MerchantService:
         discount: float,
         payment_id: str,
         payment_method: str = "upi",
-        merchant_id: str = "rzp_live_acme_8842"
+        merchant_id: str = "rzp_live_acme_8842",
+        is_ai_order: bool = False,
+        order_channel: str = "web",
+        campaign_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         with self._get_conn() as conn:
             cursor = conn.cursor()
@@ -1332,18 +1419,43 @@ class MerchantService:
                 {"status": "DELIVERED", "label": "Delivered", "time": "Pending", "date": "-", "completed": False}
             ]
 
+            # Ensure extra columns exist
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN is_ai_order INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN order_channel TEXT DEFAULT 'web'")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE merchant_orders ADD COLUMN campaign_id TEXT")
+            except Exception:
+                pass
+
             cursor.execute("""
                 INSERT INTO merchant_orders
-                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                (id, merchant_id, order_number, customer_id, customer_name, customer_email, customer_phone, shipping_address, items_json, subtotal, tax, discount, total_amount, currency, payment_status, order_status, delivery_partner, awb_number, tracking_id, current_location, estimated_delivery, timeline_json, payment_id, payment_method, reconciled, order_placed_at, payment_initiated_at, payment_completed_at, is_ai_order, order_channel, campaign_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'PAID', 'PAYMENT_RECEIVED', ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 order_id, merchant_id, order_number, "cust_001", customer_name, customer_email, customer_phone,
                 shipping_address, json.dumps(items), subtotal, tax, discount, gross_amount,
                 carrier, awb, tracking_id, "Central Warehouse", eta,
                 json.dumps(timeline), payment_id, payment_method,
-                now_str, now_str, now_str, now_str, now_str
+                now_str, now_str, now_str, 1 if is_ai_order else 0, order_channel, campaign_id, now_str, now_str
             ))
             conn.commit()
-            return {"order_id": order_id, "order_number": order_number}
+
+        try:
+            from app.services.analytics_engine import analytics_engine
+            ord_obj = self.get_order_by_id(order_id)
+            if ord_obj:
+                analytics_engine.record_order_event("ORDER_CREATED", ord_obj)
+                analytics_engine.record_order_event("ORDER_PAID", ord_obj)
+        except Exception as e:
+            print(f"Warning: Failed to record order event in analytics engine: {e}")
+
+        return {"order_id": order_id, "order_number": order_number}
+
 
 merchant_service = MerchantService()

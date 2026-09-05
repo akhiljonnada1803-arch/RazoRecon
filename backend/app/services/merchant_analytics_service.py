@@ -105,51 +105,13 @@ class MerchantAnalyticsService:
         )
 
         if not is_demo:
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM merchant_orders WHERE merchant_id = ? ORDER BY created_at ASC", (merchant_id,))
-            orders = cursor.fetchall()
-            cursor.execute("SELECT COUNT(*) as cnt FROM merchant_customers WHERE merchant_id = ?", (merchant_id,))
-            cust_count = cursor.fetchone()["cnt"]
-            conn.close()
-
-            if not orders:
-                # Real merchant with zero orders - return completely isolated empty telemetry
-                return {
-                    "active_filter": {
-                        "merchant_id": merchant_id,
-                        "merchant_name": f"Merchant ({merchant_id})",
-                        "badge": "Active Store",
-                        "date_range": date_range,
-                        "days_count": 30,
-                        "from_date": "",
-                        "to_date": ""
-                    },
-                    "summary_kpis": {
-                        "gross_revenue": 0.0,
-                        "total_orders": 0,
-                        "average_order_value": 0.0,
-                        "agent_order_pct": 0.0,
-                        "projected_monthly_run_rate": 0.0,
-                        "total_active_customers": cust_count,
-                        "yoy_growth_pct": 0.0,
-                        "autopay_success_rate_pct": 0.0
-                    },
-                    "charts": {
-                        "revenue_trend": [],
-                        "daily_orders": [],
-                        "category_revenue": [],
-                        "top_products": [],
-                        "agent_vs_human": [
-                            {"name": "AI Agent Orders", "value": 0, "percentage": 0.0, "color": "#3B82F6"},
-                            {"name": "Human Customer Orders", "value": 0, "percentage": 0.0, "color": "#10B981"}
-                        ],
-                        "revenue_forecast": [],
-                        "clv_histogram": []
-                    },
-                    "merchants": MERCHANTS_REGISTRY
-                }
+            from app.services.analytics_engine import analytics_engine
+            return analytics_engine.get_advanced_analytics(
+                merchant_id=merchant_id,
+                date_range=date_range,
+                from_date=from_date,
+                to_date=to_date
+            )
 
         # Resolve merchant profile & scaling multiplier
         selected_mcht = next((m for m in MERCHANTS_REGISTRY if m["id"] == merchant_id), MERCHANTS_REGISTRY[0])

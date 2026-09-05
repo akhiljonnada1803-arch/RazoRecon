@@ -9,6 +9,7 @@ class CopilotMessageDTO(BaseModel):
 
 class CopilotQueryRequestDTO(BaseModel):
     messages: List[CopilotMessageDTO]
+    merchant_id: Optional[str] = None
     stream: bool = False
 
 class CopilotQueryResponseDTO(BaseModel):

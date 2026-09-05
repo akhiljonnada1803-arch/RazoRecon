@@ -692,7 +692,7 @@ export default function CustomerAutoPayPage() {
           <span>/</span>
           <Link href="/account" className="hover:text-slate-900 transition">Customer Account</Link>
           <span>/</span>
-          <span className="text-[#0B72E7] font-semibold">Razorpay AutoPay & Spending Budget</span>
+          <span className="text-[#0B72E7] font-semibold">CartMind AutoPay & Spending Budget</span>
         </div>
 
         {/* PREREQUISITE PROFILE COMPLETION SCREEN: Shown if any prerequisite is missing */}
@@ -710,10 +710,10 @@ export default function CustomerAutoPayPage() {
                     <span className="text-xs text-slate-500 font-medium">3-Point Customer Verification</span>
                   </div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-[#072654] tracking-tight">
-                    AI AutoPay Autonomous Restock & Budgeting
+                    CartMind AutoPay Autonomous Restock & Budgeting
                   </h1>
                   <p className="text-sm text-slate-600 mt-2 max-w-2xl leading-relaxed">
-                    AI AutoPay lets verified customers automate purchases and refills without manual checkout. To guarantee safety, prevent accidental charges, and confirm shipping coordinates, your account must meet 3 standard prerequisites before AutoPay can be activated.
+                    Enable secure autonomous purchasing with spending controls, merchant verification, budget limits, and one-click refunds.
                   </p>
                 </div>
 

@@ -57,7 +57,7 @@ const CUSTOMER_SECTIONS: NavSection[] = [
   {
     title: 'AI SHOPPING HUB',
     items: [
-      { href: '/customer/assistant', label: 'AI Shopping Assistant', icon: Bot, badge: 'Live AI' },
+      { href: '/customer/assistant', label: 'CartMind AI', icon: Bot, badge: 'Live AI' },
       { href: '/customer/products', label: 'Browse Products', icon: Store, badge: '50 SKUs' },
       { href: '/customer/recommendations', label: 'AI Recommendations', icon: Sparkles, badge: 'For You' },
     ],
@@ -90,7 +90,7 @@ const MERCHANT_SECTIONS: NavSection[] = [
       { href: '/reconciliation', label: 'Transaction Engine', icon: Zap, badge: 'Multi-Rail' },
       { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incident' },
       { href: '/vendor-intelligence', label: 'Merchant Intelligence', icon: Sparkles, badge: 'LTV / Churn' },
-      { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
+      { href: '/copilot', label: 'CartMind Business Copilot', icon: Bot, badge: 'Copilot' },
       { href: '/merchant/shipping', label: 'Shipping & Logistics', icon: Truck, badge: '4 Couriers' },
       { href: '/merchant/customers', label: 'Customer Insights', icon: Users, badge: 'Insights' },
     ],
@@ -129,7 +129,7 @@ const ADMIN_SECTIONS: NavSection[] = [
       { href: '/reconciliation', label: 'Transaction Engine', icon: Zap, badge: 'Multi-Rail' },
       { href: '/exceptions', label: 'Exception Center', icon: ShieldAlert, badge: 'Incidents' },
       { href: '/vendor-intelligence', label: 'Commerce Intelligence', icon: Sparkles, badge: 'LTV / Churn' },
-      { href: '/copilot', label: 'Commerce AI Copilot', icon: Bot, badge: 'Copilot' },
+      { href: '/copilot', label: 'CartMind Business Copilot', icon: Bot, badge: 'Copilot' },
       { href: '/admin/api-keys', label: 'API Key Management', icon: Key, badge: 'Auth' },
       { href: '/admin/webhooks', label: 'Webhook Management', icon: Radio, badge: 'Events' },
       { href: '/admin/ai-buyer-logs', label: 'AI Buyer Request Logs', icon: Activity, badge: 'Live Traces' },
@@ -181,9 +181,9 @@ export function AppSidebar() {
             </div>
             {!isCollapsed && (
               <div className="overflow-hidden">
-                <span className="font-bold text-sm tracking-tight text-[#072654] block truncate">Razor<span className="text-[#0B72E7]">Commerce</span></span>
+                <span className="font-bold text-sm tracking-tight text-[#072654] block truncate">Cart<span className="text-[#0B72E7]">Mind</span></span>
                 <span className="text-[10px] font-medium text-slate-500 block -mt-0.5 truncate">
-                  {isCustomer ? 'AI Store' : isPlatformAdmin ? 'Platform Admin' : 'Merchant Portal'}
+                  {isCustomer ? 'CartMind AI' : isPlatformAdmin ? 'CartMind Control Center' : 'CartMind Business'}
                 </span>
               </div>
             )}

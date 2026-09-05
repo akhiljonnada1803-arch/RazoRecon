@@ -42,8 +42,8 @@ const INITIAL_MESSAGES: ChatMessage[] = [
     id: 'msg_welcome',
     role: 'assistant',
     content: (
-      "👋 **Welcome to your AI Personal Shopping Advisor!**\n\n" +
-      "I provide tailored commercial hardware recommendations, side-by-side spec comparisons with Pros & Cons, and seamless 1-click AutoPay autonomous buying.\n\n" +
+      "👋 **Welcome to CartMind AI - Your AI Shopping Companion!**\n\n" +
+      "I provide tailored commercial hardware recommendations, side-by-side spec comparisons with Pros & Cons, and seamless 1-click CartMind AutoPay autonomous buying.\n\n" +
       "**Try asking me:**\n" +
       "• *'I need a laptop under ₹60,000'*\n" +
       "• *'Find the best POS machine'*\n" +
@@ -433,13 +433,13 @@ export default function CustomerAssistantPage() {
           <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
             <span>Customer Experience</span>
             <span>/</span>
-            <span className="text-[#0B72E7] font-semibold">AI Shopping Assistant</span>
+            <span className="text-[#0B72E7] font-semibold">CartMind AI</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[#072654] mt-0.5 flex items-center gap-2.5">
-            Conversational Commerce Agent
+            CartMind AI Shopping Assistant
             <Badge className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0 text-[11px] px-2.5 py-0.5 shadow-xs">
               <Sparkles className="h-3 w-3 mr-1" />
-              Track 01
+              AI Powered
             </Badge>
           </h1>
         </div>

@@ -5,8 +5,8 @@ import { AuthProvider } from '@/context/AuthContext';
 import { AdminAuthGuard } from '@/components/layout/AdminAuthGuard';
 
 export const metadata: Metadata = {
-  title: 'RazorAdmin - Platform Administration Console',
-  description: 'Enterprise SaaS Administration Console for RazorCommerce Platform Management',
+  title: 'CartMind Control Center - Platform Operations & Governance',
+  description: 'Enterprise SaaS Administration Console for CartMind Platform Management',
 };
 
 export default function RootLayout({

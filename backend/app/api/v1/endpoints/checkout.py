@@ -89,8 +89,30 @@ def create_checkout_order(
     Requires verified authenticated customer identity.
     Computes Subtotal (Order Amount), 18% GST Taxes, Promo Discounts, and Final Amount.
     """
+    cid = payload.customer_id or customer.id
+    if not cid or not str(cid).strip():
+        raise HTTPException(status_code=400, detail="customer_id is required")
+
+    aid = payload.address_id or payload.shipping_address_id
+    if not aid or not str(aid).strip():
+        raise HTTPException(status_code=400, detail="address_id is required")
+
+    # Verify address ownership strictly (Return 403 if address belongs to another user)
+    from app.services.customer_order_service import customer_order_service
+    addr = customer_order_service.get_address_by_id(aid)
+    if not addr:
+        raise HTTPException(status_code=400, detail="Address not found")
+    if addr.get("user_id") != cid:
+        raise HTTPException(status_code=403, detail="Address does not belong to user")
+
+    pm = payload.payment_method
+    if not pm or not str(pm).strip():
+        raise HTTPException(status_code=400, detail="payment_method is required")
+
     try:
         return checkout_service.create_checkout_order(payload, actor=customer.name)
+    except PermissionError as pe:
+        raise HTTPException(status_code=403, detail=str(pe))
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
